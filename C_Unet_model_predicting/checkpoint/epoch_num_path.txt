@@ -1,0 +1,1 @@
+{"phosphorus_C1": 133, "sugar_ring_new": 147, "nitrogenous_bases_in_sugar_new": 110, "sugar_center": 84, "RNA_backbone": 164}
