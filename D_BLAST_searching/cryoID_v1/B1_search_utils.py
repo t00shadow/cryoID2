@@ -243,11 +243,12 @@ aaMapping = {
     # glutamine/glutamic acid - glx - Z
     "Z": "Z",
     "z": "Z",
-    # Pyrrolysine pyrroline side-chain is similar to that of lysine in being basic and positively charged at neutral pH.
+    # Pyrrolysine pyrroline side-chain is similar to that of lysine
+    # in being basic and positively charged at neutral pH.
     # 'O':'M', 'o':'M'
 }
 
-# Reverse Mapping table from the blastp codes to the 6 simplified groups (X -> rare amino acids)
+# Reverse Mapping table from the blastp codes to the 6 simplified groups
 aaRevMapping = {"G": "G", "P": "P", "Z": "L", "M": "K", "Y": "Y", "W": "W", "X": "X"}
 
 
