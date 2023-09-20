@@ -1,9 +1,9 @@
-dbsize = 0
+error = 1
 
-with open("test.txt", "r") as f2:
-    for line in f2:
-        if not line.startswith(">"):
-            line = line.strip()
-            dbsize += len(line)
+dbsize = f"""\
+    Error when calling phenix.print_sequence to
+    convert pdb file to fasta file\n{error}
+    """
+
 
 print(dbsize)

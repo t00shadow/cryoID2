@@ -39,12 +39,9 @@ def DBGenerate(params,):
     if params.seqfile.endswith(".fasta"):
         dbname = os.path.join(file_dir, "database", f"{file_name[:-6]}_db")
     else:
-        logging.exception(
-            f"Seqfile {params.seqfile} is not of .fasta format! Exiting"
-        )
-        raise TypeError(
-            f"Seqfile {params.seqfile} is not of .fasta format! Exiting"
-        )
+        err_mes = f"Seqfile {params.seqfile} is not of .fasta format! Exiting."
+        logging.exception(err_mes)
+        raise TypeError(err_mes)
 
     # calculate the database size
     if os.path.exists(f"{dbname}.txt"):
@@ -53,12 +50,9 @@ def DBGenerate(params,):
             try:
                 dbsize = int(line.split("\t")[1])
             except TypeError:
-                logging.exception(
-                    f"Error when getting database size from {dbname}.txt. Check it!"
-                )
-                raise TypeError(
-                    f"Error when getting database size from {dbname}.txt. Check it!"
-                )
+                err_mes = f"Cannot get database size from {dbname}.txt. Check it!"
+                logging.exception(err_mes)
+                raise TypeError(err_mes)
     else:
         dbsize = 0
         with open(params.seqfile, "r") as f2:
@@ -97,19 +91,13 @@ def DBGenerate(params,):
             out, error = proc.communicate()
             # os.remove(mapped_seqfile)
         except OSError:
-            logging.exception(
-                "Could not find makeblastdb. Make sure you include it in PATH!"
-            )
-            raise OSError(
-                "Could not find makeblastdb. Make sure you include it in PATH!"
-            )
+            err_mes = "Cannot find makeblastdb. Make sure you include it in PATH!"
+            logging.exception(err_mes)
+            raise OSError(err_mes)
         if error:
-            logging.exception(
-                "Error when calling makeblastdb to generate local database.\n" + error
-            )
-            raise OSError(
-                "Error when calling makeblastdb to generate local database.\n" + error
-            )
+            err_mes = f"Cannot call makeblastdb to generate local database.\n{error}"
+            logging.exception(err_mes)
+            raise OSError(err_mes)
 
         # save the database size in {dbname}.txt file
         with open(f"{dbname}.txt", "w") as f1:
@@ -118,7 +106,7 @@ def DBGenerate(params,):
     return [dbsize, dbname]
 
 
-# 9/19/2023: don't use it but rewrite and keep possible for future degeneration of RNA
+# 9/19/2023: no longer use it but rewrite, keep possible for future degeneration of RNA
 # Map the natural sequences to degenerate codes for blastp searching
 def SeqMap(params,):
     """
@@ -151,10 +139,10 @@ def SeqMap(params,):
                 line = "".join(aaMapping[e] for e in line)
             except KeyError as error:
                 logging.exception(
-                    f"Error: amino acid {str(error)}: line {line} of {params.seqfile}"
+                    f"Error in amino acid {str(error)}: line {line} of {params.seqfile}"
                 )
                 raise KeyError(
-                    f"Error: amino acid {str(error)}: line {line} of {params.seqfile}"
+                    f"Error in amino acid {str(error)}: line {line} of {params.seqfile}"
                 )
             num_amino_acid += len(line)
             o1.write(f"{line}\n")
@@ -180,153 +168,64 @@ def SeqMap(params,):
     return num_amino_acid, outfile
 
 
-# ================================================================================================================================================================================================
-# Sequence grouping/mapping tools
-# Map sequences for blastp searching or group amino acids to show user the degenerate sequences
-# ================================================================================================================================================================================================
-
-
-# Amino acid degeneration mapping table.
-# Representive codes are optimised based on PAM30 scorig matrix.
-aaMapping = {
-    "G": "G",
-    "A": "G",
-    "S": "G",
-    "C": "G",
-    "V": "G",
-    "T": "G",
-    "I": "G",
-    "g": "G",
-    "a": "G",
-    "s": "G",
-    "c": "G",
-    "v": "G",
-    "t": "G",
-    "i": "G",
-    "P": "P",
-    "p": "P",
-    "L": "Z",
-    "D": "Z",
-    "N": "Z",
-    "E": "Z",
-    "Q": "Z",
-    "M": "Z",
-    "l": "Z",
-    "d": "Z",
-    "n": "Z",
-    "e": "Z",
-    "q": "Z",
-    "m": "Z",
-    "K": "M",
-    "R": "M",
-    "k": "M",
-    "r": "M",
-    # 'K':'Y', 'R':'Y',
-    # 'k':'Y', 'r':'Y',
-    "H": "Y",
-    "F": "Y",
-    "Y": "Y",
-    "h": "Y",
-    "f": "Y",
-    "y": "Y",
-    "W": "W",
-    "w": "W",
-    # All other amino acids -> X
-    "X": "X",
-    "x": "X",
-    # Selenocysteine is a cysteine analogue with a selenium-containing selenol group in place of the sulfur-containing thiol group.
-    "U": "G",
-    "u": "G",
-    # asparagine/aspartic acid - asx - B,
-    "B": "Z",
-    "b": "Z",
-    # glutamine/glutamic acid - glx - Z
-    "Z": "Z",
-    "z": "Z",
-    # Pyrrolysine pyrroline side-chain is similar to that of lysine
-    # in being basic and positively charged at neutral pH.
-    # 'O':'M', 'o':'M'
-}
-
-# Reverse Mapping table from the blastp codes to the 6 simplified groups
-aaRevMapping = {"G": "G", "P": "P", "Z": "L", "M": "K", "Y": "Y", "W": "W", "X": "X"}
-
-
-# reference query table/dictionary based on the simulation. assume 10% tolerance error.
-# if query length is shorter than specified, print warning infomation
-# query_num: cutoff_query_length. O for query_num > 6
-query_set = {1: 30, 2: 20, 3: 16, 4: 15, 5: 13, 6: 12, 0: 12}
-
-
-# ================================================================================================================================================================================================
+# 9/19/2023: no longer use it but rewrite
 # Group the amino acids and yield degenearete sequences for user inspection
-# ================================================================================================================================================================================================
-
-
-def SeqGroup(params):  # params.seqfile = queryfile (query file name)
+def SeqGroup(params,):
+    """
+    params.seqfile = queryfile (query file name),
+    """
     # logging and outfile setup
     logging.basicConfig(
         filename=params.logfile, level=logging.INFO, format="%(message)s"
     )
-    outfile = params.seqfile[:-6] + "_simplified.fasta"
 
-    # count the sequence number/length
+    # count the sequence number and length
     seq_num = 0
     seq_len = 0
-    with open(params.seqfile, "r") as f1:
-        for seq in f1:
-            if seq and seq[0][0] != ">" and seq[0][0] != "#":
-                try:
-                    seq = "".join(aaMapping[e] for e in seq[:-1])
-                    seq = "".join(aaRevMapping[e] for e in seq)
 
-                    # count the query number/length
-                    seq_num += 1
-                    seq_len += len(seq)
+    outfile = f"{params.seqfile[:-6]}_simplified.fasta"
+
+    with open(params.seqfile, "r") as f1:
+        for line in f1:
+            if line and line.startswith(">"):
+                seq_num += 1
+            elif line and not line.startswith(">") and not line.startswith("#"):
+                line = line.strip()
+                try:
+                    line = "".join(aaMapping[e] for e in line)
+                    line = "".join(aaRevMapping[e] for e in line)
+                    seq_len += len(line)
                 except KeyError as error:
                     logging.exception(
-                        "Unrecognized amino acid "
-                        + str(error)
-                        + " in line "
-                        + seq[:-1]
-                        + " of "
-                        + params.seqfile
+                        f"Error in amino acid {str(error)}: line {line} of {params.seqfile}"
                     )
                     raise KeyError(
-                        "Unrecognized amino acid "
-                        + str(error)
-                        + " in line "
-                        + seq[:-1]
-                        + " of "
-                        + params.seqfile
+                        f"Error in amino acid {str(error)}: line {line} of {params.seqfile}"
                     )
-
-                seq += "\n"
+                line += "\n"
 
             with open(outfile, "w") as o1:
-                o1.write("%s" % (seq))
-
-    # return seq_num, seq_len, outfile
+                o1.write(f"{line}")
 
 
-# ===============================================================================================
-
-
-# generate the (degenerate) query sequence files for blastp searching. One query, one file.
-# ===============================================================================================
-# params.queryfile = queryfile (query file name)
-# params.reverse = True/False (whether include the reverse sequence)
-# params.verbose = True/False (whether show verbose results)
-def QueryMap(params):
+# 9/19/2023: rewrite this function and delete pdb->fasta with phenix
+# generate (degenerated) query files for blastp/n searching. One file for one query.
+def QueryMap(params,):
+    """
+    params.queryfile = queryfile (query file name)
+    params.reverse = True/False (whether include the reverse sequence)
+    params.verbose = True/False (whether show verbose results)
+    """
     # logging setup
     logging.basicConfig(
         filename=params.logfile, level=logging.INFO, format="%(message)s"
     )
 
-    # if pdb file is provided, print the sequences from the pdb model with phenix.print_sequence. Note that mse represents X in coot.
+    # 9/19/2023: won't use phenix in the future
+    # providing pdb file, use phenix.print_sequence to print the sequence.
+    # Note that mse represents X in coot.
     if params.queryfile.endswith(".pdb"):
         print_seq = ["phenix.print_sequence", params.queryfile, "--letter_for_mse=X"]
-
         # call phenix.print_sequence as subprocess and get the output/error message
         try:
             proc = subprocess.Popen(
@@ -337,14 +236,15 @@ def QueryMap(params):
             )
             (out, error) = proc.communicate()
         except OSError:
-            logging.exception(
-                "Could not find command phenix.print_sequence. Make sure you include it in your PATH!"
-            )
-            raise OSError(
-                "Could not find command phenix.print_sequence. Make sure you include it in your PATH!"
-            )
+            err_mes = "Error: find phenix.print_sequence. Include it in your PATH!"
+            logging.exception(err_mes)
+            raise OSError(err_mes)
 
         if error:
+            err_mes = f"""\
+            Error when calling phenix.print_sequence to
+            convert pdb file to fasta file\n{error}
+            """
             logging.exception(
                 "Error when calling phenix.print_sequence to convert pdb file to fasta file\n"
                 + error
@@ -633,3 +533,89 @@ def SeqBlast(params):
     if error:
         logging.exception("Error when calling blastp to search local database.\n" + error)  # type: ignore
         raise OSError("Error when calling blastp to search local database.\n" + error)  # type: ignore
+
+
+
+
+# ================================================================================================================================================================================================
+# Sequence grouping/mapping tools
+# Map sequences for blastp searching or group amino acids to show user the degenerate sequences
+# ================================================================================================================================================================================================
+
+# Amino acid degeneration mapping table.
+# Representive codes are optimised based on PAM30 scorig matrix.
+aaMapping = {
+    "G": "G",
+    "A": "G",
+    "S": "G",
+    "C": "G",
+    "V": "G",
+    "T": "G",
+    "I": "G",
+    "g": "G",
+    "a": "G",
+    "s": "G",
+    "c": "G",
+    "v": "G",
+    "t": "G",
+    "i": "G",
+    "P": "P",
+    "p": "P",
+    "L": "Z",
+    "D": "Z",
+    "N": "Z",
+    "E": "Z",
+    "Q": "Z",
+    "M": "Z",
+    "l": "Z",
+    "d": "Z",
+    "n": "Z",
+    "e": "Z",
+    "q": "Z",
+    "m": "Z",
+    "K": "M",
+    "R": "M",
+    "k": "M",
+    "r": "M",
+    # 'K':'Y', 'R':'Y',
+    # 'k':'Y', 'r':'Y',
+    "H": "Y",
+    "F": "Y",
+    "Y": "Y",
+    "h": "Y",
+    "f": "Y",
+    "y": "Y",
+    "W": "W",
+    "w": "W",
+    # All other amino acids -> X
+    "X": "X",
+    "x": "X",
+    # Selenocysteine is a cysteine analogue with a selenium-containing selenol group in place of the sulfur-containing thiol group.
+    "U": "G",
+    "u": "G",
+    # asparagine/aspartic acid - asx - B,
+    "B": "Z",
+    "b": "Z",
+    # glutamine/glutamic acid - glx - Z
+    "Z": "Z",
+    "z": "Z",
+    # Pyrrolysine pyrroline side-chain is similar to that of lysine
+    # in being basic and positively charged at neutral pH.
+    # 'O':'M', 'o':'M'
+}
+
+# Reverse Mapping table from the blastp codes to the 6 simplified groups
+aaRevMapping = {
+    "G": "G",
+    "P": "P",
+    "Z": "L",
+    "M": "K",
+    "Y": "Y",
+    "W": "W",
+    "X": "X"
+}
+
+# reference query table/dictionary based on the simulation. assume 10% tolerance error.
+# if query length is shorter than specified, print warning infomation
+# query_num: cutoff_query_length. O for query_num > 6
+query_set = {1: 30, 2: 20, 3: 16, 4: 15, 5: 13, 6: 12, 0: 12}
