@@ -197,12 +197,10 @@ def SeqGroup(params,):
                     line = "".join(aaRevMapping[e] for e in line)
                     seq_len += len(line)
                 except KeyError as error:
-                    logging.exception(
-                        f"Error in amino acid {str(error)}: line {line} of {params.seqfile}"
-                    )
-                    raise KeyError(
-                        f"Error in amino acid {str(error)}: line {line} of {params.seqfile}"
-                    )
+                    err_mes = f"Error in amino acid {str(error)}: \
+line {line} of {params.seqfile}"
+                    logging.exception(err_mes)
+                    raise KeyError(err_mes)
                 line += "\n"
 
             with open(outfile, "w") as o1:
@@ -242,7 +240,8 @@ def QueryMap(params,):
     #         raise OSError(err_mes)
 
     #     if error:
-    #         err_mes = f"Error when calling phenix.print_sequence to convert pdb file to fasta file\n{error}"
+    #         err_mes = f"Error when calling phenix.print_sequence to convert pdb file \
+    # to fasta file\n{error}"
     #         logging.exception(err_mes)
     #         raise OSError(err_mes)
 
@@ -471,7 +470,8 @@ aaMapping = {
     # All other amino acids -> X
     "X": "X",
     "x": "X",
-    # Selenocysteine is a cysteine analogue with a selenium-containing selenol group in place of the sulfur-containing thiol group.
+    # Selenocysteine is a cysteine analogue with a selenium-containing selenol group in
+    # place of the sulfur-containing thiol group.
     "U": "G",
     "u": "G",
     # asparagine/aspartic acid - asx - B,
