@@ -62,6 +62,7 @@ def DBGenerate(params,):
                     dbsize += len(line)
 
     # build local database with (degenerated/not) sequences
+
     if not os.path.exists(f"{dbname}.pin"):
 
         # # (degenerate/not) (reverse/not) sequences - delete it
@@ -208,7 +209,7 @@ def SeqGroup(params,):
                 o1.write(f"{line}")
 
 
-# 9/19/2023: rewrite this function and delete pdb->fasta with phenix
+# 9/20/2023: rewrite this function and delete pdb->fasta with phenix
 # generate (degenerated) query files for blastp/n searching. One file for one query.
 def QueryMap(params,):
     """
@@ -221,213 +222,124 @@ def QueryMap(params,):
         filename=params.logfile, level=logging.INFO, format="%(message)s"
     )
 
-    # 9/19/2023: won't use phenix in the future
+    # 9/19/2023: won't use phenix in the future. to be continued tomorrow.
     # providing pdb file, use phenix.print_sequence to print the sequence.
     # Note that mse represents X in coot.
-    if params.queryfile.endswith(".pdb"):
-        print_seq = ["phenix.print_sequence", params.queryfile, "--letter_for_mse=X"]
-        # call phenix.print_sequence as subprocess and get the output/error message
-        try:
-            proc = subprocess.Popen(
-                print_seq,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                encoding="utf-8",
-            )
-            (out, error) = proc.communicate()
-        except OSError:
-            err_mes = "Error: find phenix.print_sequence. Include it in your PATH!"
-            logging.exception(err_mes)
-            raise OSError(err_mes)
+    # if params.queryfile.endswith(".pdb"):
+    #     print_seq = ["phenix.print_sequence", params.queryfile, "--letter_for_mse=X"]
+    #     # call phenix.print_sequence as subprocess and get the output/error message
+    #     try:
+    #         proc = subprocess.Popen(
+    #             print_seq,
+    #             stdout=subprocess.PIPE,
+    #             stderr=subprocess.PIPE,
+    #             encoding="utf-8",
+    #         )
+    #         (out, error) = proc.communicate()
+    #     except OSError:
+    #         err_mes = "Error: find phenix.print_sequence. Include it in your PATH!"
+    #         logging.exception(err_mes)
+    #         raise OSError(err_mes)
 
-        if error:
-            err_mes = f"""\
-            Error when calling phenix.print_sequence to
-            convert pdb file to fasta file\n{error}
-            """
-            logging.exception(
-                "Error when calling phenix.print_sequence to convert pdb file to fasta file\n"
-                + error
-            )
-            raise OSError(
-                "Error when calling phenix.print_sequence to convert pdb file to fasta file\n"
-                + error
-            )
+    #     if error:
+    #         err_mes = f"Error when calling phenix.print_sequence to convert pdb file to fasta file\n{error}"
+    #         logging.exception(err_mes)
+    #         raise OSError(err_mes)
 
-        # create the .fasta file
-        queryfile = params.queryfile.split(".pdb")[0] + ".fasta"
-        # f0 = open(queryfile, 'w')
-        # # print >> f0, out
-        # print(out, file=f0)
-        # f0.close()
-        # ====TypeError: unsupported operand type(s) for >>: 'builtin_function_or_method' and '_io.TextIOWrapper'. Did you mean "print(<message>, file=<output_stream>)"?
-
-        with open(queryfile, "w") as f0:
-            f0.write(out)
+    #     # create the .fasta file
+    #     queryfile = params.queryfile.split(".pdb")[0] + ".fasta"
+    #     with open(queryfile, "w") as f0:
+    #         f0.write(out)
 
     # if fasta file provided, directly use it
-    elif params.queryfile.endswith(".fasta"):
+    if params.queryfile.endswith(".fasta"):
         queryfile = params.queryfile
 
     # generate the degenerate query sequence file for the user
     if params.verbose:
         group_params = Namespace(seqfile=queryfile, logfile=params.logfile)
-        # query_num, query_len, query_grouped = SeqGroup(group_params)
         SeqGroup(group_params)
 
-    # split queries. One query, one file.
+    # initialize query number, total length of queries, residue X number
+    query_nums, query_lens, x_num = 0, 0, 0
+    # creat a list to save query length and query file names
+    query_info = []
+
+    # creat query files. One file for one query.
     with open(queryfile, "r") as f1:
-        # f1 = open(queryfile, 'r')
-
-        # count query number
-        iquery = 1
-        # count total length of queries
-        query_lens = 0
-        # count residue X number
-        x_num = 0
-
-        # lists to save query length and query file names
-        query_info = []
-
-        # loop over all queries
         f1_lines = f1.readlines()
-        line_num = 0
-        print(len(f1_lines))
-        while line_num < len(f1_lines):
-            # while True:
-            while f1_lines[line_num][0] != ">":
-                line_num += 1
-            line1 = f1_lines[line_num]
-            line_num += 1
-            line2 = f1_lines[line_num]
-            line_num += 1
-            if line_num < len(f1_lines):
-                while f1_lines[line_num][0] != ">":
-                    # line2 = line2.strip("\n")+f1_lines[line_num]
-                    line2 = line2 + f1_lines[line_num]
-                    line_num += 1
-                    if line_num == len(f1_lines):
-                        break
+        for line in f1_lines:
+            if line.startswith(">"):
+                query_nums += 1
+                query_name = f"{line[1:].strip()}_{str(query_nums)}"
+                query_split = f"{queryfile[:-6]}_{str(query_nums)}.fasta"
+                query_info.append([query_name, None, query_split, 0])
+                with open(query_split, "a") as o1:
+                    o1.write(f">{query_name}\n")
+            else:
+                with open(query_split, "a") as o1:
+                    o1.write(f"{line.strip()}")
 
-            # read two lines every time, query name and sequence (one-to-one). Notice that there may be comment line (start with '#')
-            # read description line first
-            # line1 = f1.readline()
-            # if not line1:
-            #     break
-            # if line1[0] != '>':
-            #     continue
-            # read sequence line
-            # line2 = f1.readline()
-
-            # if len(line2) < 12 or len(line2) > 40:
-            # raise ValueError('Query '+ line1[1:-1] + ' length is beyond the workable range 12~40. Exiting')
-
-            # Assign each query a number in case they share a same name. remove any separate parameters
-            query_name = line1[1:].strip("\n") + "_" + str(iquery)
-            # query_name = ''.join(line1[1:].split()) + '_' + str(iquery)
-            query_split = queryfile[:-6] + "_" + str(iquery) + ".fasta"
-
-            # write the current query to file
-            with open(query_split, "w") as o1:
-                o1.write(">" + query_name + "\n")
-                o1.write(line2)
-            # o1 = open(query_split, 'w')
-            # o1.write('>' + query_name + '\n')
-            # o1.write(line2)
-            # o1.close()
-
-            # tranform query and return length
-            map_params = Namespace(
+    # Creat 6-letter query_file and update query_len, query_file and x_num in query_info
+    for query_index in range(len(query_info)):
+        query_split = query_info[query_index][2]
+        map_params = Namespace(
                 seqfile=query_split, reverse=params.reverse, logfile=params.logfile
             )
-            query_len, query_file = SeqMap(map_params)
+        query_len, query_file = SeqMap(map_params)
+        with open(query_file, "r") as f1:
+            f1_lines = f1.readlines()
+            x_num = f1_lines[-1].count('x') + f1_lines[-1].count('X')
+        os.remove(query_split)
+        query_info[query_index][1:3] = [query_len, query_file, x_num]
 
-            # add current query length
-            query_lens += query_len
+    query_lens, x_nums = sum(query_info[:][1]), sum(query_info[:][3])
 
-            # count X number in current query sequence
-            x_num_curr = 0
-            for c in line2:
-                if c == "X" or c == "x":
-                    x_num_curr += 1
-            x_num += x_num_curr
-
-            # remove the intermediate file
-            os.remove(query_split)
-
-            # add the mapped query name, length, file name and number of X to the query_info list
-            query_info.append([query_name, query_len, query_file, x_num_curr])
-
-            iquery += 1
-
-        # get the query number
-        query_num = iquery - 1
-
-    if not query_num:
-        logging.exception("No query found. Check your input! Exiting")
-        raise OSError("No query found. Check your input! Exiting")
-    elif query_num > 10:
-        logging.warning(
-            "The number of queries are more than 10! Make sure you selected the right query file!"
-        )
-        print(
-            "Warning: The number of queries are more than 10! Make sure you selected the right query file!"
-        )
+    if not query_nums:
+        err_mes = "No query found. Check your input! Exiting"
+        logging.exception(err_mes)
+        raise OSError(err_mes)
+    elif query_nums > 10:
+        war_mes = "The number of queries are more than 10! Are you sure?"
+        logging.warning(war_mes)
+        print(f"Warning: {war_mes}")
         sys.stdout.flush()
-    elif query_num > 50:
-        logging.exception(
-            "The number of queries are more than 50! Check your input query file again! Exiting..."
-        )
-        raise OSError(
-            "The number of queries are more than 50! Check your input query file again! Exiting..."
-        )
+    elif query_nums > 50:
+        war_mes = "The number of queries are more than 50! Are you sure?"
+        logging.warning(war_mes)
+        print(f"Warning: {war_mes}")
+        sys.stdout.flush()
+        # err_mes = "The number of queries are more than 50! Check it again! Exiting..."
+        # logging.exception(err_mes)
+        # raise OSError(err_mes)
 
-    # calculate total predicted animo acids in the query (not including residue X)
-    aa_num = query_lens - x_num
-    # calculate the average query length
-    ave_aa_num = int(round(aa_num * 1.0 / query_num))
+    # calculate animo acid number except for X, the average query length and X number
+    aa_num = query_lens - x_nums
+    ave_aa_num = int(round(aa_num * 1.0 / query_nums))
+    ave_x_num = x_num * 1.0 / query_nums
 
-    # get the average X residues in the quary sequences
-    ave_x_num = x_num * 1.0 / query_num
-    # x_num_percent = x_num * 1.0 / query_lens
-
-    # print the query set info
-    # print '\n####################################################################'
+    # print the query set info and record in log file
+    query_set_info = f"""QUERY SEQUENCE SUMMARY
+    Number of query sequences used: {str(query_nums)}
+    Number of identifiable residues per query: {str(ave_aa_num)}
+    Number of unidentifiable residues per query:  {ave_x_num:.2g}"""
     print("********************************************************************")
-    print(
-        "QUERY SEQUENCE SUMMARY\n\tNumber of query sequences used:  "
-        + str(query_num)
-        + "\n\tNumber of identifiable residues per query:  "
-        + str(ave_aa_num)
-        + "\n\tNumber of unidentifiable residues per query:  "
-        + "{0:.2g}".format(ave_x_num)
-    )  # +' ({0:.1%})'.format(x_num_percent)
+    print(query_set_info)
     sys.stdout.flush()
+    logging.info(query_set_info)
 
-    # print these info to log file too
-    logging.info(
-        "QUERY SEQUENCE SUMMARY\n\tNumber of query sequences used:  "
-        + str(query_num)
-        + "\n\tNumber of identifiable residues per query:  "
-        + str(ave_aa_num)
-        + "\n\tNumber of unidentifiable residues per query:  "
-        + "{0:.2g}".format(ave_x_num)
-    )  # +' ({0:.1%})'.format(x_num_percent)
-
-    # check if the query is too short based on the simulation results (10% tolerance error)
-    if query_num > 6:
+    # check if the query is too short based on the simulation results (10% tolerance)
+    if query_nums > 6:
         cutoff = query_set[0]
     else:
-        cutoff = query_set[query_num]
+        cutoff = query_set[query_nums]
 
     if ave_aa_num < cutoff:
-        print(
-            "Warning: query length is short! You may consider extending your queries, or the final results may be not reliable!"
-        )
+        war_mes = """Warning: query length is short!
+You may consider extending your queries, or the final results may be not reliable!"""
+        print(war_mes)
         sys.stdout.flush()
-        logging.warn(
-            "Warning: query length is short! You may consider extending your queries, or the final results may be not reliable!"
-        )
+        logging.warn(war_mes)
 
     print("")
     sys.stdout.flush()
@@ -436,39 +348,13 @@ def QueryMap(params,):
     return query_info
 
 
-# ===============================================================================================
-
-# Map candidate sequences and make local blastp database by calling makeblastdb in blast package
-# ===============================================================================================
-
-# default parameters for makeblastdb
-dbtype = "prot"  # molecular type of target db, default protein
-
-
-# ======================================================================================
-
-# Blast queries against local database by calling blastp
-# ======================================================================================
-
-# default parameters for blastp. Usually it works well.
-task = "blastp-short"  # Task to execute
-# task = 'blastp'
-matrix = "PAM30"  # Scoring matrix name
-comp_based_stats = "F"  # No composition-based statistics
-outfmt = "7 qaccver saccver nident length qlen mismatch gapopen gaps qstart qend sstart send qseq sseq evalue"  # alignment view options, 7 = Tabular with comment lines
-word_size = "2"  # Word size for wordfinder algorithm
-# gapopen = '32767'			# Cost to open a gap.
-# gapextend = '32767'			# Cost to extend a gap.
-# Allowable (gapopen, gapextend) pairs in blastp: (7,2), (6,2), (5,2), (10,1), (9,1), (8,1), (15,3), (14,2), (14,1), (13,3), (32767,32767)
-
-
-# ================================================================================================================================================================================================
+# 9/20/2023: rewrite this function
 # Search the database using blastp
-# params includes blastp parameters dbsize, qsize, query, outfile, database, evalue, gapscore
-# ================================================================================================================================================================================================
-
-
 def SeqBlast(params):
+    """
+    params includes:
+        blastp parameters dbsize, qsize, query, outfile, database, evalue, gapscore
+    """
     # logging setup
     logging.basicConfig(
         filename=params.logfile, level=logging.INFO, format="%(message)s"
@@ -484,42 +370,25 @@ def SeqBlast(params):
         max_seq = 10000
 
     # check output filename
-    if params.outfile == "":
-        output = params.query[:-6] + "_blast"
-    else:
-        output = params.outfile
+    output = params.outfile or params.query[:-6] + "_blast"
 
     # run blast search according to the provided parameters
     blast_arg = [
         "blastp",
-        "-task",
-        task,
-        "-matrix",
-        matrix,
-        "-db",
-        params.database,
-        "-query",
-        params.query,
-        "-out",
-        output,
-        "-evalue",
-        str(params.evalue),
-        "-comp_based_stats",
-        comp_based_stats,
-        "-dbsize",
-        str(params.dbsize),
-        "-searchsp",
-        searchsp,
-        "-word_size",
-        word_size,
-        "-gapopen",
-        str(params.gapscore[0]),
-        "-gapextend",
-        str(params.gapscore[1]),
-        "-outfmt",
-        outfmt,
-        "-max_target_seqs",
-        str(max_seq),
+        f"-task {task}",
+        f"-matrix {matrix}",
+        f"-db {params.database}",
+        f"-query {params.query}",
+        f"-out {output}",
+        f"-evalue {params.evalue}",
+        f"-comp_based_stats {comp_based_stats}",
+        f"-dbsize {params.dbsize}",
+        f"-searchsp {searchsp}",
+        f"-word_size {word_size}",
+        f"-gapopen {params.gapscore[0]}",
+        f"-gapextend {params.gapscore[1]}",
+        f"-outfmt {outfmt}",
+        f"-max_target_seqs {max_seq}",
     ]
 
     try:
@@ -527,23 +396,35 @@ def SeqBlast(params):
         out, error = proc.communicate()
 
     except OSError:
-        logging.exception("Could not find blastp. Make sure you include it in PATH!")
-        raise OSError("Could not find blastp. Make sure you include it in PATH!")
-
+        err_mes = "Could not find blastp. Make sure you include it in PATH!"
+        logging.exception(err_mes)
+        raise OSError(err_mes)
     if error:
-        logging.exception("Error when calling blastp to search local database.\n" + error)  # type: ignore
-        raise OSError("Error when calling blastp to search local database.\n" + error)  # type: ignore
+        err_mes = f"Error when calling blastp to search local database.\n{error}"
+        logging.exception(err_mes)
+        raise OSError(err_mes)
 
 
+# makeblastdb and blast settings
+# default parameters for makeblastdb
+dbtype = "prot"  # molecular type of target db, default protein
+
+# default parameters for blastp. Usually it works well.
+task = "blastp-short"  # Task to execute
+# task = 'blastp'
+matrix = "PAM30"  # Scoring matrix name
+comp_based_stats = "F"  # No composition-based statistics
+outfmt = "7 qaccver saccver nident length qlen mismatch gapopen gaps qstart qend \
+sstart send qseq sseq evalue"  # alignment view options, 7 = Tabular with comment lines
+word_size = "2"  # Word size for wordfinder algorithm
+# gapopen = '32767'			# Cost to open a gap.
+# gapextend = '32767'			# Cost to extend a gap.
+# Allowable (gapopen, gapextend) pairs in blastp: (7,2), (6,2), (5,2), (10,1), (9,1), \
+# (8,1), (15,3), (14,2), (14,1), (13,3), (32767,32767)
 
 
-# ================================================================================================================================================================================================
-# Sequence grouping/mapping tools
-# Map sequences for blastp searching or group amino acids to show user the degenerate sequences
-# ================================================================================================================================================================================================
-
-# Amino acid degeneration mapping table.
-# Representive codes are optimised based on PAM30 scorig matrix.
+# Map sequences tables for blastp searching / user inspection
+# Amino acid degeneration mapping table - based on PAM30 scorig matrix
 aaMapping = {
     "G": "G",
     "A": "G",

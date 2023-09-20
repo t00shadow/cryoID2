@@ -550,8 +550,6 @@ def SeqGroup(params):  # params.seqfile = queryfile (query file name)
 
 
 # ===============================================================================================
-
-
 # generate the (degenerate) query sequence files for blastp searching. One query, one file.
 # ===============================================================================================
 # params.queryfile = queryfile (query file name)

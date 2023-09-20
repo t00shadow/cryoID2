@@ -1,9 +1,4 @@
-error = 1
+b = "1"
+a = b or "a"
 
-dbsize = f"""\
-    Error when calling phenix.print_sequence to
-    convert pdb file to fasta file\n{error}
-    """
-
-
-print(dbsize)
+print(a)
