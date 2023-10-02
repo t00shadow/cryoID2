@@ -19,6 +19,146 @@ from argparse import Namespace
 from collections import deque
 
 
+# 9/26/2023: check line23-60
+# RetrevingMapping module
+def RetrievSeq(params):
+    """
+    To get protein candidate sequences from MS results (.xlsx) or Genename list (.txt):
+    connect to uniprot.org and do the retrieving job automatically,
+    return the fasta files (#info)
+    modified from http://www.uniprot.org/help/api_idmapping#id_mapping_python_example
+
+    params.candidate_pool: a file containing candidate protein/rna names
+    """
+    # Retrieve/ID mapping website
+    retrieve_url = "https://www.uniprot.org/uploadlists/"
+
+    # logging setup
+    logging.basicConfig(filename=params.logfile,
+                        level=logging.INFO,
+                        format="%(message)s")
+
+    # get the filename
+    file_dir = os.path.dirname(params.candidate_pool)
+    file_name = os.path.basename(params.candidate_pool)
+    file_base, file_exten = os.path.splitext(file_name)
+    fasta_outfile = os.path.join(file_dir, f"{file_base}.fasta")
+
+    # check if outputfiles already exist
+    if os.path.exists(fasta_outfile):
+        pass
+    else:
+        print("Retreving/ID mapping from Uniprot...\n", flush=True)
+        logging.info("Retreving/ID mapping from Uniprot...\n")
+
+        proteins = []
+
+        # treat .txt/.list files
+        if file_name.endswith((".txt", ".list")):
+            with open(params.candidate_pool, "r") as f0:
+                for protein in f0:
+                    if protein != "\n" and protein[0] != "#":
+                        proteins.append(protein[:-1])
+        """
+        # treat .xlsx files
+        if file_name.endswith('.xlsx'):
+            # import openpyxl for reading and writing .xlsx file
+            from openpyxl import load_workbook # Workbook        
+
+            # load the .xlsx file and read the sheet	
+            wb = load_workbook(params.candidate_pool)	
+            sheet = wb[wb.sheetnames[0]]
+                
+            # read the header and find the column of gene name
+            header = []	
+            for col in sheet.iter_cols():
+                header.append(col[0].value)
+                
+            try:	
+                target = header.index('Protein')
+            except ValueError:
+                logging.exception('Cannot find Protein list in the sequence pool file. Exiting...')
+                raise ValueError('Cannot find Protein list in the sequence pool file. Exiting...')
+                        
+            for row in sheet.iter_rows(row_offset=1):
+                proteins.append(row[target].value)		
+                
+            proteins.pop()   
+        """
+
+        # the following code is modified from www.uniprot.org
+        """
+        info_retrieve = {
+        #'from': 'GENENAME',
+        'from': 'ACC+ID',
+         # 'from': 'ACC',
+        'to': 'ACC',
+        'format': 'tab',
+        'query': ' '.join(str(e) for e in proteins),
+        'columns': 'id%2Cgenes%2Clength'
+        }
+        """
+
+        fasta_retrieve = {
+            #'from': 'GENENAME',
+            "from": "ACC+ID",
+            # 'from': 'ACC',
+            "to": "ACC",
+            "format": "FASTA",
+            "query": " ".join(str(e) for e in proteins),
+        }
+
+        # get the mapping results. Codes modified from https://www.uniprot.org/help/api_idmapping
+        try:
+            # to get rid of urllib and “SSL: CERTIFICATE_VERIFY_FAILED” Error
+            # https://stackoverflow.com/questions/27835619/urllib-and-ssl-certificate-verify-failed-error
+            # gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
+            """
+            info_data = urllib.urlencode(info_retrieve)
+
+            info_response = urllib.request.urlopen(retrieve_url, info_data) #, context=gcontext)    #python3
+
+            # info_request = urllib2.Request(retrieve_url, info_data)                               #python2.7
+            # info_response = urllib2.urlopen(info_request) #, context=gcontext)                    #python3
+
+            info_lines = info_response.read()
+
+            if info_lines:
+                # write the database file
+                f1 = open(info_outfile, "w")
+
+                for line in info_lines.split('\n'):
+                    if line:
+                        line = line.split('\t')[0:3]
+                        f1.write(line[0] + '\t' + line[1] + '\t' + line[2] + '\n')
+                #f1.write(tab_response.read())
+                f1.close()
+            else:
+                logging.exception('')
+                raise RuntimeError
+            """
+
+            fasta_data = urllib.urlencode(fasta_retrieve)
+            fasta_response = urllib.request.urlopen(
+                retrieve_url, fasta_data)  # , context=gcontext)      #python3
+            fasta_lines = fasta_response.read()
+
+            if fasta_lines:
+                with open(fasta_outfile, "w") as f2:
+                    f2.write(fasta_lines)
+            else:
+                raise RuntimeError
+
+        except RuntimeError:
+            logging.exception(
+                "Error when retrieving/mapping the candate protein sequences!")
+            raise RuntimeError(
+                "Error when retrieving/mapping the candate protein sequences!")
+
+    # return the output filenames
+    return fasta_outfile
+
+
 # 9/19/2023:
 # generate (degenerated/not) local blastp/n database and get database size
 def DBGenerate(params,):
@@ -414,7 +554,7 @@ task = "blastp-short"  # Task to execute
 matrix = "PAM30"  # Scoring matrix name
 comp_based_stats = "F"  # No composition-based statistics
 outfmt = "7 qaccver saccver nident length qlen mismatch gapopen gaps qstart qend \
-sstart send qseq sseq evalue"  # alignment view options, 7 = Tabular with comment lines
+sstart send qseq sseq evalue"                                                                                                                                                                                                             # alignment view options, 7 = Tabular with comment lines
 word_size = "2"  # Word size for wordfinder algorithm
 # gapopen = '32767'			# Cost to open a gap.
 # gapextend = '32767'			# Cost to extend a gap.
