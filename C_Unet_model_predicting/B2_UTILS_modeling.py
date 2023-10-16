@@ -1,19 +1,19 @@
-import numpy as np 
-import pandas as pd 
-import mrcfile, gemmi
-import subprocess
 import os
-import torch
 import statistics
-from scipy.ndimage import maximum_filter
+import subprocess
 
+import gemmi
+import mrcfile
+import numpy as np
+import pandas as pd
+import torch
 from Bio.PDB import PDBIO
-from Bio.PDB.Structure import Structure
-from Bio.PDB.Model import Model
-from Bio.PDB.Chain import Chain
-from Bio.PDB.Residue import Residue
 from Bio.PDB.Atom import Atom
-
+from Bio.PDB.Chain import Chain
+from Bio.PDB.Model import Model
+from Bio.PDB.Residue import Residue
+from Bio.PDB.Structure import Structure
+from scipy.ndimage import maximum_filter
 
 
 def refine_mass_centers(confidence_map, radius=2, threshold=0.9):
@@ -104,7 +104,7 @@ def write_pdb(atom_name, element, residue_lists, atom_positions, pdb_filename):
             residue = Residue((' ', idx+1, ' '), residue_lists[idx], ' ')
         elif len(residue_lists) == 1:
             residue = Residue((' ', idx+1, ' '), residue_lists, ' ')
-        z, y, x  = atom_position
+        z, y, x = atom_position
         atom = Atom(atom_name, (x, y, z), 1.0, 0.0, ' ', atom_name, idx+1, element)
         # atom = Atom(atom_name, (z, y, x), 1.0, 0.0, ' ', atom_name, idx+1, element)
 
@@ -120,7 +120,7 @@ def write_pdb(atom_name, element, residue_lists, atom_positions, pdb_filename):
     # print("New model is writen.")
 
 
-# test 
+# test
 
 
 # map_path = "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/RawData_testing/EMD-26818_re_2.37/emd_26818.map_sugar_ring_new_1_possibility.mrc"
@@ -135,7 +135,7 @@ def write_pdb(atom_name, element, residue_lists, atom_positions, pdb_filename):
 #     base_types_indices = []
 #     for local_maxima_index in local_maxima_indices:
 #         type = []
-#         z, y, x = local_maxima_index 
+#         z, y, x = local_maxima_index
 #         dd = 1
 #         for dz in range(-dd, dd+1):
 #             for dy in range(-dd, dd+1):
@@ -156,24 +156,21 @@ def write_pdb(atom_name, element, residue_lists, atom_positions, pdb_filename):
 # write_pdb("C1'", "C", residue_lists, refined_mass_centers, pdb_filename)
 
 
-
-
-
 def track_5_3(P5, P_position, ribose_position, C1_position):
     a1, a2, a3 = -0.186, 1.623, -0.124
     b1, b2 = 0.440, 0.910
 
     P3s = [pos for pos in P_position if 4 < np.linalg.norm(pos - P5) < 9]
-    
+
     if len(P3s) == 0:
         return 9999, None, None, None
-        
+
     score_R_P3 = []
     for P3 in P3s:
         d = np.linalg.norm(P3 - P5)
         z = b1 * d + b2
-        origin = (P3 - P5) *z/d + P5
-        r = a1 * d**2 + a2 * d + a3 
+        origin = (P3 - P5) * z/d + P5
+        r = a1 * d**2 + a2 * d + a3
         axis = (P3 - P5) / np.linalg.norm(P3 - P5)
 
         Rs = [pos for pos in ribose_position if np.linalg.norm(pos - origin) < r+3]
@@ -184,17 +181,17 @@ def track_5_3(P5, P_position, ribose_position, C1_position):
             projection_z = abs(np.dot(vector, axis))
             projection_r = np.linalg.norm(np.cross(vector, axis))
 
-            score = ((projection_z - z)**2 + (projection_r - r)**2) **0.5
-            score_R.append([score , R])
+            score = ((projection_z - z)**2 + (projection_r - r)**2) ** 0.5
+            score_R.append([score, R])
 
             # if abs(projection_z - z) < 2 and abs(projection_r - r) < 2.5:
             #     score_R.append([((projection_z - z)**2 + (projection_r - r)**2) **0.5, R])
             # else:
             #     score_R.append([9999, R])
-        
+
         if len(Rs) == 0:
             score_R.append([9999, None])
-        
+
         # print(score_R)
 
         min_score_index = min(range(len(score_R)), key=lambda i: score_R[i][0])

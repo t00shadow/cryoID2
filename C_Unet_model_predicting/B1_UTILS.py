@@ -1,24 +1,22 @@
-import numpy as np 
-import pandas as pd 
-import mrcfile 
-import subprocess
-import os
-from scipy.ndimage import zoom
-import torch
-
 import argparse
+import os
+import subprocess
 
+import mrcfile
+import numpy as np
+import pandas as pd
+import torch
+from scipy.ndimage import zoom
 
 GRID_SIZE = 64
 SAMPLE_NUMBER = 1
-
 
 
 def map_normalizing(map_path):
     with mrcfile.mmap(map_path) as mrc:
         # Load map data
         map_data = np.array(mrc.data, dtype=np.float32)
-        
+
         # Resample map to 1.0A*1.0A*1.0A grid size
         zoom_factors = [mrc.voxel_size.z, mrc.voxel_size.y, mrc.voxel_size.x]
         map_data = zoom(map_data, zoom_factors)

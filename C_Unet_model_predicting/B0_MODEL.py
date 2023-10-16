@@ -1,5 +1,5 @@
-import torch 
-import torch.nn as nn 
+import torch
+import torch.nn as nn
 
 #============== U_NRT MODEL SETTING =================
 KERNEL_SIZE = 3
@@ -75,11 +75,10 @@ def test():
     model = UNET(1, 4)
     # model = DataParallel(model, device_ids=[2, 3], output_device=3)
     pred = model(x)
-    pred_data = torch.argmax(torch.softmax(pred, 1),1)   
+    pred_data = torch.argmax(torch.softmax(pred, 1), 1)
     print(pred.shape)
     print(pred_data.shape)
 
+
 if __name__ == "__main__":
     test()
-
-    
