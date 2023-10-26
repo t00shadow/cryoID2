@@ -1,11 +1,10 @@
-import numpy as np 
-
-import mrcfile 
-from scipy.ndimage import zoom
-
-import subprocess
 import os
 import shutil
+import subprocess
+
+import mrcfile
+import numpy as np
+from scipy.ndimage import zoom
 
 
 def download_map_model(emdb, pdb, resolution, directory):
@@ -15,12 +14,12 @@ def download_map_model(emdb, pdb, resolution, directory):
     emdb_fetch_link = f"https://ftp.ebi.ac.uk/pub/databases/emdb/structures/{emdb}/map/emd_{emdb_id}.map.gz"
     pdb_fetch_link = f"http://files.rcsb.org/download/{pdb}.cif"
     if os.path.exists(f"{directory1}/emd_{emdb_id}.map"):
-        pass 
+        pass
     else:
         subprocess.run(["wget", "-P", directory1, emdb_fetch_link])
         subprocess.run(["gzip", "-d", f"{directory1}/emd_{emdb_id}.map.gz"])
     if os.path.exists(f"{directory1}/{pdb}.cif"):
-        pass 
+        pass
     else:
         subprocess.run(["wget", "-P", directory1, pdb_fetch_link])
         print(f"=> {emdb} and pdb-{pdb} files are downloaded.")
@@ -31,7 +30,7 @@ def map_normalizing(map_path):
     with mrcfile.mmap(map_path) as mrc:
         # Load map data
         map_data = np.array(mrc.data, dtype=np.float32)
-        
+
         # Resample map to 1.0A*1.0A*1.0A grid size
         zoom_factors = [mrc.voxel_size.z, mrc.voxel_size.y, mrc.voxel_size.x]
         map_data = zoom(map_data, zoom_factors)
@@ -41,7 +40,7 @@ def map_normalizing(map_path):
         if data_99_9 == 0.:
             print('data_99_9 == 0!!')
             raise ValueError('99.9th percentile of map data is zero')
-        map_data /= data_99_9 
+        map_data /= data_99_9
         map_data = np.clip(map_data, 0., 1.)
 
     return map_data

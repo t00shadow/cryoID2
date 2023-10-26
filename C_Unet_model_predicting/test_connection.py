@@ -15,14 +15,14 @@ RAW_RATA = HOME_PATH + "RawData_testing/"
 # MAP_PATH = LAB_DATA + "Jensen/RECS-B/treated/post_run2ar1_1sharpen.mrc"
 # MAP_PATH = LAB_DATA + "Fumi/emd_27875/emd_27875.map"
 # MAP_PATH = LAB_DATA + "Fumi/Nsp15-RNA_complex/cryosparc_P53_cryosparc_P53_J358_010_volume_map_sharp.mrc"
-# MAP_PATH = LAB_DATA + "Fumi/Nsp15-RNA_complex-unsharpen/cryosparc_P53_cryosparc_P53_J358_010_volume_map.mrc"
+MAP_PATH = LAB_DATA + "Fumi/Nsp15-RNA_complex-unsharpen/cryosparc_P53_cryosparc_P53_J358_010_volume_map.mrc"
 # MAP_PATH = LAB_DATA + "Yao/emd_26865/emd_26865.map"
 
 # MAP_PATH = RAW_RATA + "EMD-16016_re_2.8-GOOD/emd_16016.map"
 # MAP_PATH = RAW_RATA + "EMD-14956_re_2.7-GOOD/emd_14956.map"
 # MAP_PATH = RAW_RATA + "EMD-34905_re_2.9-GOOD/emd_34905.map"
 
-MAP_PATH = HOME_PATH + "test_for_dirrerentiaiton_ssRNA/spliceosome_re2_3/ribosome/EMD-13112_re_2.4 - GOOD - ribosome/emd_13112.map"
+# MAP_PATH = HOME_PATH + "test_for_dirrerentiaiton_ssRNA/spliceosome_re2_3/ribosome/EMD-13112_re_2.4 - GOOD - ribosome/emd_13112.map"
 
 
 folder_path = os.path.dirname(MAP_PATH)

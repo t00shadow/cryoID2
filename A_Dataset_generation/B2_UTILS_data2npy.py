@@ -1,15 +1,18 @@
-import numpy as np 
-import pandas as pd 
-import mrcfile 
-import gemmi
-import os, shutil
-import matplotlib.pyplot as plt
+import os
+import shutil
 
-GENERATET_MRC_TEST = False   
+import gemmi
+import matplotlib.pyplot as plt
+import mrcfile
+import numpy as np
+
+# import pandas as pd
+
+GENERATET_MRC_TEST = False
 # If True, generate taged file of mrc format from atomic model data, for tag visualization
 
 
-key_atoms = [["CA"], ["C"], ["N"]] 
+key_atoms = [["CA"], ["C"], ["N"]]
 
 
 residues_rna = ['A', 'G', 'C', 'U',]
@@ -47,7 +50,7 @@ def atom_coord_cif(structure, RESIDUE=None, ATOM=None):
                     continue
                 for atom in residue:
                     if ATOM is not None and atom.name not in ATOM:
-                        continue 
+                        continue
                     coords.append((int(round(atom.pos.z)), int(round(atom.pos.y)), int(round(atom.pos.x))))            # coords.append(atom.pos), # coords.append([atom.pos.x, atom.pos.y, atom.pos.z])
     return coords                                                                                       # return np.array(coords)
 
@@ -90,7 +93,7 @@ def tag_npy(model_data, part_coords, tag_id, atom_grid_radius=1):
         part_coords (list of tuples): A list of tuples representing the part coordinates (z, y, x).
         tag_id (int): The tag value to apply to the tagged points.
         atom_grid_radius (int, optional): The radius of the grid to tag around the part coordinates. Defaults to 1.
-        
+
     Returns:
         ndarray: The modified model data with the tagged points.
     """
@@ -125,7 +128,7 @@ def compute_grid_params(box_min_list, box_max_list, axis_length_list, grid_size)
         n_samples_axis = (box_max - box_min) // grid_size + 1
         if not (32 * n_samples_axis <= box_mid < axis_length - 32 * n_samples_axis):
             n_samples_axis -= 1
-        start_coord = box_mid - 32 * n_samples_axis 
+        start_coord = box_mid - 32 * n_samples_axis
         start_coords.append(int(start_coord))
         n_samples.append(int(n_samples_axis))
     return start_coords, n_samples
@@ -160,7 +163,7 @@ def split_to_npy(data, sample_dir, start_coords, n_samples, npy_size, sample_num
                     np.save(os.path.join(sample_dir, part_name, f"map.{sample_num}.npy"), sample)
                 else:
                     np.save(os.path.join(sample_dir, part_name, f"model_{part_name}.{sample_num}.npy"), sample)
-                    
+
                 sample_num += 1
 
 
@@ -179,9 +182,9 @@ def test_map_model_fit(box, map_data, model_data, map_path, part_name):
     """
 
     # Create a directory to store the output image if it doesn't exist
-    path = os.path.join(os.path.split(map_path)[0], 'TEST', 'z_plane')   
+    path = os.path.join(os.path.split(map_path)[0], 'TEST', 'z_plane')
     os.makedirs(path, exist_ok=True)
-    
+
     # Determine the number of slices to plot (maximum 4)
     n = min(int(box.get_size()[2] / 20), 4)
 
@@ -202,7 +205,7 @@ def test_map_model_fit(box, map_data, model_data, map_path, part_name):
 def data_to_npy(map_path: str, model_path: str, model_parts: list, sample_dir: str, sample_num: int, npy_size: int = 64):
     """
     Read an MRC map file and a PDB model file, and create 3D numpy arraies with data from them.
-    
+
     Args:
     - map_path (str): path to the MRC map file
     - model_path (str): path to the PDB model file
@@ -230,7 +233,7 @@ def data_to_npy(map_path: str, model_path: str, model_parts: list, sample_dir: s
             print(box.minimum, box.maximum, box.get_size())
             print(mrc.header.nz, mrc.header.ny, mrc.header.nx)
             print(map_path)
-        
+
         # Compute the grid parameters for splitting the volume
         start_coords, n_samples = compute_grid_params(list(box.minimum)[::-1], list(box.maximum)[::-1], cube_size, npy_size)
 
@@ -239,16 +242,16 @@ def data_to_npy(map_path: str, model_path: str, model_parts: list, sample_dir: s
 
 
         # Sample the selected parts of the model to create the numpy array, record the number of each tag in each part
-        num_of_tag_in_each_part = {}           # Save number of each tag in each part 
+        num_of_tag_in_each_part = {}           # Save number of each tag in each part
 
         for part_name in model_parts:
 
-            part_coords = None      
+            part_coords = None
             model_data = np.zeros(cube_size, np.int8)
             num_of_tag = []
 
             print(f"Sampling part: {part_name}")
-            
+
             if part_name == "phosphorus_C1":
                 # Tag 'P', 'C1'' with 1, 2, respectively
                 part_coords = atom_coord_cif(structure, residues_rna, atom_p)
@@ -275,8 +278,8 @@ def data_to_npy(map_path: str, model_path: str, model_parts: list, sample_dir: s
                 model_data = tag_npy(model_data, part_coords, 2)
 
             elif part_name == "sugar_ring_center":
-                # Calculate then tag the mass center of sugar_ring with 1, 
-                part_coords = atoms_mass_center_cif(structure, residues_rna, atoms_sugar_ring_new) 
+                # Calculate then tag the mass center of sugar_ring with 1,
+                part_coords = atoms_mass_center_cif(structure, residues_rna, atoms_sugar_ring_new)
                 model_data = tag_npy(model_data, part_coords, 1)
 
             elif part_name == "nitrogenous_bases":
@@ -285,9 +288,8 @@ def data_to_npy(map_path: str, model_path: str, model_parts: list, sample_dir: s
                     part_coords = atom_coord_cif(structure, [residue_base], atoms_bases[base_tag])
                     model_data = tag_npy(model_data, part_coords, base_tag+1)
 
-
             elif part_name == "TEST_MAP_VS_MODEL_ALL_ATOMS":
-                # Tag all atoms with 1, 
+                # Tag all atoms with 1,
                 part_coords = atom_coord_cif(structure, None, None)
                 model_data = tag_npy(model_data, part_coords, 1)
                 test_map_model_fit(box, map_data, model_data, map_path, part_name)
@@ -295,11 +297,10 @@ def data_to_npy(map_path: str, model_path: str, model_parts: list, sample_dir: s
 
             else:
                 raise ValueError(f"Unknown model part: {part_name}")
-            
 
-            if GENERATET_MRC_TEST == True:
+            if GENERATET_MRC_TEST is True:
                 # Generate TEST.mrc for every part
-                out_map = f"{map_path.split('.mrc')[0]}_EXAMPLE_{part_name}.mrc"     
+                out_map = f"{map_path.split('.mrc')[0]}_EXAMPLE_{part_name}.mrc"
                 print("=> Writing new map")
                 shutil.copy(map_path, out_map)
                 with mrcfile.open(out_map, mode='r+') as mrc:
@@ -313,7 +314,7 @@ def data_to_npy(map_path: str, model_path: str, model_parts: list, sample_dir: s
             counts = np.bincount(model_data.flatten())
             num_of_tag_in_each_part[part_name] = counts.tolist()
 
-            # Create npy files from model_data of each part 
+            # Create npy files from model_data of each part
             # split_to_npy(model_data, sample_dir, start_coords, n_samples, npy_size, sample_num, part_name)
 
     sample_num += n_samples[0] * n_samples[1] * n_samples[2]
@@ -321,4 +322,3 @@ def data_to_npy(map_path: str, model_path: str, model_parts: list, sample_dir: s
     # print(num_of_tag_in_each_part)
 
     return sample_num, num_of_tag_in_each_part
-    

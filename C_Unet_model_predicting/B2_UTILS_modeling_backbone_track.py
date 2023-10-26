@@ -90,7 +90,7 @@ def backbone_track(P_atoms, R_atoms, residue_types, C1_atoms, backbone_probabili
 
             p_00 = next.P
 
-        if len(chain) > 3:
+        if len(chain) >= 2:
             chains.append([chain, len(chain)])
         else:
             Ps = rm_atom(Ps, p)
@@ -175,12 +175,15 @@ def examine_prob(atom_list, atom, probability):
     for pos in atom_list:
         vec = pos - atom
         probs = []
-        for i in range(10):
+        # for i in range(10):
+        for i in range(2, 9):
             pos_1 = np.round(atom + i * vec / 10).astype(int)
             z1, y1, x1 = pos_1
             probs.append(probability[z1][y1][x1])
-        if min(probs) > 0.5:
-            atom_probs.append([pos, min(probs)])
+        probs.sort()
+        # if min(probs) > 0.5:
+        if probs[0] > 0.5:
+            atom_probs.append([pos, probs[0]])
     atom_probs = sorted(atom_probs, key=lambda x: x[1], reverse=True)
 
     atoms = [x for x, _ in atom_probs]
