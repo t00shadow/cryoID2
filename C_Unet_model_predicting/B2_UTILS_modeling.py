@@ -1,12 +1,12 @@
 import os
-import statistics
+# import statistics
 import subprocess
 
-import gemmi
-import mrcfile
+# import gemmi
+# import mrcfile
 import numpy as np
-import pandas as pd
-import torch
+# import pandas as pd
+# import torch
 from Bio.PDB import PDBIO
 from Bio.PDB.Atom import Atom
 from Bio.PDB.Chain import Chain
@@ -72,7 +72,6 @@ def refine_mass_centers(confidence_map, radius=2, threshold=0.9):
             local_maxima_indices.append([z, y, x])
 
     return refined_mass_centers, local_maxima_indices
-
 
 
 def write_pdb(atom_name, element, residue_lists, atom_positions, pdb_filename):
@@ -196,7 +195,7 @@ def track_5_3(P5, P_position, ribose_position, C1_position):
 
         min_score_index = min(range(len(score_R)), key=lambda i: score_R[i][0])
         score_R_P3.append([score_R[min_score_index], P3])
-    
+
     min_score_index = np.argmin([inner_list[0][0] for inner_list in score_R_P3])
     [[score, R], P3] = score_R_P3[min_score_index]
 
@@ -214,4 +213,3 @@ def track_5_3(P5, P_position, ribose_position, C1_position):
 
 
     return score, R, P3, C1
-

@@ -20,14 +20,14 @@ RAW_RATA = HOME_PATH + "RawData_testing/"
 # MAP_PATH = LAB_DATA + "Jensen/RECS-B/treated/post_run2ar1_1sharpen.mrc"
 # MAP_PATH = LAB_DATA + "Fumi/emd_27875/emd_27875.map"
 # MAP_PATH = LAB_DATA + "Fumi/Nsp15-RNA_complex/cryosparc_P53_cryosparc_P53_J358_010_volume_map_sharp.mrc"
-# MAP_PATH = LAB_DATA + "Fumi/Nsp15-RNA_complex-unsharpen/cryosparc_P53_cryosparc_P53_J358_010_volume_map.mrc"
+MAP_PATH = LAB_DATA + "Fumi/Nsp15-RNA_complex-unsharpen/cryosparc_P53_cryosparc_P53_J358_010_volume_map.mrc"
 # MAP_PATH = LAB_DATA + "Yao/emd_26865/emd_26865.map"
 
 # MAP_PATH = RAW_RATA + "EMD-16016_re_2.8-GOOD/emd_16016.map"
 # MAP_PATH = RAW_RATA + "EMD-14956_re_2.7-GOOD/emd_14956.map"
 # MAP_PATH = RAW_RATA + "EMD-34905_re_2.9-GOOD/emd_34905.map"
 
-MAP_PATH = HOME_PATH + "test_for_dirrerentiaiton_ssRNA/spliceosome_re2_3/ribosome/EMD-13112_re_2.4 - GOOD - ribosome/emd_13112.map"
+# MAP_PATH = HOME_PATH + "test_for_dirrerentiaiton_ssRNA/spliceosome_re2_3/ribosome/EMD-13112_re_2.4 - GOOD - ribosome/emd_13112.map"
 
 
 # model parts and out chennels
@@ -43,7 +43,7 @@ MODEL_PARTS = {
 # MODEL_PARTS = ["sugar_ring_new", "nitrogenous_bases_in_sugar_new"]
 # OUT_CHANNELS = [2, 5]
 
-CHECKPOINT_PATH = "/home/qiboxu/VSCode_code/3d_u_net/3D_U_NET/C_Unet_model_predicting/checkpoint"
+CHECKPOINT_PATH = "/home/qiboxu/VSCode_code/3d_u_net/3D_U_NET_checkpoint"
 
 # Load epoch numbers and the class weights of all parts
 load_epoch_num_path = os.path.join(CHECKPOINT_PATH, "epoch_num_path.txt")
@@ -119,22 +119,25 @@ def main():
         print("\n==> Start map writing: ")
 
         for channel_num in range(1, out_channels):
-            out_map = os.path.join(
-                folder_path,
-                "possibility",
-                f"{map_name.split('.mrc')[0]}_{part_name}_{channel_num}_possibility.mrc"
-            )
+            out_map_file = f"{map_name.split('.mrc')[0]}_{part_name}_{channel_num}_possibility.mrc"
+            out_map = os.path.join(folder_path, "possibility", out_map_file)
             write_data = part_possibility[channel_num, :, :, :]
             map_writing(MAP_PATH, write_data, out_map, zoom_factors)
 
-            if part_name == "RNA_backbone" and channel_num == 1:
-                with open(os.path.join(
-                    folder_path,
-                    "temp_in_chain",
-                    "possibility_in_chain"
-                ), "wb") as file:
-                    pickle.dump(write_data, file)
-                    exit()
+            # if part_name == "RNA_backbone" and channel_num == 1:
+            out_file = f"{part_name}_{channel_num}_probability"
+            with open(os.path.join(folder_path, "temp_in_chain", out_file),
+                      "wb") as file:
+                pickle.dump(write_data, file)
+
+            # if part_name == "RNA_backbone" and channel_num == 1:
+            #     with open(os.path.join(
+            #         folder_path,
+            #         "temp_in_chain",
+            #         "possibility_in_chain"
+            #     ), "wb") as file:
+            #         pickle.dump(write_data, file)
+            #         exit()
 
             out_map = os.path.join(
                 folder_path,

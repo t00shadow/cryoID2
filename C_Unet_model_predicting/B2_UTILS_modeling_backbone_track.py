@@ -141,8 +141,6 @@ def next_monomer(p_00, Ps, Rs, res, C1s, backbone_probability):
         mono = max(mono_scores, key=lambda x: x[1])
         mono = mono[0] if mono[1] > 0. else Monomer(None, None, None, None)
 
-
-
     # elif p_01s:
     #     for p_temp in p_01s:
     #         score = evaluate(p_00, None, p_temp)
@@ -205,10 +203,6 @@ def evaluate(p0, r0, p1, SCORE_LIST=SCORE_LIST):
         s_R = 0.
 
     return s_P + s_R
-
-
-
-
 
     # max_index = max(range(len(score_P_Rs)), key=lambda i: score_P_Rs[i][0])
     # # print(score_P_Rs[max_index][0])
@@ -382,7 +376,7 @@ def track_5_3(P5, P_position, ribose_position, C1_position):
     for P3 in P3s:
         d = np.linalg.norm(P3 - P5)
         z = b1 * d + b2
-        origin = (P3 - P5) *z/d + P5
+        origin = (P3 - P5) * z/d + P5
         r = a1 * d**2 + a2 * d + a3
         axis = (P3 - P5) / np.linalg.norm(P3 - P5)
 
@@ -394,8 +388,8 @@ def track_5_3(P5, P_position, ribose_position, C1_position):
             projection_z = abs(np.dot(vector, axis))
             projection_r = np.linalg.norm(np.cross(vector, axis))
 
-            score = ((projection_z - z)**2 + (projection_r - r)**2) **0.5
-            score_R.append([score , R])
+            score = ((projection_z - z)**2 + (projection_r - r)**2) ** 0.5
+            score_R.append([score, R])
 
             # if abs(projection_z - z) < 2 and abs(projection_r - r) < 2.5:
             #     score_R.append([((projection_z - z)**2 + (projection_r - r)**2) **0.5, R])

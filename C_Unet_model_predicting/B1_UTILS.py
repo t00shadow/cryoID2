@@ -26,7 +26,7 @@ def map_normalizing(map_path):
         if data_99_9 == 0.:
             print('data_99_9 == 0!!')
             raise ValueError('99.9th percentile of map data is zero')
-        map_data /= data_99_9 
+        map_data /= data_99_9
         map_data = np.clip(map_data, 0., 1.)
 
     return map_data, zoom_factors
@@ -36,7 +36,7 @@ def map_normalizing(map_path):
 def MapReading(MapPath):
     with mrcfile.mmap(MapPath) as mrc:
 
-        # ========================== scaler map.data to (0.0, 1.0) ==========================  
+        # ========================== scaler map.data to (0.0, 1.0) ==========================
         map_data = mrc.data
         map_data = np.where(map_data > 0, map_data, 0)
         data_99 = np.percentile(map_data, 99)
@@ -50,7 +50,7 @@ def MapReading(MapPath):
         map_data = np.where(map_data > data_99, data_99, map_data)
         map_data = map_data/data_99
         map_data = map_data.astype(np.float32)
-    
+
     return map_data
 
 
@@ -79,18 +79,18 @@ def map_writing(InputMap, ModelData, OutputMap, zoom_factors, is_int=False):
     mrc.set_data(ModelData)
     # AA = mrc.header.origin
     # if True:
-        # print(mrc.header.nzstart)
+    # print(mrc.header.nzstart)
+    # incase (nz, ny, nx)_start is not (0, 0, 0)
     mrc.header.nzstart = int(mrc.header.nzstart * zoom_factors[0])
     mrc.header.nystart = int(mrc.header.nystart * zoom_factors[1])
     mrc.header.nxstart = int(mrc.header.nxstart * zoom_factors[2])
-        # print(mrc.header.nzstart)
+    # print(mrc.header.nzstart)
     mrc.header.mz = ModelData.shape[0]
     mrc.header.ispg = 401
     # mrc.print_header()
     mrc.close()
     # print("New map is writen.")
 
-    
 # def load_checkpoint(checkpoint, model):
 #     print("=> Loading checkpoint")
 #     model.load_state_dict(checkpoint["state_dict"])
@@ -100,18 +100,18 @@ def load_checkpoint(load_model_path, model, map_location):
     # print(f"=> Loading checkpoint: {os.path.basename(load_model_path)}")
     checkpoint = torch.load(load_model_path, map_location)
     model.load_state_dict(checkpoint["state_dict"])
-    # print("Checkpoint is loaded.") 
-                
-def identify_chain(model_data, tag = 11, pos_tag=[]):
+    # print("Checkpoint is loaded.")
+
+def identify_chain(model_data, tag=11, pos_tag=[]):
     VoxelThreshold = 1000.
     # print("=> Identify different chains:")
     [a, b, c] = model_data.shape
-    ModelData = np.zeros([a+2, b+2, c+2]) 
+    ModelData = np.zeros([a+2, b+2, c+2])
     ModelData[1:-1, 1:-1, 1:-1] = model_data
     shape = ModelData.shape
     # num = np.zeros(tag)
     num = np.zeros([tag, 2])
-    longest_segments = np.zeros([1,2])
+    longest_segments = np.zeros([1, 2])
     # print(shape)
     for z in range(1, ModelData.shape[0]-1):
         for y in range(1, ModelData.shape[1]-1):
@@ -145,7 +145,7 @@ def identify_chain(model_data, tag = 11, pos_tag=[]):
                     # print(f"{num[tag]} voxels.", end="\r")
 
                     tag += 1
-                    
+
 
     print(f"\rThere are {len(longest_segments[:,0])-1} long segments:")
     segments_data = np.zeros([a, b, c]).astype(np.int_)
@@ -165,12 +165,12 @@ def identify_chain(model_data, tag = 11, pos_tag=[]):
 
 
 def search_around(ModelData, idx, tag):
-    z, y, x = idx  
+    z, y, x = idx
     pos_temp = []
     for around in [(z, y, x-1), (z, y, x+1), (z, y-1, x),(z, y+1, x),(z-1, y, x),(z+1, y, x)]:
         if ModelData[around] == 1:
             ModelData[around] = tag
-            pos_temp.append(around)      
+            pos_temp.append(around)
     return pos_temp
 
 
@@ -191,7 +191,7 @@ def predict_location(map_data, model, out_channels, device):
     new_shape = new_shape_map.shape
     new_shape_map = torch.from_numpy(new_shape_map)
     new_shape_model = torch.zeros((out_channels,) + new_shape)
-     
+
     model.eval()
     # Iterate over 3D cubes of the map data
     with torch.no_grad():
@@ -200,14 +200,14 @@ def predict_location(map_data, model, out_channels, device):
         num_completed = 0
         for zz in range(new_shape[0] // cube_size):
             for yy in range(new_shape[1] // cube_size):
-                for xx in range(new_shape[2] // cube_size): 
+                for xx in range(new_shape[2] // cube_size):
                     # Extract a 3D cube from the map data
                     cube = new_shape_map[None, None, cube_size*zz:64+cube_size*zz, cube_size*yy:64+cube_size*yy, cube_size*xx:64+cube_size*xx]
-                    
+
                     # Move the cube to the specified device and perform prediction
                     cube = cube.to(device)
-                    pred_data = torch.softmax(model(cube), 1) 
-                    
+                    pred_data = torch.softmax(model(cube), 1)
+
                     # Write predicted data to new_shape_model
                     new_shape_model[:, 7+cube_size*zz:57+cube_size*zz, 7+cube_size*yy:57+cube_size*yy, 7+cube_size*xx:57+cube_size*xx] = pred_data[0, :, 7:57, 7:57, 7:57]
 
@@ -233,7 +233,7 @@ def predict_location(map_data, model, out_channels, device):
 
 # def search_around(ModelData, idx, tag):
 #     z, y, x = idx
-#     num = 0 
+#     num = 0
 #     ModelData[z, y, x] = tag
 #     num += 1
 #     print(f"num = {num}.", end="\r")
@@ -309,12 +309,12 @@ def download_map_model(emdb, pdb, resolution, directory):
     emdb_fetch_link = f"https://ftp.ebi.ac.uk/pub/databases/emdb/structures/{emdb}/map/emd_{emdb_id}.map.gz"
     pdb_fetch_link = f"http://files.rcsb.org/download/{pdb}.cif"
     if os.path.exists(f"{directory1}/emd_{emdb_id}.map"):
-        pass 
+        pass
     else:
         subprocess.run(["wget", "-P", directory1, emdb_fetch_link])
         subprocess.run(["gzip", "-d", f"{directory1}/emd_{emdb_id}.map.gz"])
     if os.path.exists(f"{directory1}/{pdb}.cif"):
-        pass 
+        pass
     else:
         subprocess.run(["wget", "-P", directory1, pdb_fetch_link])
         print(f"=> {emdb} and pdb-{pdb} files are downloaded.")

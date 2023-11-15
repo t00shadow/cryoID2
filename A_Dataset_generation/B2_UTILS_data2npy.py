@@ -211,8 +211,8 @@ def data_to_npy(map_path: str, model_path: str, model_parts: list, sample_dir: s
     - model_path (str): path to the PDB model file
     - model_parts (list): list of strings representing the parts of the model to sample (e.g., ["key_atoms", "nitrogenous_bases"])
     - sample_dir (str): path to a directory where the samples will be saved
-    - sample_num (int): 
-    - npy_size (int = 64): 
+    - sample_num (int):
+    - npy_size (int = 64):
 
     """
     with mrcfile.mmap(map_path) as mrc:

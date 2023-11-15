@@ -93,7 +93,7 @@ def generate_dataset(HOME_PATH, csv_path):
 
 
         # split data into training and testing dataset
-        import splitfolders 
+        import splitfolders
         sample_path = os.path.join(HOME_PATH, "TEST", "train_val_data")
         os.makedirs(sample_path, exist_ok=True)
         splitfolders.ratio(input=temp_sample_path, output=sample_path,
