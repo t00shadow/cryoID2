@@ -27,14 +27,14 @@ def refine_mass_centers(confidence_map, radius=2, threshold=0.9):
             An integer representing the radius of the maximum filter. Default is 2.
         threshold : float
             A float representing the threshold value. Default is 0.5.
-            
+
     Returns:
         refined_mass_centers : list of ndarray
             A list of ndarrays representing the refined mass centers.
         local_maxima_indices : ndarray
             A 3D ndarray representing the indices of the local maxima.            
     """
-        
+
     thresholded_map = confidence_map > threshold
     neighborhood = maximum_filter(confidence_map, size=radius*2+1, mode="constant")
 
@@ -43,14 +43,15 @@ def refine_mass_centers(confidence_map, radius=2, threshold=0.9):
     # local_maxima_indices_raw = np.argwhere(np.logical_and(thresholded_map, confidence_map == neighborhood))
 
     refined_mass_centers = []
-    
+
     dd = 2
 
     local_maxima_indices = []
     for position in local_maxima_indices_raw:
-        z, y, x = position 
+        z, y, x = position
         weighted_sum = np.zeros(3)
         total_weight = 0.0
+        num_volex = 0
 
         for dz in range(-dd, dd+1):
             for dy in range(-dd, dd+1):
@@ -58,16 +59,18 @@ def refine_mass_centers(confidence_map, radius=2, threshold=0.9):
                     if dz**2 + dy**2 + dx**2 <= dd:
                         indices = (z+dz, y+dy, x+dx)
                         if all(0 <= index < size for index, size in zip(indices, confidence_map.shape)):
-                           
                             weight = confidence_map[indices]
                             weighted_sum += weight * np.array(indices)
-                            total_weight += weight 
+                            total_weight += weight
+                            num_volex += 1
 
                         # weight = confidence_map[z+dz, y+dy, x+dx]
                         # weighted_sum += weight * np.array([z+dz, y+dy, x+dx])
-                        # total_weight += weight 
-                        
-        if total_weight != 0.0:
+                        # total_weight += weight
+
+
+# 11/15/2023 TO BE CHECED
+        if total_weight / num_volex > 0.5:
             refined_mass_centers.append(weighted_sum / total_weight)
             local_maxima_indices.append([z, y, x])
 
@@ -94,7 +97,7 @@ def write_pdb(atom_name, element, residue_lists, atom_positions, pdb_filename):
     if os.path.exists(pdb_filename):
         status = subprocess.call(['rm', pdb_filename])
     print(f"Writing model: {os.path.basename(pdb_filename)}")
-# Create a PDB structure
+    # Create a PDB structure
     structure = Structure("example")
     model = Model(0)
     chain = Chain("A")
@@ -204,7 +207,7 @@ def track_5_3(P5, P_position, ribose_position, C1_position):
 
     # ADD the experience formula of C1 position
     if len(C1s) == 0 :
-        C1 = None 
+        C1 = None
     elif len(C1s) == 1:
         C1 = C1s[0]
     elif len(C1s) > 1:

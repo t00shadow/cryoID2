@@ -1,7 +1,7 @@
 import os
 import pickle
 
-# import numpy as np
+import numpy as np
 import pandas as pd
 from B2_UTILS_modeling import write_pdb  # refine_mass_centers, track_5_3,
 from B2_UTILS_modeling_backbone_track import backbone_track
@@ -15,14 +15,14 @@ RAW_RATA = HOME_PATH + "RawData_testing/"
 # MAP_PATH = LAB_DATA + "Jensen/RECS-B/treated/post_run2ar1_1sharpen.mrc"
 # MAP_PATH = LAB_DATA + "Fumi/emd_27875/emd_27875.map"
 # MAP_PATH = LAB_DATA + "Fumi/Nsp15-RNA_complex/cryosparc_P53_cryosparc_P53_J358_010_volume_map_sharp.mrc"
-# MAP_PATH = LAB_DATA + "Fumi/Nsp15-RNA_complex-unsharpen/cryosparc_P53_cryosparc_P53_J358_010_volume_map.mrc"
+MAP_PATH = LAB_DATA + "Fumi/Nsp15-RNA_complex-unsharpen/cryosparc_P53_cryosparc_P53_J358_010_volume_map.mrc"
 # MAP_PATH = LAB_DATA + "Yao/emd_26865/emd_26865.map"
 
 # MAP_PATH = RAW_RATA + "EMD-16016_re_2.8-GOOD/emd_16016.map"
 # MAP_PATH = RAW_RATA + "EMD-14956_re_2.7-GOOD/emd_14956.map"
 # MAP_PATH = RAW_RATA + "EMD-34905_re_2.9-GOOD/emd_34905.map"
 
-MAP_PATH = HOME_PATH + "test_for_dirrerentiaiton_ssRNA/spliceosome_re2_3/ribosome/EMD-13112_re_2.4 - GOOD - ribosome/emd_13112.map"
+# MAP_PATH = HOME_PATH + "test_for_dirrerentiaiton_ssRNA/spliceosome_re2_3/ribosome/EMD-13112_re_2.4 - GOOD - ribosome/emd_13112.map"
 
 
 folder_path = os.path.dirname(MAP_PATH)
@@ -37,8 +37,15 @@ with open(os.path.join(temp_folder, f"P_in_chain_{chain_id}"), "rb") as file:
     refined_mass_centers_P_in_chain = pickle.load(file)
 with open(os.path.join(temp_folder, f"C1_in_chain_{chain_id}"), "rb") as file:
     refined_mass_centers_C1_in_chain = pickle.load(file)
-with open(os.path.join(temp_folder, "possibility_in_chain"), "rb") as file:
+with open(os.path.join(temp_folder, "RNA_backbone_1_probability"),
+          "rb") as file:
     backbone_probability = pickle.load(file)
+with open(os.path.join(temp_folder, "sugar_center_1_probability"),
+          "rb") as file:
+    sugar_center_probability = pickle.load(file)
+with open(os.path.join(temp_folder, "phosphorus_C1_1_probability"),
+          "rb") as file:
+    P_probability = pickle.load(file)
 
 # Read score list
 current_directory = os.path.dirname(os.path.abspath(__file__))
@@ -115,6 +122,9 @@ s_pseudoX = dict(zip(df["angle_pseudoChiSmoothed"], df["likelihood_pseudoChiSmoo
 
 # start_indexes = range(0, len(P5s), len(P5s)//20)
 
+backbone_probability = np.maximum(backbone_probability,
+                                  sugar_center_probability,
+                                  P_probability)
 
 chains = backbone_track(
     refined_mass_centers_P_in_chain,
