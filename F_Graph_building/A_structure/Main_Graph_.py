@@ -26,5 +26,3 @@ class Main_Graph():
         out_graph.Ntree = self.Ntree
         out_graph.cid = self.cid
         out_graph.adj = self.adj
-
-

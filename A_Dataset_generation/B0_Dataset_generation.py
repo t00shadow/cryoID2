@@ -11,24 +11,45 @@ from B2_UTILS_data2npy import data_to_npy
 DOWNLOAD = True
 NORMALIZATION = False
 MAP2NPY = False
-MODEL_PARTS = ["phosphorus_C1", "sugar_ring_new", "nitrogenous_bases_in_sugar_new", "RNA_backbone", "sugar_ring_center"]
+MODEL_PARTS = ["phosphorus_C1", "sugar_ring_new", "nitrogenous_bases_in_sugar_new",
+               "RNA_backbone", "sugar_ring_center"]
 # MODEL_PARTS = ["TEST_MAP_VS_MODEL_ALL_ATOMS"]
 
-MAIN_HOME_PATH = '/amber/electron/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net'
+# MAIN_HOME_PATH = '/amber/electron/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net'
+MAIN_HOME_PATH = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net'
 PATH_SETTINGS = {
-    "EXAMPLE_KEYS": ["DATA_PATH", "HOME_PATH", "CSV_PATH", ],
-    "training2": [MAIN_HOME_PATH + '/RawData',
-                  MAIN_HOME_PATH + '/training/training2',
-                  MAIN_HOME_PATH + '/training/training2/TEST_EMDB_download_resolution_1-4_link_refined_unique.csv',],
-    "training3": [MAIN_HOME_PATH + '/RawData',
-                  MAIN_HOME_PATH + '/training/training3',
-                  MAIN_HOME_PATH + '/training/training3/TEST_EMDB_download_resolution_1-4_link_refined_unique.csv',],
-    "testing1": [MAIN_HOME_PATH + '/RawData_testing',
-                 MAIN_HOME_PATH + '/to_be_tested/Internet/testing1',
-                 MAIN_HOME_PATH + '/to_be_tested/Internet/testing1/test_cvs_1-3A_20230518-refine.csv',],
-        }
+    "Filtered_Dateset": [
+        os.path.join(MAIN_HOME_PATH, 'Filtered_Dateset', 'Raw'),
+        os.path.join(MAIN_HOME_PATH, 'Filtered_Dateset', 'Training'),
+        os.path.join(MAIN_HOME_PATH, 'Filtered_Dateset',
+                     'Final_Filtered_Data.csv'),
+    ],
+    "EXAMPLE_KEYS": [
+        "DATA_PATH",
+        "HOME_PATH",
+        "CSV_PATH",
+    ],
+    "training2": [
+        MAIN_HOME_PATH + '/RawData',
+        MAIN_HOME_PATH + '/training/training2',
+        MAIN_HOME_PATH +
+        '/training/training2/TEST_EMDB_download_resolution_1-4_link_refined_unique.csv',
+    ],
+    "training3": [
+        MAIN_HOME_PATH + '/RawData',
+        MAIN_HOME_PATH + '/training/training3',
+        MAIN_HOME_PATH +
+        '/training/training3/TEST_EMDB_download_resolution_1-4_link_refined_unique.csv',
+    ],
+    "testing1": [
+        MAIN_HOME_PATH + '/RawData_testing',
+        MAIN_HOME_PATH + '/to_be_tested/Internet/testing1',
+        MAIN_HOME_PATH +
+        '/to_be_tested/Internet/testing1/test_cvs_1-3A_20230518-refine.csv',
+    ],
+}
 
-PATH_KEYS = "testing1"  # "training3" # Possible values: "training_data", "test_ribosome_cryoET", "test_ribosome_cryoEM"
+PATH_KEYS = "Filtered_Dateset"  # "training3" # Possible values: "training_data", "test_ribosome_cryoET", "test_ribosome_cryoEM"
 DATA_PATH, HOME_PATH, csv_path = PATH_SETTINGS[PATH_KEYS]
 temp_sample_path = os.path.join(HOME_PATH, "ready_to_train_and_val")
 os.makedirs(temp_sample_path, exist_ok=True)
@@ -52,12 +73,11 @@ def generate_dataset(HOME_PATH, csv_path):
     for idx, emdb_id in enumerate(emdb_ids):
         if DOWNLOAD:
             download_map_model(emdb=emdbs[idx], pdb=pdbs[idx], resolution=resolutions[idx], directory=DATA_PATH)
-            if idx == 20:   # for download limited number of testing data
-                exit()
+            # if idx == 20:   # for download limited number of testing data
+            #     exit()
         if NORMALIZATION and not os.path.exists(map_paths[idx]):
             map_data = map_normalizing(raw_map_paths[idx])
             map_output(raw_map_paths[idx], map_data, map_paths[idx], is_model = False)
-
 
     if MAP2NPY:
         # Create training and testing dataset (3d numpy arraies) from map file and model file
@@ -65,7 +85,7 @@ def generate_dataset(HOME_PATH, csv_path):
         num_of_tag_in_each_part_for_all_models = {}                 # number of tag in each part for all models
 
         for idx, emdb_id in enumerate(emdb_ids):
-        # for idx in [0,1]:
+            # for idx in [0,1]:
             print(f"Generating dataset from EMDB-{emdb_id}... ")
             sample_num, num_of_tag_in_each_part = data_to_npy(map_paths[idx], model_paths[idx], MODEL_PARTS, temp_sample_path, sample_num)
 
@@ -107,19 +127,18 @@ def generate_dataset(HOME_PATH, csv_path):
             json.dump(ratio_of_tag, file)
 
 
-
 if __name__ == "__main__":
     generate_dataset(HOME_PATH, csv_path)
 
 
 
 # OLD TRANNING DATASET：
-    # sugar_ring_new: 1:85
-    # nitrogenous_bases_in_sugar_new: 1:344:279:366:419
+# sugar_ring_new: 1:85
+# nitrogenous_bases_in_sugar_new: 1:344:279:366:419
 
-    # RNA_backbone: 1:40:51;
-    # sugar_ring_old: 1:63;
-    # nitrogenous_bases_in_sugar_old: 1:255:206:270:309
-    # nitrogenous_bases: 1:200:149:247:282
-    # phosphorus_C1: 1:315:315
-    # sugar_ring_center: 1:316
+# RNA_backbone: 1:40:51;
+# sugar_ring_old: 1:63;
+# nitrogenous_bases_in_sugar_old: 1:255:206:270:309
+# nitrogenous_bases: 1:200:149:247:282
+# phosphorus_C1: 1:315:315
+# sugar_ring_center: 1:316
