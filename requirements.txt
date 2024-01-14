@@ -1,0 +1,11 @@
+numpy
+torch==2.01
+scipy
+biopython
+shutil
+pandas
+mrcfile
+gemmi
+matplotlib
+tqdm
+pickle
