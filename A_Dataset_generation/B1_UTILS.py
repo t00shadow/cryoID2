@@ -66,12 +66,46 @@ def map_output(input_map, map_data, output_map, is_model=False):
         print("=> New map written successfully.")
 
 
+# def download_map_data_csv():
+
+#     web_api = "https://www.ebi.ac.uk/emdb/api/"
+#     search_filter = "search/" + 'rna AND sample_type:"complex" AND resolution:[1 TO 3} AND release_date:[2023-01-01T00:00:00Z TO 2023-12-31T23:59:59Z] AND xref_links:"pdb"'
+#     download_filter = "?wt=csv&download=true&fl=emdb_id,title,resolution,fitted_pdbs,map_release_date,overall_molecular_weight,xref_ALPHAFOLD"
 
 
-def download_map_data_csv():
 
-    web_api = "https://www.ebi.ac.uk/emdb/api/"
-    search_filter = "search/" + 'rna AND sample_type:"complex" AND resolution:[1 TO 3} AND release_date:[2023-01-01T00:00:00Z TO 2023-12-31T23:59:59Z] AND xref_links:"pdb"'
-    download_filter = "?wt=csv&download=true&fl=emdb_id,title,resolution,fitted_pdbs,map_release_date,overall_molecular_weight,xref_ALPHAFOLD"
+def search_emdb(query, file_names, fl='emdb_id,title,resolution,fitted_pdbs,xref_UNIPROTKB,xref_ALPHAFOLD'):
+
+    # Inputs:
+    # query: a string list of search queries
+    # Example: ['structure_determination_method:"singleParticle"', 'Human Albumin']
+    # The query can also be composed by multiple search terms concatened by AND or OR terms
+    # Example: ['sample_type:"virus" and resolution [* TO 3]']
+
+    # file_names: a string list of desired file names
+    # Example: 'Ribosome'
+
+    # fl: list of fields to be shown in the csv file; each item is separated by ','
+    # Example: 'emdb_id,resolution,fitted_pdbs'
+    # Default: 'emdb_id,title,resolution,fitted_pdbs,xref_UNIPROTKB,xref_ALPHAFOLD'
+
+    # Output(s):
+    # csv file(s) with the user provided file names
+
+
+    import requests
+    url = 'https://www.ebi.ac.uk/emdb/api/search/'
+    payload = {'fl': fl}
+
+    if len(query) == len(file_names):
+        for i in range(len(query)):
+            r = requests.get(url + query[i], params=payload, headers={'accept': 'text/csv'})
+            df = str(r.text)
+
+            file_name = file_names[i] + '.csv'
+            with open(file_name, 'w') as out:
+                out.write(df)
+    else:
+        print('The length of query and file_names must match!')
 
     pass

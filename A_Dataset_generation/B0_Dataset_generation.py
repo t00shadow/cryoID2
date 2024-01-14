@@ -11,9 +11,10 @@ from B2_UTILS_data2npy import data_to_npy
 DOWNLOAD = True
 NORMALIZATION = False
 MAP2NPY = False
-MODEL_PARTS = ["phosphorus_C1", "sugar_ring_new", "nitrogenous_bases_in_sugar_new",
-               "RNA_backbone", "sugar_ring_center"]
+# MODEL_PARTS = ["phosphorus_C1", "sugar_ring_new", "nitrogenous_bases_in_sugar_new",
+#                "RNA_backbone", "sugar_ring_center"]
 # MODEL_PARTS = ["TEST_MAP_VS_MODEL_ALL_ATOMS"]
+MODEL_PARTS = ["unit_1", "unit_2"]
 
 # MAIN_HOME_PATH = '/amber/electron/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net'
 MAIN_HOME_PATH = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net'
