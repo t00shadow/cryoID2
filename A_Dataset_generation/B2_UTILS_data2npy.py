@@ -14,7 +14,7 @@ GENERATET_MRC_TEST = False
 
 atoms_sugar_ring_new = ["C4'", "O4'", "C3'", "C2'", "C1'"]
 # sugar_ring_old = ["C4'", "O4'", "C3'", "O3'", "C2'", "O2'", "C1'"]
-key_atoms = [["CA"], ["C"], ["N"], ['P'], atoms_sugar_ring_new]
+key_atoms = [["CA"], ['P'], atoms_sugar_ring_new]
 
 
 residues_rna = ['A', 'G', 'C', 'U',]
