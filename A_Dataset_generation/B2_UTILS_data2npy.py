@@ -63,7 +63,7 @@ def data_to_npy(map_path: str,
                 model_path: str,
                 model_parts: list,
                 sample_dir: str,
-                sample_num: int,
+                sample_num: int = 0,
                 npy_size: int = 64):
     """
     Read an MRC map file and a PDB model file, and create 3D numpy arraies with data from them.
@@ -87,8 +87,8 @@ def data_to_npy(map_path: str,
         # head_nz, head_ny, head_nx = mrc.header.nz, mrc.header.ny, mrc.header.nx
 
         # Ensure the MRC file has a cube shape
-        if not (mrc.header.nz == mrc.header.ny == mrc.header.nx):
-            raise ValueError("MRC file is not cubic.")
+        # if not (mrc.header.nz == mrc.header.ny == mrc.header.nx):
+        #     raise ValueError("MRC file is not cubic.")
         map_size = [int(mrc.header.nz), int(mrc.header.ny), int(mrc.header.nx)]
 
     # Read the PDB model file
@@ -161,7 +161,18 @@ def data_to_npy(map_path: str,
             raise ValueError(f"Unknown model part: {part_name}")
 
         if GENERATET_MRC_TEST is True:
-            # Generate TEST.mrc for every part
+            # Generate TEST.mrc for one part
+            out_map = f"{map_path.split('.mrc')[0]}_EXAMPLE_{part_name}.mrc"
+            print("=> Writing new map")
+            shutil.copy(map_path, out_map)
+            with mrcfile.open(out_map, mode='r+') as mrc:
+                TEST_data = model_data
+                mrc.set_data(TEST_data)
+                # mrc.header.mz = model_data.shape[0]
+            print("New map is writen.")
+            continue
+
+            # Generate TEST.mrc for every value in one part
             for tag in range(1, CLASSES + 1):
                 out_map = f"{map_path.split('.mrc')[0]}_EXAMPLE_{part_name}_{tag}.mrc"
                 print("=> Writing new map")
@@ -173,26 +184,24 @@ def data_to_npy(map_path: str,
                     # mrc.header.mz = model_data.shape[0]
                 print("New map is writen.")
                 continue
+            exit
 
-        # Calculate numbers of tag in each part
-        counts = np.bincount(model_data.flatten())
-        num_of_tag_in_each_part[part_name] = counts.tolist()
+    # Create npy files from model_data of each part and map_data
+    # Calcutate num of different tags
+    data.append(map_data)
+    part_names.append('map_sample')
+    num_tags, sample_num = split_to_npy(data, sample_dir, start_coords, n_samples, npy_size, sample_num, part_names)
 
+    for idx in range(len(part_names)-1):
+        part_name = part_names[idx]
+        num_of_tag_in_each_part[part_name] = num_tags[idx]
 
-
-        # Create npy files from model_data of each part and map_data
-        data.append(map_data)
-        part_names.append('map_sample')
-        split_to_npy(data, sample_dir, start_coords, n_samples, npy_size, sample_num, part_names)
-
-    sample_num += n_samples[0] * n_samples[1] * n_samples[2]
-    # print(sample_num)
     # print(num_of_tag_in_each_part)
 
     return sample_num, num_of_tag_in_each_part
 
 
-def compute_grid_params(box_min_list, box_max_list, axis_length_list, grid_size):
+def compute_grid_params(box_min_list, box_max_list, axis_length_list, grid_size):#
     """
     Computes the starting coordinate and number of grid samples along three axis for a given box.
 
@@ -211,7 +220,10 @@ def compute_grid_params(box_min_list, box_max_list, axis_length_list, grid_size)
     for box_min, box_max, axis_length in zip(box_min_list, box_max_list,
                                              axis_length_list):
         box_mid = (box_min + box_max) // 2
+
+        # num of samples along one axis
         n_samples_axis = (box_max - box_min) // grid_size + 1
+
         if not (32 * n_samples_axis <= box_mid <
                 axis_length - 32 * n_samples_axis):
             n_samples_axis -= 1
@@ -233,41 +245,67 @@ def split_to_npy(data,
     Extracts sub-volumes of size npy_size from the input data array, starting from the given start coordinates and generates npy files for each sub-volume.
 
     Parameters:
-        data (list of ndarray): Input data arrays
+        data (list of ndarray): Input data arrays [tag_data1, tag_data2, ..., map_data]
         sample_dir (str): Directory to save the npy files
         start_coords (tuple): Tuple of start coordinates (z,y,x)
         n_samples (tuple): Tuple of number of samples to extract (z,y,x)
         npy_size (int): Size of the sub-volume to extract
         extract_stride (int): Stride length of the stepping sample
         sample_num (int): Number to use as suffix in the npy file names
-        part_names (list of str): Names of the subdirectory to save the npy files
+        part_names (str): Name of the subdirectory to save the npy files
 
     Returns:
         None
     """
+    num_tags = [0, 0, 0]
     sample_start_z, sample_start_y, sample_start_x = start_coords
     for i in range(3):
         n_samples[i] = int(n_samples[i] * npy_size / extract_stride) - 1
-    os.makedirs(os.path.join(sample_dir, part_name), exist_ok=True)
-    for i_z in range(n_samples[0]):
-        idx_z = sample_start_z + extract_stride * i_z
-        for i_y in range(n_samples[1]):
-            idx_y = sample_start_y + extract_stride * i_y
-            for i_x in range(n_samples[2]):
-                idx_x = sample_start_x + extract_stride * i_x
-                sample = data[idx_z:idx_z + npy_size, idx_y:idx_y + npy_size,
-                              idx_x:idx_x + npy_size]
-                if part_name == 'map_sample':
-                    np.save(
-                        os.path.join(sample_dir, part_name,
-                                     f"map.{sample_num}.npy"), sample)
-                else:
-                    np.save(
-                        os.path.join(sample_dir, part_name,
-                                     f"model_{part_name}.{sample_num}.npy"),
-                        sample)
+    for part_name in part_names:
+        os.makedirs(os.path.join(sample_dir, part_name), exist_ok=True)
+    for n_z in range(n_samples[0]):
+        idx_z = sample_start_z + extract_stride * n_z
+        for n_y in range(n_samples[1]):
+            idx_y = sample_start_y + extract_stride * n_y
+            for n_x in range(n_samples[2]):
+                idx_x = sample_start_x + extract_stride * n_x
+                samples = []
+                counts = []
+                ratio_tags = []
+                for idx in range(0, len(data) - 1):
+                    sample = data[idx][idx_z:idx_z + npy_size,
+                                       idx_y:idx_y + npy_size,
+                                       idx_x:idx_x + npy_size]
+                    samples.append(sample)
+                    count = np.bincount(sample.flatten())
+                    counts.append(count)
+                    ratio_tag = 1 - count[0] / count.sum()
+                    ratio_tags.append(ratio_tag)
+                # print(ratio_tags)
+                if max(ratio_tags) < 0.01:
+                    continue
+                # Save seperated files for model tags
+                for idx in range(0, len(data) - 1):
+                    file_name = os.path.join(
+                        sample_dir, part_names[idx],
+                        f"model_{part_names[idx]}.{sample_num}.npy")
+                    np.save(file_name, sample)
+                    count = counts[idx]
+                    count = np.pad(count, (0, max(0, 27 - len(count))),
+                                   'constant')
+                    num_tags[idx] += count
+
+                # Save seperated files for map data
+                sample = data[len(data) - 1][idx_z:idx_z + npy_size,
+                                             idx_y:idx_y + npy_size,
+                                             idx_x:idx_x + npy_size]
+                file_name = os.path.join(sample_dir, part_names[len(data) - 1],
+                                         f"map.{sample_num}.npy")
+                np.save(file_name, sample)
 
                 sample_num += 1
+
+    return num_tags, sample_num
 
 
 def atom_coord_cif(structure, RESIDUE=None, ATOM=None):
@@ -429,69 +467,13 @@ def atom_coord_cif_protein_secondary(structure,
     return [coords_helices, coords_sheets, coords_loops]
 
 
+if __name__ == "__main__":
+    map_path = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Raw/EMD-11893_re_3.33/emd_11893_normalized.mrc'
+    model_path = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Raw/EMD-11893_re_3.33/7ase.cif'
+    model_parts = ['secondary_strctures', 'key_atoms', 'residue_types']
+    sample_dir = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/ready_to_train_and_val'
+    npy_size = 64
 
-# def atoms_mass_center_cif(structure, RESIDUE=None, ATOM=None,):
-#     """
-#     Returns the center-of-mass coordinates for specific residues and atoms in a PDB structure.
-
-#     Args:
-#         structure (Structure): PDB structure.
-#         RESIDUE (list, optional): List of residue names to select. Defaults to None (all residues).
-#         ATOM (list, optional): List of atom names to select. Defaults to None (all atoms).
-
-#     Returns:
-#         list: List of center-of-mass coordinates as tuples (z, y, x).
-#     """
-#     coords = []
-#     for model in structure:
-#         for chain in model:
-#             for residue in chain:
-#                 if RESIDUE is not None and residue.name not in RESIDUE:
-#                     continue
-#                 res_coords = []
-#                 for atom in residue:
-#                     if ATOM is not None and atom.name not in ATOM:
-#                         continue
-#                     res_coords.append([atom.pos.z, atom.pos.y, atom.pos.x])
-#                 if res_coords:
-#                     com = np.mean(res_coords, axis=0)
-#                     coords.append((int(round(com[0])), int(round(com[1])), int(round(com[2]))))
-#     return coords
-
-
-# def test_map_model_fit(box, map_data, model_data, map_path, part_name):
-#     """
-#     Plots and saves a comparison of a map and model, sliced along the z-axis.
-
-#     Args:
-#         box (Box): a bounding box object defining the region of interest
-#         map_data (ndarray): a 3D numpy array containing map data
-#         model_data (ndarray): a 3D numpy array containing model data
-#         map_path (str): the path to the original map file
-
-#     Returns:
-#         None
-#     """
-
-#     # Create a directory to store the output image if it doesn't exist
-#     path = os.path.join(os.path.split(map_path)[0], 'TEST', 'z_plane')
-#     os.makedirs(path, exist_ok=True)
-
-#     # Determine the number of slices to plot (maximum 4)
-#     n = min(int(box.get_size()[2] / 20), 4)
-
-#     # Create a new figure and plot each slice
-#     fig, axs = plt.subplots(n, 2, figsize=(8, 3 * n))
-#     for i in range(n):
-#         n_slice = int(box.minimum[2]) + 20 * i
-#         axs[i, 0].imshow(map_data[n_slice, :, :], cmap='gray', origin='lower')
-#         axs[i, 0].set_title(f'Map slice {i}')
-#         axs[i, 1].imshow(model_data[n_slice, :, :],
-#                          cmap='gray',
-#                          origin='lower')
-#         axs[i, 1].set_title(f'Model slice {i}')
-
-#     # Save the figure to a file
-#     fig.savefig(
-#         os.path.join(path,
-#                      f"{os.path.basename(map_path)}_zplane_{part_name}.png"))
+    sample_num, num_of_tag_in_each_part = data_to_npy(map_path, model_path, model_parts, sample_dir)
+    print(sample_num)
+    print(num_of_tag_in_each_part)
