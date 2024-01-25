@@ -1,9 +1,9 @@
-import math
+# import math
 import os
 import shutil
 
 import gemmi
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import mrcfile
 import numpy as np
 
@@ -161,16 +161,16 @@ def data_to_npy(map_path: str,
             raise ValueError(f"Unknown model part: {part_name}")
 
         if GENERATET_MRC_TEST is True:
-            # Generate TEST.mrc for one part
-            out_map = f"{map_path.split('.mrc')[0]}_EXAMPLE_{part_name}.mrc"
-            print("=> Writing new map")
-            shutil.copy(map_path, out_map)
-            with mrcfile.open(out_map, mode='r+') as mrc:
-                TEST_data = model_data
-                mrc.set_data(TEST_data)
-                # mrc.header.mz = model_data.shape[0]
-            print("New map is writen.")
-            continue
+            # # Generate TEST.mrc for one part
+            # out_map = f"{map_path.split('.mrc')[0]}_EXAMPLE_{part_name}.mrc"
+            # print("=> Writing new map")
+            # shutil.copy(map_path, out_map)
+            # with mrcfile.open(out_map, mode='r+') as mrc:
+            #     TEST_data = model_data
+            #     mrc.set_data(TEST_data)
+            #     # mrc.header.mz = model_data.shape[0]
+            # print("New map is writen.")
+            # continue
 
             # Generate TEST.mrc for every value in one part
             for tag in range(1, CLASSES + 1):

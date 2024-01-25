@@ -1,6 +1,7 @@
-import os 
-import numpy as np 
-from torch.utils.data import Dataset 
+import os
+
+import numpy as np
+from torch.utils.data import Dataset
 
 
 class MapModelDataset(Dataset):
@@ -21,7 +22,7 @@ class MapModelDataset(Dataset):
         model = np.load(model_path)
         # model = np.expand_dims(np.load(model_path), axis=0)         # add feature dimension 
         # print(model.shape)
-        return map, model   
+        return map, model
 
 
 

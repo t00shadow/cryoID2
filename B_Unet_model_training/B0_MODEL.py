@@ -1,7 +1,7 @@
-import torch 
-import torch.nn as nn 
+import torch
+import torch.nn as nn
 
-#============== U_NRT MODEL SETTING =================
+# ============== U_NRT MODEL SETTING =================
 KERNEL_SIZE = 3
 PADDING = int((KERNEL_SIZE-1)/2)
 FEATURES = [64, 128, 256, 512]
@@ -32,7 +32,7 @@ class UNET(nn.Module):
 
         for feature in features:
             self.downs.append(DoubleConv(in_channels, feature))
-            in_channels = feature 
+            in_channels = feature
 
         self.bottleneck = DoubleConv(features[-1], features[-1]*2)
 
@@ -62,12 +62,13 @@ class UNET(nn.Module):
 
 
 def test():
-    x = torch.randn((5, 1, 64, 64, 64))
+    x = torch.randn((5, 2, 64, 64, 64))   # (batch, feature, size(z,y,x))
     print(x.shape)
-    model = UNET(1, 4)
+    model = UNET(2, 4)
     pred = model(x)
     print(pred.shape)
     print(x.shape)
+
 
 if __name__ == "__main__":
     test()

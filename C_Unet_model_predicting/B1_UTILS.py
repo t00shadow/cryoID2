@@ -91,16 +91,19 @@ def map_writing(InputMap, ModelData, OutputMap, zoom_factors, is_int=False):
     mrc.close()
     # print("New map is writen.")
 
+
 # def load_checkpoint(checkpoint, model):
 #     print("=> Loading checkpoint")
 #     model.load_state_dict(checkpoint["state_dict"])
 #     print("Checkpoint is loaded.")
+
 
 def load_checkpoint(load_model_path, model, map_location):
     # print(f"=> Loading checkpoint: {os.path.basename(load_model_path)}")
     checkpoint = torch.load(load_model_path, map_location)
     model.load_state_dict(checkpoint["state_dict"])
     # print("Checkpoint is loaded.")
+
 
 def identify_chain(model_data, tag=11, pos_tag=[]):
     VoxelThreshold = 1000.
