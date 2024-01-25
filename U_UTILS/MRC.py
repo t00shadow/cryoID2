@@ -6,12 +6,13 @@ import math
 
 import mrcfile
 import numpy as np
-from ops.acc_mean_shift import carry_shift, carry_shift_limit
+
+# from ops.acc_mean_shift import carry_shift, carry_shift_limit
 
 
 class MRC(object):
 
-    def __init__(self, file_name, gaussian_bandwidth, contour=0):
+    def __init__(self, file_name, gaussian_bandwidth=3.0, contour=0):
         """
         :param file_name: #File name of the mrc file
         :param params: parameter config
