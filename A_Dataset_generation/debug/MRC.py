@@ -172,6 +172,7 @@ class MRC(object):
     def swap_back_coordinates(self, data, ordermode):
         # swap coordinates to make that of the density data [z, y, x]
         if ordermode == 1:
+            map_data = data
             print('ordermode 1 no operation')
         elif ordermode == 2:
             map_data = data.swapaxes(1, 2)
