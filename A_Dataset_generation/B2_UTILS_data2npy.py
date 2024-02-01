@@ -7,6 +7,8 @@ import gemmi
 import mrcfile
 import numpy as np
 
+from U_UTILS.MRC import MRC
+
 # import pandas as pd
 
 # Generate taged files (num = CLASSES) of mrc format from atomic model data
@@ -32,7 +34,9 @@ atoms_rna_backbone = [
 # Atoms in side chian groups
 # RNA bases
 atoms_base_A = ['N9', 'C8', 'N7', 'C5', 'C6', 'N6', 'N1', 'C2', 'N3', 'C4']
-atoms_base_G = ['N9', 'C8', 'N7', 'C5', 'C6', 'O6', 'N1', 'C2', 'N2', 'N3', 'C4']
+atoms_base_G = [
+    'N9', 'C8', 'N7', 'C5', 'C6', 'O6', 'N1', 'C2', 'N2', 'N3', 'C4'
+]
 atoms_base_C = ['N1', 'C2', 'O2', 'N3', 'C4', 'N4', 'C5', 'C6']
 atoms_base_U = ['N1', 'C2', 'O2', 'N3', 'C4', 'O4', 'C5', 'C6']
 
@@ -54,7 +58,9 @@ atoms_phenylalanine_PHE = ['CB', 'CG', 'CD1', 'CD2', 'CE1', 'CE2', 'CZ']
 atoms_proline_PRO = ['CB', 'CG', 'CD']
 atoms_serine_SER = ['CB', 'OG']
 atoms_threonine_THR = ['CB', 'OG1', 'CG2']
-atoms_tryptophan_TRP = ['CB', 'CG', 'CD1', 'CD2', 'NE1', 'CE2', 'CE3', 'CZ2', 'CZ3', 'CH2']
+atoms_tryptophan_TRP = [
+    'CB', 'CG', 'CD1', 'CD2', 'NE1', 'CE2', 'CE3', 'CZ2', 'CZ3', 'CH2'
+]
 atoms_tyrosine_TYR = ['CB', 'CG', 'CD1', 'CD2', 'CE1', 'CE2', 'CZ']
 atoms_valine_VAL = ['CB', 'CG1', 'CG2']
 
@@ -81,24 +87,21 @@ def data_to_npy(map_path: str,
     data = []
     part_names = []
 
-    # Read the MRC map file
-    with mrcfile.mmap(map_path) as mrc:
-        map_data = mrc.data
-        # head_nz, head_ny, head_nx = mrc.header.nz, mrc.header.ny, mrc.header.nx
-
-        # Ensure the MRC file has a cube shape
-        # if not (mrc.header.nz == mrc.header.ny == mrc.header.nx):
-        #     raise ValueError("MRC file is not cubic.")
-        map_size = [int(mrc.header.nz), int(mrc.header.ny), int(mrc.header.nx)]
+    # Read the MRC map file and change the coordinates order to [z, y, x]
+    mrc = MRC(map_path)
+    map_data = mrc.swap_back_coordinates(mrc.dens, mrc.ordermode)
+    map_size = [int(mrc.nz), int(mrc.ny), int(mrc.nx)]
 
     # Read the PDB model file
     structure = gemmi.read_structure(model_path)
 
     # Ensure the size of the model is not larger than the map
     box = structure.calculate_box()
-    box_min = list(box.minimum)[::-1]  # box coord is [x, y, z] so change the order
+    # box coord is [x, y, z] so change the order to [z, y, x]
+    box_min = list(box.minimum)[::-1]
     box_max = list(box.maximum)[::-1]
-    if box_max[2] > map_size[2] or box_max[1] > map_size[2] or box_max[0] > map_size[0]:
+    if box_max[2] > map_size[2] or box_max[1] > map_size[2] or box_max[
+            0] > map_size[0]:
         raise ValueError("The model box size exceeds that of the map.")
 
     # Compute the grid parameters for splitting the volume
@@ -121,25 +124,34 @@ def data_to_npy(map_path: str,
             # for helices, sheets and loops
             helices, sheets = protein_2nd_structure_lists(structure)
             protein_2nd_structure_coords = atom_coord_cif_protein_secondary(
-                structure, helices, sheets, residues_protein, atoms_protein_backbone)
-            for tag in range(1, len(protein_2nd_structure_coords)+1):
+                structure, helices, sheets, residues_protein,
+                atoms_protein_backbone)
+            for tag in range(1, len(protein_2nd_structure_coords) + 1):
                 part_coords = protein_2nd_structure_coords[tag - 1]
-                model_data, dis_array = tag_npy(model_data, part_coords, tag, dis_array)
+                model_data, dis_array = tag_npy(model_data, part_coords, tag,
+                                                dis_array)
 
             # for rna
-            part_coords = atom_coord_cif(structure, residues_rna, atoms_rna_backbone)
-            model_data, dis_array = tag_npy(model_data, part_coords, 4, dis_array)
+            part_coords = atom_coord_cif(structure, residues_rna,
+                                         atoms_rna_backbone)
+            model_data, dis_array = tag_npy(model_data, part_coords, 4,
+                                            dis_array)
             data.append(model_data)
             part_names.append(part_name)
 
         # Tag CA, P, sugar atoms with 1, 2, 3 repectively
         elif part_name == "key_atoms":
-            for tag in range(1, len(key_atoms)+1):
-                if key_atoms[tag - 1] in [["CA"],]:
-                    part_coords = atom_coord_cif(structure, residues_protein, key_atoms[tag - 1])
+            for tag in range(1, len(key_atoms) + 1):
+                if key_atoms[tag - 1] in [
+                    ["CA"],
+                ]:
+                    part_coords = atom_coord_cif(structure, residues_protein,
+                                                 key_atoms[tag - 1])
                 else:
-                    part_coords = atom_coord_cif(structure, residues_rna, key_atoms[tag - 1])
-                model_data, dis_array = tag_npy(model_data, part_coords, tag, dis_array)
+                    part_coords = atom_coord_cif(structure, residues_rna,
+                                                 key_atoms[tag - 1])
+                model_data, dis_array = tag_npy(model_data, part_coords, tag,
+                                                dis_array)
             data.append(model_data)
             part_names.append(part_name)
 
@@ -147,13 +159,19 @@ def data_to_npy(map_path: str,
         elif part_name == "residue_types":
             # Tag CA atoms with 1, 2, 3, ..., 20 for 20 types of amino acids repectively
             for tag in range(1, len(residues_protein) + 1):
-                part_coords = atom_coord_cif(structure, [residues_protein[tag-1]], ['CA'])
-                model_data, dis_array = tag_npy(model_data, part_coords, tag, dis_array)
+                part_coords = atom_coord_cif(structure,
+                                             [residues_protein[tag - 1]],
+                                             ['CA'])
+                model_data, dis_array = tag_npy(model_data, part_coords, tag,
+                                                dis_array)
             # Tag sugar_ring atoms with 21, ..., 24 for 4 types of rna bases repectively
             for base_tag in range(1, len(residues_rna) + 1):
                 tag = base_tag + len(residues_protein)
-                part_coords = atom_coord_cif(structure, [residues_rna[base_tag - 1]], atoms_sugar_ring_new)
-                model_data, dis_array = tag_npy(model_data, part_coords, tag, dis_array)
+                part_coords = atom_coord_cif(structure,
+                                             [residues_rna[base_tag - 1]],
+                                             atoms_sugar_ring_new)
+                model_data, dis_array = tag_npy(model_data, part_coords, tag,
+                                                dis_array)
             data.append(model_data)
             part_names.append(part_name)
 
@@ -190,9 +208,11 @@ def data_to_npy(map_path: str,
     # Calcutate num of different tags
     data.append(map_data)
     part_names.append('map_sample')
-    num_tags, sample_num = split_to_npy(data, sample_dir, start_coords, n_samples, npy_size, sample_num, part_names)
+    num_tags, sample_num = split_to_npy(data, sample_dir, start_coords,
+                                        n_samples, npy_size, sample_num,
+                                        part_names)
 
-    for idx in range(len(part_names)-1):
+    for idx in range(len(part_names) - 1):
         part_name = part_names[idx]
         num_of_tag_in_each_part[part_name] = num_tags[idx]
 
@@ -201,7 +221,8 @@ def data_to_npy(map_path: str,
     return sample_num, num_of_tag_in_each_part
 
 
-def compute_grid_params(box_min_list, box_max_list, axis_length_list, grid_size):#
+def compute_grid_params(box_min_list, box_max_list, axis_length_list,
+                        grid_size):  #
     """
     Computes the starting coordinate and number of grid samples along three axis for a given box.
 
@@ -474,6 +495,7 @@ if __name__ == "__main__":
     sample_dir = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/ready_to_train_and_val'
     npy_size = 64
 
-    sample_num, num_of_tag_in_each_part = data_to_npy(map_path, model_path, model_parts, sample_dir)
+    sample_num, num_of_tag_in_each_part = data_to_npy(map_path, model_path,
+                                                      model_parts, sample_dir)
     print(sample_num)
     print(num_of_tag_in_each_part)

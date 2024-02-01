@@ -1,0 +1,20 @@
+{
+    "python.analysis.typeCheckingMode": "off",
+    "editor.codeActionsOnSave": {
+        "source.organizeImports": "explicit"
+    },
+    "editor.formatOnSave": false,
+    "python.analysis.autoImportCompletions": false,
+    "editor.rulers": [
+        88,
+    ],
+    "workbench.colorCustomizations": {
+        "editorRuler.foreground": "#a380ce"
+    },
+    "mySalary.dailyWages": 240,
+    "mySalary.decimal": 2,
+    "mySalary.workingHours.to": "17:00",
+    "mySalary.updateInterval": 1000,
+    "mySalary.unit": "",
+    "mySalary.prefix": "$ "
+}

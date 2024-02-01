@@ -1,7 +1,6 @@
 # original posted by kiharalab on https://github.com/kiharalab/CryoREAD/tree/main
 # modified by Qibo Xu
 
-
 import math
 
 import mrcfile
@@ -27,8 +26,8 @@ class MRC(object):
             self.filename = file_name
         with mrcfile.open(self.file_name, permissive=True) as mrc:
             # Record header information from mrc file
-            # number of columns/rows/sections in 3 dimensions
-            self.nx, self.ny, self.nz = mrc.header.nx, mrc.header.ny, mrc.header.nz
+            # number of sections/rows/columns in 3 dimensions
+            self.nz, self.ny, self.nx = mrc.header.nz, mrc.header.ny, mrc.header.nx
             # the recording mode in the mrc file
             self.mode = mrc.header.mode
             """
@@ -41,24 +40,24 @@ class MRC(object):
                                 4 transform : complex 32-bit reals
                                 6 16-bit unsigned integer
             """
-            # location of first column/row/section in unit cell
-            self.nxstart = mrc.header.nxstart
-            self.nystart = mrc.header.nystart
+            # location of first section/row/column in unit cell
             self.nzstart = mrc.header.nzstart
-            # sampling along X,Y,Z axis of unit cell
-            self.mx, self.my, self.mz = mrc.header.mx, mrc.header.my, mrc.header.mz
+            self.nystart = mrc.header.nystart
+            self.nxstart = mrc.header.nxstart
+            # sampling along Z,Y,X axis of unit cell
+            self.mz, self.my, self.mx = mrc.header.mz, mrc.header.my, mrc.header.mx
             # cell dimensions in angstroms
-            self.xlen = mrc.header.cella.x
-            self.ylen = mrc.header.cella.y
             self.zlen = mrc.header.cella.z
+            self.ylen = mrc.header.cella.y
+            self.xlen = mrc.header.cella.x
             # cell angles in degrees
             self.alpha = mrc.header.cellb.alpha
             self.beta = mrc.header.cellb.beta
             self.gamma = mrc.header.cellb.gamma
-            # axis corresponds to column/row/section, 1 represents X axis,2 is Y, 3 is Z
-            self.mapc = mrc.header.mapc
-            self.mapr = mrc.header.mapr
+            # axis corresponds to section/row/column, 1 represents X axis,2 is Y, 3 is Z
             self.maps = mrc.header.maps
+            self.mapr = mrc.header.mapr
+            self.mapc = mrc.header.mapc
             # minimum/maximum/density density value
             self.dmin = mrc.header.dmin
             self.dmax = mrc.header.dmax
@@ -78,9 +77,9 @@ class MRC(object):
             whether it contains symmetry records (as in the original format definition)
             or any other kind of additional metadata."""
             # ORIGIN
-            self.originx = mrc.header.origin.x
-            self.originy = mrc.header.origin.y
             self.originz = mrc.header.origin.z
+            self.originy = mrc.header.origin.y
+            self.originx = mrc.header.origin.x
             """
             Generally (not transforms), ORIGIN specifies the real space location of
                 a subvolume taken from a larger volume. In the (2-dimensional) example
@@ -98,11 +97,11 @@ class MRC(object):
             self.dens = np.array(mrc.data)
             # self.dens.flags.writeable=True
             self.shape = self.dens.shape
-            self.NumVoxels = self.nx * self.ny * self.nz
+            self.NumVoxels = self.nz * self.ny * self.nx
             # length of each sampling on different axis
-            self.widthx = self.xlen / self.mx
-            self.widthy = self.ylen / self.my
             self.widthz = self.zlen / self.mz
+            self.widthy = self.ylen / self.my
+            self.widthx = self.xlen / self.mx
             # axis order of the density data saved in mrc file
             self.ordermode = 0
             if self.mapc == 1 and self.mapr == 2 and self.maps == 3:
@@ -170,28 +169,33 @@ class MRC(object):
               (self.widthx, self.widthy, self.widthz))
         print("order mode:%d" % (self.ordermode))
 
-    def swap_back_coordinates(self, coordinates, mode):
-        if mode == 1:
-            coordinates[:, [2, 0]] = coordinates[:, [0, 2]]
-
-        elif mode == 2:
-            coordinates[:, [2, 0]] = coordinates[:, [0, 2]]
-            coordinates[:, [1, 0]] = coordinates[:, [0, 1]]
-        elif mode == 3:
-            coordinates[:, [1, 2]] = coordinates[:, [2, 1]]
-            coordinates[:, [0, 1]] = coordinates[:, [1, 0]]
-
-        elif mode == 4:
-            coordinates[:, [1, 0]] = coordinates[:, [0, 1]]
-
-        elif mode == 5:
-            coordinates[:, [1, 2]] = coordinates[:, [2, 1]]
-        elif mode == 6:
-            print('order mode 0 no operation')
+    def swap_back_coordinates(self, data, ordermode):
+        # swap coordinates to make that of the density data [z, y, x]
+        if ordermode == 1:
+            print('ordermode 1 no operation')
+        elif ordermode == 2:
+            map_data = data.swapaxes(1, 2)
+            # data[:, [1, 2]] = data[:, [2, 1]]
+        elif ordermode == 3:
+            map_data = data.swapaxes(0, 1)
+            # data[:, [0, 1]] = data[:, [1, 0]]
+        elif ordermode == 4:
+            map_data = data.swapaxes(1, 2)
+            map_data = data.swapaxes(0, 1)
+            # data[:, [1, 2]] = data[:, [2, 1]]
+            # data[:, [0, 1]] = data[:, [1, 0]]
+        elif ordermode == 5:
+            map_data = data.swapaxes(0, 1)
+            map_data = data.swapaxes(1, 2)
+            # data[:, [0, 1]] = data[:, [1, 0]]
+            # data[:, [1, 2]] = data[:, [2, 1]]
+        elif ordermode == 6:
+            map_data = data.swapaxes(0, 2)
+            # data[:, [0, 2]] = data[:, [2, 0]]
         else:
-            print('invalid ordermode of mrc files %d' % mode)
+            print('invalid ordermode of mrc files %d' % ordermode)
             exit()
-        return coordinates
+        return map_data
 
     # def reset_main_chain_prob(self, chain_prob, threshold):
     #     self.print_info()
@@ -644,4 +648,3 @@ class MRC(object):
     #     point.cd = np.loadtxt(cd_path)
     #     point.dens = np.loadtxt(dense_path)
     #     print('finishing meanshifting with %d points' % point.Ncd)
-
