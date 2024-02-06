@@ -36,20 +36,38 @@ def generate_dataset(HOME_PATH, csv_path):
     emdbs, pdbs = df["emdb_id"], df["fitted_pdbs"]
     resolutions = df["resolution"].astype(str)
     emdb_ids = [emdb.split("-")[1] for emdb in emdbs]
-    folders = [f"{emdb}_re_{resolution}" for emdb, resolution in zip(emdbs, resolutions)]
+    folders = [
+        f"{emdb}_re_{resolution}"
+        for emdb, resolution in zip(emdbs, resolutions)
+    ]
     raw_maps = [f"emd_{emdb_id}.map" for emdb_id in emdb_ids]
     models = [f"{pdb}.cif" for pdb in pdbs]
-    raw_map_paths = [f"{DATA_PATH}/{folder}/{raw_map}" for folder, raw_map in zip(folders, raw_maps)]
-    model_paths = [f"{DATA_PATH}/{folder}/{model}" for folder, model in zip(folders, models)]
+    raw_map_paths = [
+        f"{DATA_PATH}/{folder}/{raw_map}"
+        for folder, raw_map in zip(folders, raw_maps)
+    ]
+    model_paths = [
+        f"{DATA_PATH}/{folder}/{model}"
+        for folder, model in zip(folders, models)
+    ]
 
     # Download cryoEM map file and correspoding atomic model file, then create resampled and normalized map file
-    map_paths = [f"{raw_map_path.split('.map')[0]}_normalized.mrc" for raw_map_path in raw_map_paths]
+    map_paths = [
+        f"{raw_map_path.split('.map')[0]}_normalized.mrc"
+        for raw_map_path in raw_map_paths
+    ]
     for idx, emdb_id in enumerate(emdb_ids):
         if DOWNLOAD:
-            download_map_model(emdb=emdbs[idx], pdb=pdbs[idx], resolution=resolutions[idx], directory=DATA_PATH)
+            download_map_model(emdb=emdbs[idx],
+                               pdb=pdbs[idx],
+                               resolution=resolutions[idx],
+                               directory=DATA_PATH)
         if NORMALIZATION and not os.path.exists(map_paths[idx]):
             map_data = map_normalizing(raw_map_paths[idx])
-            map_output(raw_map_paths[idx], map_data, map_paths[idx], is_model=False)
+            map_output(raw_map_paths[idx],
+                       map_data,
+                       map_paths[idx],
+                       is_model=False)
 
     if MAP2NPY:
         # Create training and testing dataset (3d numpy arraies) from map file and model file
@@ -68,8 +86,8 @@ def generate_dataset(HOME_PATH, csv_path):
             # for idx, emdb_id in enumerate(emdb_ids[0:5]):  # test for idx in [0,1,2,3,4]
             print(f"Generating dataset from EMDB-{emdb_id}... ")
             sample_num, num_of_tag_in_each_part = data_to_npy(
-                map_paths[idx], model_paths[idx], MODEL_PARTS, temp_sample_path,
-                sample_num)
+                map_paths[idx], model_paths[idx], MODEL_PARTS,
+                temp_sample_path, sample_num)
             # Add number of each tag in new sampled model
             for key, value_list in num_of_tag_in_each_part.items():
                 num_of_tag_in_each_part_for_all_models[key] += value_list
@@ -81,9 +99,13 @@ def generate_dataset(HOME_PATH, csv_path):
             value_list = np.trim_zeros(value_list)
             num_of_tag_in_each_part_for_all_models[key] = value_list
             if 0 in value_list:
-                print(f'There is missing groups in part {key}, numbers of each class are {value_list}.')
-            ratio_of_tag[key] = [int(value_list[0]//value_x)
-                                 for value_x in value_list if value_x != 0]
+                print(
+                    f'There is missing groups in part {key}, numbers of each class are {value_list}.'
+                )
+            ratio_of_tag[key] = [
+                int(value_list[0] // value_x) for value_x in value_list
+                if value_x != 0
+            ]
 
         # Print statistical results
         print(f"The number of .npy file: {sample_num}")
@@ -98,19 +120,23 @@ def generate_dataset(HOME_PATH, csv_path):
         import splitfolders
         sample_path = os.path.join(HOME_PATH, "TEST", "train_val_data")
         os.makedirs(sample_path, exist_ok=True)
-        splitfolders.ratio(input=temp_sample_path, output=sample_path,
-                           seed=44, ratio=(.8, .2), group_prefix=None, move=True)
+        splitfolders.ratio(input=temp_sample_path,
+                           output=sample_path,
+                           seed=44,
+                           ratio=(.8, .2),
+                           group_prefix=None,
+                           move=True)
         shutil.rmtree(temp_sample_path)
 
         # Calculate and save weight (ratio of tags)
-        weight_path = os.path.join(sample_path, 'class_weight_for_training.txt')
+        weight_path = os.path.join(sample_path,
+                                   'class_weight_for_training.txt')
         with open(weight_path, "w") as file:
             json.dump(ratio_of_tag, file)
 
 
 if __name__ == "__main__":
     generate_dataset(HOME_PATH, csv_path)
-
 
 # OLD TRANNING DATASET：
 # sugar_ring_new: 1:85
