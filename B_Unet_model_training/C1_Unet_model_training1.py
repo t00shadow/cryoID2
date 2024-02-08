@@ -40,7 +40,7 @@ def initial_setting(part_name, home_path, device):
     This function performs the initial setup before training process:
     1. Read the class weights of the UNET model,
     2. Read the saved epoch number,
-    3. Generate paths of file taht will be loading to UNET model.
+    3. Generate paths of file that will be loaded to UNET model.
     """
 
     weight_path = os.path.join(home_path, "TEST", "train_val_data",
