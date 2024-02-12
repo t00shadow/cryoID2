@@ -6,13 +6,13 @@ from torch.utils.data import Dataset
 
 class MapModelDataset(Dataset):
 
-    def __init__(self, map_dirs, model_dir, model_type):
+    def __init__(self, map_dirs, model_dir):
         # map_dirs: a list of map directories
         self.map_dirs = map_dirs
         self.model_dir = model_dir
         # self.maps: a list of lists of map_names
         self.maps = [sorted(os.listdir(map_dir)) for map_dir in map_dirs]
-        self.model_type = model_type
+        self.models = sorted(os.listdir(model_dir))
 
     def __len__(self):
         return len(self.maps)
@@ -30,24 +30,25 @@ class MapModelDataset(Dataset):
                 map = map_part
             else:
                 map = np.concatenate((map, map_part), axis=0)
-            # print(map.shape)
+            print(map.shape)
 
-        model_path = os.path.join(
-            self.model_dir,
-            self.maps[index].replace('map', "model_" + str(self.model_type)))
+        model_path = os.path.join(self.model_dir, self.models[index])
         model = np.load(model_path)
         # model = np.expand_dims(np.load(model_path), axis=0)
-        # print(model.shape)
+        print(model.shape)
         return map, model
 
 
 # # ============ TEST ====================
-# MODEL_TYPE = "all_atoms"
-# TRAIN_MAP_DIR = "/amber/electron/qiboxu/Database/U_NET/TEST/train_val_data/train/map_sample/"
-# TRAIN_MODEL_DIR = "/amber/electron/qiboxu/Database/U_NET/TEST/train_val_data/train/"+MODEL_TYPE+"/"
-# VAL_MAP_DIR = "/amber/electron/qiboxu/Database/U_NET/TEST/train_val_data/val/map_sample/"
-# VAL_MODEL_DIR = "/amber/electron/qiboxu/Database/U_NET/TEST/train_val_data/val/"+MODEL_TYPE+"/"
 
-# train_ds = MapModelDataset(map_dir=TRAIN_MAP_DIR, model_dir=TRAIN_MODEL_DIR, model_type=MODEL_TYPE)
-# for i in range(10):
-#     train_ds.__getitem__(i)
+TRAIN_DIR = "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/ready_to_train_and_val"
+map_dirs = [
+    os.path.join(TRAIN_DIR, 'map_sample'),
+    os.path.join(TRAIN_DIR, 'secondary_strctures'),
+    os.path.join(TRAIN_DIR, 'residue_types')
+]
+model_dir = os.path.join(TRAIN_DIR, 'key_atoms')
+
+train_ds = MapModelDataset(map_dirs, model_dir)
+for i in range(10):
+    train_ds.__getitem__(i)

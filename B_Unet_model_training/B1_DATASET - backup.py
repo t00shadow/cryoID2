@@ -30,12 +30,15 @@ class MapModelDataset(Dataset):
 
 
 # # ============ TEST ====================
-# MODEL_TYPE = "all_atoms"
-# TRAIN_MAP_DIR = "/amber/electron/qiboxu/Database/U_NET/TEST/train_val_data/train/map_sample/"
-# TRAIN_MODEL_DIR = "/amber/electron/qiboxu/Database/U_NET/TEST/train_val_data/train/"+MODEL_TYPE+"/"
+MODEL_TYPE = 'secondary_strctures'
+TRAIN_DIR = "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/ready_to_train_and_val"
+TRAIN_MAP_DIR = os.path.join(TRAIN_DIR, 'map_sample')
+TRAIN_MODEL_DIR = os.path.join(TRAIN_DIR, MODEL_TYPE)
 # VAL_MAP_DIR = "/amber/electron/qiboxu/Database/U_NET/TEST/train_val_data/val/map_sample/"
 # VAL_MODEL_DIR = "/amber/electron/qiboxu/Database/U_NET/TEST/train_val_data/val/"+MODEL_TYPE+"/"
 
-# train_ds = MapModelDataset(map_dir=TRAIN_MAP_DIR, model_dir=TRAIN_MODEL_DIR, model_type=MODEL_TYPE)
-# for i in range(10):
-#     train_ds.__getitem__(i)
+train_ds = MapModelDataset(map_dir=TRAIN_MAP_DIR,
+                           model_dir=TRAIN_MODEL_DIR,
+                           model_type=MODEL_TYPE)
+for i in range(10):
+    train_ds.__getitem__(i)
