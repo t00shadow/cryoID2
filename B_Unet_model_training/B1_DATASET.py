@@ -7,8 +7,10 @@ from torch.utils.data import Dataset
 class MapModelDataset(Dataset):
 
     def __init__(self, map_dirs, model_dir, model_type):
+        # map_dirs: a list of map directories
         self.map_dirs = map_dirs
         self.model_dir = model_dir
+        # self.maps: a list of lists of map_names
         self.maps = [sorted(os.listdir(map_dir)) for map_dir in map_dirs]
         self.model_type = model_type
 
@@ -16,17 +18,19 @@ class MapModelDataset(Dataset):
         return len(self.maps)
 
     def __getitem__(self, index):
+        map = None
         for i in range(len(self.map_dirs)):
             map_dir = self.map_dirs[i]
             map_name = self.maps[i][index]
             map_path = os.path.join(map_dir, map_name)
-
-            ####### 2/6/2024 ==== to be continued
-            ####### change the expand_dims of several maps
-
             # add a dimension for feature
-            map = np.expand_dims(np.load(map_path), axis=0)
-        # print(map.shape)
+            map_part = np.expand_dims(np.load(map_path), axis=0)
+            # concatenate maps in different features
+            if map is None:
+                map = map_part
+            else:
+                map = np.concatenate((map, map_part), axis=0)
+            # print(map.shape)
 
         model_path = os.path.join(
             self.model_dir,
