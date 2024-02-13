@@ -30,25 +30,25 @@ class MapModelDataset(Dataset):
                 map = map_part
             else:
                 map = np.concatenate((map, map_part), axis=0)
-            print(map.shape)
+            # print(map.shape)
 
         model_path = os.path.join(self.model_dir, self.models[index])
         model = np.load(model_path)
         # model = np.expand_dims(np.load(model_path), axis=0)
-        print(model.shape)
+        # print(model.shape)
         return map, model
 
 
 # # ============ TEST ====================
 
-TRAIN_DIR = "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/ready_to_train_and_val"
-map_dirs = [
-    os.path.join(TRAIN_DIR, 'map_sample'),
-    os.path.join(TRAIN_DIR, 'secondary_strctures'),
-    os.path.join(TRAIN_DIR, 'residue_types')
-]
-model_dir = os.path.join(TRAIN_DIR, 'key_atoms')
+# TRAIN_DIR = "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/ready_to_train_and_val"
+# map_dirs = [
+#     os.path.join(TRAIN_DIR, 'map_sample'),
+#     os.path.join(TRAIN_DIR, 'secondary_strctures'),
+#     os.path.join(TRAIN_DIR, 'residue_types')
+# ]
+# model_dir = os.path.join(TRAIN_DIR, 'key_atoms')
 
-train_ds = MapModelDataset(map_dirs, model_dir)
-for i in range(10):
-    train_ds.__getitem__(i)
+# train_ds = MapModelDataset(map_dirs, model_dir)
+# for i in range(10):
+#     train_ds.__getitem__(i)

@@ -3,6 +3,7 @@ from B1_DATASET import MapModelDataset
 from torch.utils.data import DataLoader
 import numpy as np
 import os
+import matplotlib.pyplot as plt
 
 
 def save_checkpoint(state, folder, filename="my_checkpoint.pth.tar"):
@@ -19,18 +20,16 @@ def load_checkpoint(load_model_path, model, map_location):
 
 
 def get_loaders(
-    model_type,
-    train_map_dir,
+    train_map_dirs,
     train_model_dir,
-    val_map_dir,
+    val_map_dirs,
     val_model_dir,
     batch_size,
     num_workers=4,
     pin_memory=True,
 ):
-    train_ds = MapModelDataset(map_dir=train_map_dir,
-                               model_dir=train_model_dir,
-                               model_type=model_type)
+    train_ds = MapModelDataset(map_dirs=train_map_dirs,
+                               model_dir=train_model_dir)
 
     train_loader = DataLoader(
         train_ds,
@@ -40,9 +39,7 @@ def get_loaders(
         shuffle=True,
     )
 
-    val_ds = MapModelDataset(map_dir=val_map_dir,
-                             model_dir=val_model_dir,
-                             model_type=model_type)
+    val_ds = MapModelDataset(map_dirs=val_map_dirs, model_dir=val_model_dir)
 
     val_loader = DataLoader(
         val_ds,
@@ -56,28 +53,29 @@ def get_loaders(
 
 
 # # ============ TEST ====================
-# MODEL_TYPE = "all_atoms"
-# TRAIN_MAP_DIR = "/amber/electron/qiboxu/Database/U_NET/TEST/train_val_data/train/map_sample/"
-# TRAIN_MODEL_DIR = "/amber/electron/qiboxu/Database/U_NET/TEST/train_val_data/train/"+MODEL_TYPE+"/"
-# VAL_MAP_DIR = "/amber/electron/qiboxu/Database/U_NET/TEST/train_val_data/val/map_sample/"
-# VAL_MODEL_DIR = "/amber/electron/qiboxu/Database/U_NET/TEST/train_val_data/val/"+MODEL_TYPE+"/"
-# NUM_EPOCHS = 3
-# NUM_WORKERS = 4
-# OUT_CHANNELS = 1
-# BATCH_SIZE = 32
-# PIN_MEMORY = True
-# train_loader, val_loader = get_loaders(
-#     model_type=MODEL_TYPE,
-#     train_map_dir=TRAIN_MAP_DIR,
-#     train_model_dir=TRAIN_MODEL_DIR,
-#     val_map_dir=VAL_MAP_DIR,
-#     val_model_dir=VAL_MODEL_DIR,
-#     batch_size=BATCH_SIZE,
-#     num_workers=NUM_WORKERS,
-#     pin_memory=PIN_MEMORY
-# )
-# train_features, train_labels = next(iter(train_loader))
-# print(train_features.size())
+
+TRAIN_DIR = "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/ready_to_train_and_val"
+train_map_dirs = [
+    os.path.join(TRAIN_DIR, 'map_sample'),
+    # os.path.join(TRAIN_DIR, 'secondary_strctures')
+]
+train_model_dir = os.path.join(TRAIN_DIR, 'key_atoms')
+
+val_map_dirs = train_map_dirs
+val_model_dir = train_model_dir
+
+BATCH_SIZE = 32
+NUM_WORKERS = 4
+PIN_MEMORY = True
+train_loader, val_loader = get_loaders(train_map_dirs,
+                                       train_model_dir,
+                                       val_map_dirs,
+                                       val_model_dir,
+                                       batch_size=BATCH_SIZE,
+                                       num_workers=NUM_WORKERS,
+                                       pin_memory=PIN_MEMORY)
+train_features, train_labels = next(iter(train_loader))
+print(train_features.size(), train_labels.size())
 
 
 def print_and_write(filepath, content):
@@ -182,8 +180,6 @@ def check_accuracy(loader, model, num_class, loss_fn, evl_folder_path, device,
 # Weights = np.divide(total_y, num_y)
 # print(Weights)
 # exit()
-
-import matplotlib.pyplot as plt
 
 
 def save_predictions_as_imgs(loader, model, folder, device, epoch, part_name,
