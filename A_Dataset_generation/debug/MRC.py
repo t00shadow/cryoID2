@@ -19,7 +19,7 @@ class MRC(object):
         self.file_name = file_name
         self.gaussian_bandwidth = gaussian_bandwidth
         self.read_mrc(self.file_name, contour)
-        self.print_info()
+        # self.print_info()
 
     def read_mrc(self, file_name=None, contour=0):
         if file_name is not None:

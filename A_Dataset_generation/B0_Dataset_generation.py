@@ -20,7 +20,7 @@ PATH_SETTINGS = {
     "Filtered_Dateset": [
         os.path.join(MAIN_HOME_PATH, 'Raw'),
         os.path.join(MAIN_HOME_PATH, 'Training'),
-        os.path.join(MAIN_HOME_PATH, 'Raw', 'Final_Filtered_Data.csv'),
+        os.path.join(MAIN_HOME_PATH, 'Raw', 'final-20240212.csv'),
     ],
 }
 
@@ -51,7 +51,8 @@ def generate_dataset(HOME_PATH, csv_path):
         for folder, model in zip(folders, models)
     ]
 
-    # Download cryoEM map file and correspoding atomic model file, then create resampled and normalized map file
+    # Download cryoEM map file and correspoding atomic model file,
+    # then create resampled and normalized map file
     map_paths = [
         f"{raw_map_path.split('.map')[0]}_normalized.mrc"
         for raw_map_path in raw_map_paths
@@ -71,9 +72,8 @@ def generate_dataset(HOME_PATH, csv_path):
 
     if MAP2NPY:
         # Create training and testing dataset (3d numpy arraies) from map file and model file
-        # idx of npy file
 
-        # sample_num = 0
+        # idx of npy file
         sample_num = 0
 
         # num of tag in each part for all models
@@ -81,9 +81,9 @@ def generate_dataset(HOME_PATH, csv_path):
         for part in MODEL_PARTS:
             num_of_tag_in_each_part_for_all_models[part] = 0
 
-        for idx, emdb_id in enumerate(emdb_ids[136:]):
-
-            # for idx, emdb_id in enumerate(emdb_ids[0:5]):  # test for idx in [0,1,2,3,4]
+        for idx, emdb_id in enumerate(emdb_ids):
+            # test for idx in [0,1,2,3,4]
+            # for idx, emdb_id in enumerate(emdb_ids[0:5]):
             print(f"Generating dataset from EMDB-{emdb_id}... ")
             sample_num, num_of_tag_in_each_part = data_to_npy(
                 map_paths[idx], model_paths[idx], MODEL_PARTS,
@@ -138,7 +138,7 @@ def generate_dataset(HOME_PATH, csv_path):
 if __name__ == "__main__":
     generate_dataset(HOME_PATH, csv_path)
 
-# OLD TRANNING DATASET：
+# OLD TRANNING DATASET before 20240101：
 # sugar_ring_new: 1:85
 # nitrogenous_bases_in_sugar_new: 1:344:279:366:419
 

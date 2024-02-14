@@ -53,29 +53,28 @@ def get_loaders(
 
 
 # # ============ TEST ====================
+# TRAIN_DIR = "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/ready_to_train_and_val"
+# train_map_dirs = [
+#     os.path.join(TRAIN_DIR, 'map_sample'),
+#     # os.path.join(TRAIN_DIR, 'secondary_strctures')
+# ]
+# train_model_dir = os.path.join(TRAIN_DIR, 'key_atoms')
 
-TRAIN_DIR = "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/ready_to_train_and_val"
-train_map_dirs = [
-    os.path.join(TRAIN_DIR, 'map_sample'),
-    # os.path.join(TRAIN_DIR, 'secondary_strctures')
-]
-train_model_dir = os.path.join(TRAIN_DIR, 'key_atoms')
+# val_map_dirs = train_map_dirs
+# val_model_dir = train_model_dir
 
-val_map_dirs = train_map_dirs
-val_model_dir = train_model_dir
-
-BATCH_SIZE = 32
-NUM_WORKERS = 4
-PIN_MEMORY = True
-train_loader, val_loader = get_loaders(train_map_dirs,
-                                       train_model_dir,
-                                       val_map_dirs,
-                                       val_model_dir,
-                                       batch_size=BATCH_SIZE,
-                                       num_workers=NUM_WORKERS,
-                                       pin_memory=PIN_MEMORY)
-train_features, train_labels = next(iter(train_loader))
-print(train_features.size(), train_labels.size())
+# BATCH_SIZE = 32
+# NUM_WORKERS = 4
+# PIN_MEMORY = True
+# train_loader, val_loader = get_loaders(train_map_dirs,
+#                                        train_model_dir,
+#                                        val_map_dirs,
+#                                        val_model_dir,
+#                                        batch_size=BATCH_SIZE,
+#                                        num_workers=NUM_WORKERS,
+#                                        pin_memory=PIN_MEMORY)
+# train_features, train_labels = next(iter(train_loader))
+# print(train_features.size(), train_labels.size())
 
 
 def print_and_write(filepath, content):

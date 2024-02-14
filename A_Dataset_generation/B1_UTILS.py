@@ -25,7 +25,6 @@ def download_map_model(emdb, pdb, resolution, directory):
         print(f"=> {emdb} and pdb-{pdb} files are downloaded.")
 
 
-
 def map_normalizing(map_path):
     with mrcfile.mmap(map_path) as mrc:
         # Load map data
@@ -43,8 +42,11 @@ def map_normalizing(map_path):
         map_data /= data_99_9
         map_data = np.clip(map_data, 0., 1.)
 
-    return map_data
+        if mrc.header.nzstart != 0 or mrc.header.nystart != 0 or mrc.header.nxstart != 0:
+            print('The start of axis is not 0!!')
+            raise ValueError('The start of axis is not zero!')
 
+    return map_data
 
 
 def map_output(input_map, map_data, output_map, is_model=False):
@@ -61,7 +63,7 @@ def map_output(input_map, map_data, output_map, is_model=False):
 
         mrc.set_data(map_data)
         mrc.header.mz = map_data.shape[0]
-        mrc.header.ispg = 1 #401
+        mrc.header.ispg = 1  #401
         mrc.print_header()
         print("=> New map written successfully.")
 
@@ -73,8 +75,11 @@ def map_output(input_map, map_data, output_map, is_model=False):
 #     download_filter = "?wt=csv&download=true&fl=emdb_id,title,resolution,fitted_pdbs,map_release_date,overall_molecular_weight,xref_ALPHAFOLD"
 
 
-
-def search_emdb(query, file_names, fl='emdb_id,title,resolution,fitted_pdbs,xref_UNIPROTKB,xref_ALPHAFOLD'):
+def search_emdb(
+        query,
+        file_names,
+        fl='emdb_id,title,resolution,fitted_pdbs,xref_UNIPROTKB,xref_ALPHAFOLD'
+):
 
     # Inputs:
     # query: a string list of search queries
@@ -92,14 +97,15 @@ def search_emdb(query, file_names, fl='emdb_id,title,resolution,fitted_pdbs,xref
     # Output(s):
     # csv file(s) with the user provided file names
 
-
     import requests
     url = 'https://www.ebi.ac.uk/emdb/api/search/'
     payload = {'fl': fl}
 
     if len(query) == len(file_names):
         for i in range(len(query)):
-            r = requests.get(url + query[i], params=payload, headers={'accept': 'text/csv'})
+            r = requests.get(url + query[i],
+                             params=payload,
+                             headers={'accept': 'text/csv'})
             df = str(r.text)
 
             file_name = file_names[i] + '.csv'
