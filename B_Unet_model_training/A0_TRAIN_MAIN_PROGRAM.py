@@ -5,154 +5,64 @@ import torch
 from tqdm import tqdm  # makes your loops show a smart progress meter
 import torch.nn as nn
 import torch.optim as optim
+import os
+import json
 
-MODEL_SETTINGS = {
-    "phosphorus_C1": [
-        70,
-        'cuda:1',
-        "phosphorus_C1",
-        1,
-        3,
-        [
-            1.0,
-            315.0,
-            315.0,
-        ],
-    ],
-    "sugar_center": [
-        60,
-        'cuda:2',
-        "sugar_center",
-        1,
-        2,
-        [
-            1.0,
-            316.0,
-        ],
-    ],
-    "nitrogenous_bases_in_sugar_new": [
-        83,
-        'cuda:1',
-        "nitrogenous_bases_in_sugar_new",
-        1,
-        5,
-        [1.0, 344.0, 279.0, 366.0, 419.0],
-    ],
-    # "nitrogenous_bases_in_sugar": [63, 'cuda:1',
-    # "nitrogenous_bases_in_sugar", 1, 5, [1.0, 255.0, 206.0, 270.0, 309.0],],
-    "nitrogenous_bases": [
-        27,
-        'cuda:0',
-        "nitrogenous_bases",
-        1,
-        5,
-        [1.0, 200.0, 149.0, 247.0, 282.0],
-    ],
-    "RNA_backbone": [
-        74,
-        'cuda:2',
-        "RNA_backbone",
-        1,
-        3,
-        [1., 40., 51.],
-    ],
-    "sugar_ring_new": [
-        82,
-        'cuda:3',
-        "sugar_ring_new",
-        1,
-        2,
-        [1., 85.],
-    ],
-    # "sugar_ring": [70, 'cuda:3',
-    # "sugar_ring", 1, 2, [1.,63.],],
-    "all_atoms": [
-        21,
-        'cuda:2',
-        "all_atoms",
-        1,
-        2,
-        [
-            1.,
-            135.,
-        ],
-    ],
-    # "key_atoms": [4, 'cuda:0',
-    # "key_atoms", 1, 4, [, , , ],],
-    "key_atoms_0.5A": [
-        9,
-        ' cuda:0',
-        "key_atoms",
-        0.5,
-        4,
-        [1., 2000., 2000., 2000.],
-    ],
-    "amino_acids_0.5A": [
-        29,
-        'cuda:0',
-        "amino_acids",
-        0.5,
-        21,
-        [
-            1.03, 528.67, 445.32, 1157.79, 1093.89, 4696.03, 672.31, 1262.34,
-            537.56, 1732.31, 670.01, 531.9, 385.17, 2142.48, 1329.23, 939.09,
-            892.0, 793.22, 4664.79, 1395.3, 486.55
-        ],
-    ],
-    # amino_acids = [["ALA"], ["ARG"], ["ASN"], ["ASP"], ["CYS"], ["GLU"], ["GLN"], ["GLY"], ["HIS"], ["ILE"],
-    #                 ["LEU"], ["LYS"], ["MET"], ["PHE"], ["PRO"], ["SER"], ["THR"], ["TRP"], ["TYR"], ["VAL"],]
-}
-MODEL_KEYS = [
-    "phosphorus_C1",
-    "sugar_center",
-    "nitrogenous_bases_in_sugar_new",
-    "nitrogenous_bases",
-    "RNA_backbone",
-    "sugar_ring_new",
-    "all_atoms",
-    "key_atoms_0.5A",
-    "amino_acids_0.5A",
-    "sugar_ring",
+# Set training epoch munbers
+TRAIN = True
+training_epoch_num = 1000
+
+# Test training?
+BATCH_1_TEST = True
+
+# ====================== Hyperparameters etc. ========================
+MAIN_PATH = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST'
+MODEL_TYPES = ['secondary_strctures', 'key_atoms', 'residue_types']
+MAP_DIRS_TYPES = [['map_sample'], ['map_sample', 'secondary_strctures'],
+                  ['map_sample', 'secondary_strctures', 'key_atoms']]
+
+type_index = 0
+model_type = MODEL_TYPES[type_index]
+map_dirs = MAP_DIRS_TYPES[type_index]
+
+# ====================== Hyperparameters etc. ========================
+DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+batch_size = 8  # batch_size vs GPU Memory: 1vs2877; 2vs3485; 4vs4668; 8vs7162
+
+num_workers = 2
+learning_rate = 1e-4
+pin_memory = True
+IMAGE_HEIGHT, IMAGE_WIDTH, IMAGE_DEPTH = [64, 64, 64]
+
+# Set input data
+data_path = os.path.join(MAIN_PATH, 'train_val_data')
+train_map_dirs = [
+    os.path.join(data_path, 'train', map_dir) for map_dir in map_dirs
 ]
+val_map_dirs = [
+    os.path.join(data_path, 'val', map_dir) for map_dir in map_dirs
+]
+train_model_dir = os.path.join(data_path, 'train', model_type)
+val_model_dir = os.path.join(data_path, 'val', model_type)
 
-# ====================== Hyperparameters etc. ========================
-MODEL_CODE = MODEL_KEYS[0]
-TRAIN = False
+# Set for loading model weights
+LOAD_MODEL = False
+load_epoch_num = 0
+load_model_dir = os.path.join(data_path, 'checkpoint')
+load_model_name = os.path.join(data_path, 'checkpoint',
+                               f'{model_type}.epoch{load_epoch_num}.pth.tar')
+evl_folder_name = os.path.join(data_path, 'evaluation', model_type)
 
-LOAD_MODEL = True
-BATCH_1_TEST = False
-
-HOME_PATH = "/scratch/"
-# HOME_PATH = "/amber/electron/"
-
-NUM_EPOCHS = 10
-BATCH_SIZE = 8  # batch_size vs GPU Memory: 1vs2877; 2vs3485; 4vs4668; 8vs7162
-
-# ====================== Hyperparameters etc. ========================
-LOAD_EPOCH_NUM, DEVICE, MODEL_TYPE, GRID_STRID, OUT_CHANNELS, class_weight = MODEL_SETTINGS[
-    MODEL_CODE]
-DEVICE = DEVICE if torch.cuda.is_available() else 'cpu'
+# Load the class weights of all model types
+weight_path = os.path.join(data_path, 'class_weight_for_training.txt')
+with open(weight_path, "r") as file:
+    weight_all = json.load(file)
+class_weight = weight_all[model_type]
 CLASS_WEIGHTS = torch.FloatTensor(class_weight).to(device=DEVICE)
 
-NUM_WORKERS = 2
-LEARNING_RATE = 1e-4
-IN_CHANNELS = 1
-PIN_MEMORY = True
-IMAGE_HEIGHT, IMAGE_WIDTH, IMAGE_DEPTH = [64, 64, 64]
-TRAIN_MAP_DIR = HOME_PATH + "qiboxu/Database/U_NET/TEST/train_val_data/train/map_sample/"
-VAL_MAP_DIR = HOME_PATH + "qiboxu/Database/U_NET/TEST/train_val_data/val/map_sample/"
-TRAIN_MODEL_DIR = HOME_PATH + "qiboxu/Database/U_NET/TEST/train_val_data/train/" + MODEL_TYPE + "/"
-VAL_MODEL_DIR = HOME_PATH + "qiboxu/Database/U_NET/TEST/train_val_data/val/" + MODEL_TYPE + "/"
-LOAD_MODEL_NAME = "/home/qiboxu/VSCode_code/code_self/3D_U_NET/checkpoint/" + MODEL_TYPE + ".epoch" + str(
-    LOAD_EPOCH_NUM) + ".pth.tar"
-EVL_FOLD_NAME = "/home/qiboxu/VSCode_code/code_self/3D_U_NET/evaluation/" + MODEL_TYPE + "/"
-
-if GRID_STRID == 0.5:
-    TRAIN_MODEL_DIR = HOME_PATH + "qiboxu/Database/U_NET/TEST/train_val_data_0.5A_10samples/train/" + MODEL_TYPE + "/"
-    VAL_MODEL_DIR = HOME_PATH + "qiboxu/Database/U_NET/TEST/train_val_data_0.5A_10samples/val/" + MODEL_TYPE + "/"
-    LOAD_MODEL_NAME = "/home/qiboxu/VSCode_code/code_self/3D_U_NET/checkpoint/" + MODEL_TYPE + "_0.5A.epoch" + str(
-        LOAD_EPOCH_NUM) + ".pth.tar"
-    EVL_FOLD_NAME = "/home/qiboxu/VSCode_code/code_self/3D_U_NET/evaluation/" + MODEL_TYPE + "_0.5A/"
+# Set model channels
+in_channels = len(map_dirs)
+out_channels = len(class_weight)
 
 # import pandas as pd
 # import glob
@@ -219,29 +129,28 @@ def train_fn(loader, model, optimizer, loss_fn, scaler):
 
 
 def main():
-    model = UNET(in_channels=IN_CHANNELS, out_channels=OUT_CHANNELS).to(DEVICE)
+    model = UNET(in_channels=in_channels, out_channels=out_channels).to(DEVICE)
     # loss_fn = nn.CrossEntropyLoss()
-    loss_fn = nn.CrossEntropyLoss(weight=class_weight)
-    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    loss_fn = nn.CrossEntropyLoss(weight=CLASS_WEIGHTS)
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
-    train_loader, val_loader = get_loaders(model_type=MODEL_TYPE,
-                                           train_map_dir=TRAIN_MAP_DIR,
-                                           train_model_dir=TRAIN_MODEL_DIR,
-                                           val_map_dir=VAL_MAP_DIR,
-                                           val_model_dir=VAL_MODEL_DIR,
-                                           batch_size=BATCH_SIZE,
-                                           num_workers=NUM_WORKERS,
-                                           pin_memory=PIN_MEMORY)
+    train_loader, val_loader = get_loaders(train_map_dirs=train_map_dirs,
+                                           train_model_dir=train_model_dir,
+                                           val_map_dirs=val_map_dirs,
+                                           val_model_dir=val_model_dir,
+                                           batch_size=batch_size,
+                                           num_workers=num_workers,
+                                           pin_memory=pin_memory)
 
     if LOAD_MODEL:
-        load_checkpoint(torch.load(LOAD_MODEL_NAME, map_location=DEVICE),
+        load_checkpoint(torch.load(load_model_name, map_location=DEVICE),
                         model)
 
     if TRAIN:
         scaler = torch.cuda.amp.GradScaler()
 
-        for epoch in range(LOAD_EPOCH_NUM + 1,
-                           LOAD_EPOCH_NUM + 1 + NUM_EPOCHS):
+        for epoch in range(load_epoch_num + 1,
+                           load_epoch_num + 1 + training_epoch_num):
             train_fn(train_loader, model, optimizer, loss_fn, scaler)
 
             # save model
@@ -249,16 +158,15 @@ def main():
                 "state_dict": model.state_dict(),
                 "optimizer": optimizer.state_dict(),
             }
-            SAVE_MODEL_NAME = MODEL_TYPE + ".epoch" + str(epoch) + ".pth.tar"
-            if GRID_STRID == 0.5:
-                SAVE_MODEL_NAME = MODEL_TYPE + "_0.5A.epoch" + str(
-                    epoch) + ".pth.tar"
-            save_checkpoint(state=checkpoint, filename=SAVE_MODEL_NAME)
+            save_model_name = f'{model_type}.epoch{epoch}.pth.tar"'
+            save_checkpoint(state=checkpoint,
+                            folder=load_model_dir,
+                            filename=save_model_name)
             # check accuracy
             print("EPOCH" + str(epoch) + ": ")
             check_accuracy(val_loader,
                            model,
-                           num_class=OUT_CHANNELS,
+                           num_class=out_channels,
                            device=DEVICE)
 
             # # write to file
@@ -269,15 +177,15 @@ def main():
             #     ff.write("y_pred_matrix:\n"+str(y_pred_matrix)+":\n")
     else:
         # DEVICE = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-        device_ = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+        device_ = 'cuda' if torch.cuda.is_available() else 'cpu'
         check_accuracy(val_loader,
                        model,
-                       num_class=OUT_CHANNELS,
+                       num_class=out_channels,
                        device=device_)
         # print some examples to a folder
         save_predictions_as_imgs(val_loader,
                                  model,
-                                 folder=EVL_FOLD_NAME,
+                                 folder=evl_folder_name,
                                  device=device_)
 
 
