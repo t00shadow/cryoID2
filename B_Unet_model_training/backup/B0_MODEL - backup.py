@@ -69,5 +69,8 @@ def test():
     print(pred.shape)
     print(x.shape)
 
+
 if __name__ == "__main__":
     test()
+
+    

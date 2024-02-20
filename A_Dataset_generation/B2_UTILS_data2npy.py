@@ -147,9 +147,7 @@ def data_to_npy(map_path: str,
         # Tag CA, P, sugar atoms with 1, 2, 3 repectively
         elif part_name == "key_atoms":
             for tag in range(1, len(key_atoms) + 1):
-                if key_atoms[tag - 1] in [
-                    ["CA"],
-                ]:
+                if key_atoms[tag - 1] in [["CA"]]:
                     part_coords = atom_coord_cif(structure, residues_protein,
                                                  key_atoms[tag - 1])
                 else:
@@ -315,7 +313,8 @@ def split_to_npy(data,
                     file_name = os.path.join(
                         sample_dir, part_names[idx],
                         f"model_{part_names[idx]}.{sample_num}.npy")
-                    np.save(file_name, sample)
+                    np.save(file_name, samples[idx])
+                    # print(np.max(samples[idx]))
                     count = counts[idx]
                     count = np.pad(count, (0, max(0, 27 - len(count))),
                                    'constant')

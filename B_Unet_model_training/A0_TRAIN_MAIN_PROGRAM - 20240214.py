@@ -13,7 +13,7 @@ TRAIN = True
 training_epoch_num = 1000
 
 # Test training?
-BATCH_1_TEST = True
+BATCH_1_TEST = False
 
 # ====================== Hyperparameters etc. ========================
 MAIN_PATH = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST'

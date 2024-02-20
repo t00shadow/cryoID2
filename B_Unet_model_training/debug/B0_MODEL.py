@@ -78,9 +78,9 @@ class UNET(nn.Module):
 
 
 def test():
-    x = torch.randn((5, 2, 64, 64, 64))  # (batch, feature, size(z,y,x))
+    x = torch.randn((1, 1, 64, 64, 64))  # (batch, feature, size(z,y,x))
     print(x.shape)
-    model = UNET(2, 4)
+    model = UNET(1, 5)
     pred = model(x)
     print(pred.shape)
     print(x.shape)

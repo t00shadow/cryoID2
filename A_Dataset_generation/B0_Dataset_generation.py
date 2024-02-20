@@ -82,9 +82,11 @@ def generate_dataset(HOME_PATH, csv_path):
             num_of_tag_in_each_part_for_all_models[part] = 0
 
         for idx, emdb_id in enumerate(emdb_ids):
-            # test for idx in [0,1,2,3,4]
-            # for idx, emdb_id in enumerate(emdb_ids[0:5]):
-            print(f"Generating dataset from EMDB-{emdb_id}... ")
+            # test for idx in [0,1]
+            # for idx, emdb_id in enumerate(emdb_ids[0:1]):
+            print(
+                f"[{idx+1}/{len(emdb_ids)}] Generating dataset from EMDB-{emdb_id}... "
+            )
             sample_num, num_of_tag_in_each_part = data_to_npy(
                 map_paths[idx], model_paths[idx], MODEL_PARTS,
                 temp_sample_path, sample_num)
@@ -119,6 +121,8 @@ def generate_dataset(HOME_PATH, csv_path):
         # split data into training and testing dataset
         import splitfolders
         sample_path = os.path.join(HOME_PATH, "TEST", "train_val_data")
+        # sample_path = os.path.join(HOME_PATH, "TEST", "train_val_data", "test")
+
         os.makedirs(sample_path, exist_ok=True)
         splitfolders.ratio(input=temp_sample_path,
                            output=sample_path,
