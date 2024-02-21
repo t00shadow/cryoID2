@@ -15,7 +15,7 @@ class MapModelDataset(Dataset):
         self.models = sorted(os.listdir(model_dir))
 
     def __len__(self):
-        return len(self.maps)
+        return len(self.models)
 
     def __getitem__(self, index):
         map = None
@@ -23,6 +23,8 @@ class MapModelDataset(Dataset):
             map_dir = self.map_dirs[i]
             map_name = self.maps[i][index]
             map_path = os.path.join(map_dir, map_name)
+            # print(map_path)
+
             # add a dimension for feature
             map_part = np.expand_dims(np.load(map_path), axis=0)
             # concatenate maps in different features
@@ -41,14 +43,16 @@ class MapModelDataset(Dataset):
 
 # # ============ TEST ====================
 
-# TRAIN_DIR = "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/ready_to_train_and_val"
-# map_dirs = [
-#     os.path.join(TRAIN_DIR, 'map_sample'),
-#     os.path.join(TRAIN_DIR, 'secondary_strctures'),
-#     os.path.join(TRAIN_DIR, 'residue_types')
-# ]
-# model_dir = os.path.join(TRAIN_DIR, 'key_atoms')
+TRAIN_DIR = "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST/train_val_data/train"
 
-# train_ds = MapModelDataset(map_dirs, model_dir)
-# for i in range(10):
-#     train_ds.__getitem__(i)
+map_dirs = [
+    os.path.join(TRAIN_DIR, 'map_sample'),
+    os.path.join(TRAIN_DIR, 'secondary_strctures'),
+    os.path.join(TRAIN_DIR, 'residue_types')
+]
+model_dir = os.path.join(TRAIN_DIR, 'key_atoms')
+
+train_ds = MapModelDataset(map_dirs, model_dir)
+
+for i in range(10):
+    train_ds.__getitem__(i)

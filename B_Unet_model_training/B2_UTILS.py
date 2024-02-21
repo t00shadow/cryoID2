@@ -83,13 +83,20 @@ def print_and_write(filepath, content):
         file.write(f"{content}\n")
 
 
+def weighted_score(score, weights):
+    w = weights[1:]
+    w = w.to('cpu')
+    a = torch.tensor(score[1:])
+    return torch.sum(a * w) / torch.sum(w)
+
+
 def check_accuracy(loader, model, num_class, loss_fn, evl_folder_path, device,
-                   epoch):
+                   epoch, class_weights):
     print("=> Checking accuracy")
     num_correct = 0
     num_voxels = 0
-    dice_score = 0
-    y_pred_matrix = np.zeros((num_class + 1, num_class + 1))
+    # dice_score = 0
+    y_pred_matrix = np.zeros((num_class, num_class))
 
     model.eval()
 
@@ -103,11 +110,10 @@ def check_accuracy(loader, model, num_class, loss_fn, evl_folder_path, device,
             preds = torch.argmax(torch.softmax(y_pred, 1), 1)
             num_correct += (preds == y).sum()
             num_voxels += torch.numel(preds)
-            dice_score += (2 * (preds * y).sum()) / ((preds + y).sum() + 1e-8)
 
+            # Calculate the num of (GroundTruth==ii, Prediction==jj), cumulate all
             for ii in range(num_class):
                 pp = torch.where(y == ii, preds, 99)
-                # print(ii, pp)
                 for jj in range(num_class):
                     qq = torch.where(pp == jj, 1, 0)
                     y_pred_matrix[ii, jj] += qq.sum()
@@ -116,52 +122,47 @@ def check_accuracy(loader, model, num_class, loss_fn, evl_folder_path, device,
         average_loss = total_loss / len(loader)
 
     filepath = f"{evl_folder_path}/check_accuracy.log"
+    print_and_write(filepath,
+                    f"Average Validation Loss = {round(average_loss, 4)}")
     print_and_write(
         filepath,
-        f"EPOCH: {epoch}, Average Validation Loss: {round(average_loss, 4)}\n")
-
-    for ii in range(num_class):
-        y_pred_matrix[ii, num_class] = y_pred_matrix[ii, :].sum()
-    for jj in range(num_class):
-        y_pred_matrix[num_class, jj] = y_pred_matrix[:, jj].sum()
-    print_and_write(
-        filepath,
-        f"Got {num_correct}/{num_voxels} with acc {num_correct/num_voxels*100:.2f}"
+        f"Accuracy = {num_correct/num_voxels*100:.2f}, getting {num_correct}/{num_voxels}."
     )
-    print_and_write(filepath, f"Dice score: {dice_score/len(loader)}")
 
-    bb = np.expand_dims(y_pred_matrix[:, num_class], 1)
-    cc = np.expand_dims(y_pred_matrix[num_class, :], 0)
-    num_pred_y = y_pred_matrix / bb
-    num_y_pred = y_pred_matrix / cc
+    # Calculate Precision, Recall, F1 score
+    Recall, Precision, F1 = [], [], []
+    for ii in range(num_class):
+        recall = y_pred_matrix[ii][ii] / y_pred_matrix[ii, :].sum()
+        Recall.append(round(recall, 4))
+    for jj in range(num_class):
+        precision = y_pred_matrix[jj][jj] / y_pred_matrix[:, jj].sum()
+        Precision.append(round(precision, 4))
+    for i in range(len(Recall)):
+        f1 = 2 * Precision[i] * Recall[i] / (Precision[i] + Recall[i])
+        F1.append(round(f1, 4))
+
+    # Calculated weighted scores of all labels except 0
+    weights = 1 / class_weights
+    Recall_ = weighted_score(Recall, weights)
+    Precision_ = weighted_score(Precision, weights)
+    F1_ = weighted_score(F1, weights)
+
+    print_and_write(
+        filepath,
+        f"Overall Precision, Recall, F1 score: {Precision_:.4f}, {Recall_:.4f}, {F1_:.4f}"
+    )
     np.set_printoptions(linewidth=400, precision=2, suppress=True)
-    print_and_write(filepath, f"Got num_pred/y:\n{num_pred_y}")
-    print_and_write(filepath, f"Got num_y/pred:\n{num_y_pred}")
+    print_and_write(filepath, f"Precision: {Precision}")
+    print_and_write(filepath, f"Recall: {Recall}")
+    print_and_write(filepath, f"F1 score: {F1}")
 
     np.set_printoptions(suppress=True)
-    print_and_write(filepath, f"Got y_pred_matrix:\n{y_pred_matrix}\n")
-
-    # with open(f"{evl_folder_path}/check_accuracy.log", "a") as file:
-
-    #     print("EPOCH:", epoch, "Average Validation Loss:", average_loss)
-    #     file.write(f"EPOCH: {epoch}, Average Validation Loss: {average_loss}\n\n")
-
-    # print(f"Got {num_correct}/{num_voxels} with acc {num_correct/num_voxels*100:.2f}")
-    # print(f"Dice score: {dice_score/len(loader)}")
-    # file.write(f"Got {num_correct}/{num_voxels} with acc {num_correct/num_voxels*100:.2f}\n")
-    # file.write(f"Dice score: {dice_score/len(loader)}\n")
-
-    # print("Got num_pred/y:\n", num_pred_y)
-    # print("Got num_y/pred:\n", num_y_pred)
-    # file.write(f"Got num_pred/y:\n{num_pred_y}\n")
-    # file.write(f"Got num_y/pred:\n{num_y_pred}\n")
-
-    # print("Got y_pred_matrix:\n", y_pred_matrix)
-    # file.write(f"Got y_pred_matrix:\n{y_pred_matrix}\n\n\n")
+    print_and_write(filepath,
+                    f"Conf_matrix (y_pred_matrix):\n{y_pred_matrix}\n")
 
     model.train()
 
-    return average_loss
+    # return average_loss
 
 
 # import glob
@@ -201,15 +202,15 @@ def save_predictions_as_imgs(loader, model, folder, device, epoch, part_name,
                 pos = ii // 18
                 plt.subplot(3, 3, 3 * pos - 2, label=f'subplot{ii+jj}')
                 plt.imshow(xx[jj, 0, ii, :, :], cmap='gray', origin="lower")
-                plt.title(f'map (z={ii})')
+                plt.title(f'map (z_slice={ii})')
 
                 plt.subplot(3, 3, 3 * pos - 1, label=f'subplot{ii+jj}')
                 plt.imshow(yy[jj, ii, :, :], origin="lower")
-                plt.title(f'model (z={ii})')
+                plt.title(f'model (z_slice={ii})')
 
                 plt.subplot(3, 3, 3 * pos, label=f'subplot{ii+jj}')
                 plt.imshow(predspreds[jj, ii, :, :], origin="lower")
-                plt.title(f'model_pred (z={ii})')
+                plt.title(f'model_pred (z_slice={ii})')
 
             plt.suptitle(f"Epoch {epoch} for {part_name}")
             map_name = f"eval.{jj}.epoch{epoch}.png"

@@ -1,0 +1,253 @@
+from B0_MODEL import UNET
+from B2_UTILS import (load_checkpoint, save_checkpoint, get_loaders,
+                      check_accuracy, save_predictions_as_imgs,
+                      print_and_write)
+import torch
+from tqdm import tqdm  # makes your loops show a smart progress meter
+import torch.nn as nn
+import torch.optim as optim
+import os
+import json
+
+# Train? Test training?
+BATCH_1_TEST = False
+TRAIN = True
+
+# Set training epoch munbers, early stopping epoch num
+training_epoch_num = 100
+early_stopping_patience = 5
+
+# ====================== Hyperparameters etc. ========================
+MAIN_PATH = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST'
+MODEL_TYPES = ['secondary_strctures', 'key_atoms', 'residue_types']
+MAP_DIRS_TYPES = [['map_sample'], ['map_sample', 'secondary_strctures'],
+                  ['map_sample', 'secondary_strctures', 'key_atoms']]
+# LOAD_MODEL = False
+
+data_path = os.path.join(MAIN_PATH, 'train_val_data')
+
+DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+batch_size = 8  # batch_size vs GPU Memory: 1vs2877; 2vs3485; 4vs4668; 8vs7162
+
+num_workers = 2
+learning_rate = 1e-4
+pin_memory = True
+# IMAGE_HEIGHT, IMAGE_WIDTH, IMAGE_DEPTH = [64, 64, 64]
+
+
+def initial_setting(model_type, data_path, map_dirs, device):
+    """
+    This function performs the initial setup before training process:
+    1. Read the class weights of the UNET model,
+    2. Read the saved epoch number,
+    3. Generate paths of file that will be loaded to UNET model.
+    """
+
+    # Load the class weights of all model types
+    weight_path = os.path.join(data_path, 'class_weight_for_training.txt')
+    try:
+        # Load the weight for training
+        with open(weight_path, "r") as file:
+            weight_all = json.load(file)
+
+        if model_type not in weight_all.keys():
+            print(f"Weight for {model_type} is not found.")
+            exit()
+        else:
+            c_w = weight_all[model_type]
+            class_weights = torch.FloatTensor(c_w).to(device)
+
+            # Calculate the number of output channels based on the number of tags in model_type
+            out_channels = len(c_w)
+
+    except FileNotFoundError:
+        print("Weight file does not exist.")
+        exit()
+
+    # Load the load_epoch_num data or initialize it if the file doesn't exist
+    load_epoch_num_path = os.path.join(data_path, "epoch_num_path.txt")
+
+    if not os.path.exists(load_epoch_num_path):
+        load_epoch_num_all = {model_type: 0}
+    else:
+        with open(load_epoch_num_path, "r") as file:
+            load_epoch_num_all = json.load(file)
+            if model_type not in load_epoch_num_all.keys():
+                load_epoch_num_all[model_type] = 0
+    load_epoch_num = load_epoch_num_all[model_type]
+
+    # Save the updated load_epoch_num_all data
+    with open(load_epoch_num_path, "w") as file:
+        json.dump(load_epoch_num_all, file)
+
+    # Calculate the number of output channels based on the num of input map types
+    in_channels = len(map_dirs)
+
+    # Set file paths and make some directories when not existed
+    train_map_dirs = [
+        os.path.join(data_path, 'train', map_dir) for map_dir in map_dirs
+    ]
+    val_map_dirs = [
+        os.path.join(data_path, 'val', map_dir) for map_dir in map_dirs
+    ]
+    train_model_dir = os.path.join(data_path, 'train', model_type)
+    val_model_dir = os.path.join(data_path, 'val', model_type)
+
+    load_model_path = os.path.join(
+        data_path, 'checkpoint', model_type,
+        f'{model_type}.epoch{load_epoch_num}.pth.tar')
+
+    evl_folder_path = os.path.join(data_path, 'evaluation', model_type)
+
+    os.makedirs(os.path.dirname(load_model_path), exist_ok=True)
+    os.makedirs(evl_folder_path, exist_ok=True)
+
+    return class_weights, in_channels, out_channels, load_epoch_num, train_map_dirs, val_map_dirs, train_model_dir, val_model_dir, load_model_path, evl_folder_path
+
+
+def train_fn(loader, model, optimizer, loss_fn, scaler):
+    loop = tqdm(loader)
+    total_loss = 0
+
+    for batch_idx, (data, targets) in enumerate(loop):
+        data, targets = data.to(device=DEVICE), targets.long().to(
+            device=DEVICE)
+
+        # forward
+        with torch.cuda.amp.autocast():
+            predictions = model(data)
+            loss = loss_fn(predictions, targets)
+            total_loss += loss.item()
+
+        # backward
+        optimizer.zero_grad()
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
+
+        # update tqdm loop
+        loop.set_postfix(loss=loss.item())
+    average_loss = total_loss / (batch_idx + 1)
+
+    return round(average_loss, 4)
+
+
+def batch_1_test(loader, model, optimizer, loss_fn, scaler):
+    loop = tqdm(loader)
+
+    data, targets = next(iter(loader))
+    data, targets = data.to(device=DEVICE), targets.long().to(device=DEVICE)
+
+    for epoch in range(500):
+        # forward
+        with torch.cuda.amp.autocast():
+            predictions = model(data)
+            print(predictions.shape)
+            loss = loss_fn(predictions, targets)
+
+        # backward
+        optimizer.zero_grad()
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
+
+        # update tqdm loop
+        loop.set_postfix(loss=loss.item())
+
+
+def main():
+
+    for type_index, model_type in enumerate(MODEL_TYPES):
+        if type_index > 0:
+            exit()
+        print(f"Start training for {model_type} U-net:")
+        map_dirs = MAP_DIRS_TYPES[type_index]
+
+        class_weights, in_channels, out_channels, load_epoch_num, train_map_dirs, val_map_dirs, train_model_dir, val_model_dir, load_model_path, evl_folder_path = initial_setting(
+            model_type, data_path, map_dirs, DEVICE)
+
+        model = UNET(in_channels, out_channels).to(DEVICE)
+        loss_fn = nn.CrossEntropyLoss(weight=class_weights)
+        optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+        scaler = torch.cuda.amp.GradScaler()
+
+        # Generate data loaders
+        train_loader, val_loader = get_loaders(train_map_dirs, train_model_dir,
+                                               val_map_dirs, val_model_dir,
+                                               batch_size, num_workers,
+                                               pin_memory)
+
+        # Do batch 1 test to evaluate the U-Net model first
+        if BATCH_1_TEST:
+            batch_1_test(train_loader, model, optimizer, loss_fn, scaler)
+            exit()
+
+        if TRAIN:
+            # Early stopping initialization
+            best_loss, no_improvement_count = 10, 0
+
+            if not load_epoch_num == 0:
+                # Load previous check point
+                load_checkpoint(load_model_path, model, map_location=DEVICE)
+
+            for epoch in range(load_epoch_num + 1,
+                               load_epoch_num + 1 + training_epoch_num):
+                # Train U-net model and get the average loss
+                average_loss = train_fn(train_loader, model, optimizer,
+                                        loss_fn, scaler)
+                print_and_write(
+                    f"{evl_folder_path}/check_accuracy.log",
+                    f"EPOCH {epoch} of {model_type}: \nAverage Loss = {average_loss}."
+                )
+
+                # Check if the current loss is better than the previous best loss
+                if average_loss < best_loss:
+                    best_loss = average_loss
+                    no_improvement_count = 0
+
+                    # Save model and update the loading epoch number file
+                    checkpoint = {
+                        "state_dict": model.state_dict(),
+                        "optimizer": optimizer.state_dict()
+                    }
+                    save_model_name = f"{model_type}.epoch{epoch}.pth.tar"
+                    save_checkpoint(checkpoint,
+                                    os.path.dirname(load_model_path),
+                                    save_model_name)
+
+                    # Update the epoch number in file
+                    load_epoch_num_path = os.path.join(data_path,
+                                                       "epoch_num_path.txt")
+
+                    with open(load_epoch_num_path, "r") as file:
+                        load_epoch_num_all = json.load(file)
+                        load_epoch_num_all[model_type] = epoch
+                    with open(load_epoch_num_path, "w") as file:
+                        json.dump(load_epoch_num_all, file)
+
+                else:
+                    no_improvement_count += 1
+
+                # Check if early stopping criteria are met
+                if no_improvement_count >= early_stopping_patience:
+                    print("Early stopping! No improvement for",
+                          early_stopping_patience, "epochs.")
+                    break
+
+                # Check accuracy
+                check_accuracy(val_loader, model, out_channels, loss_fn,
+                               evl_folder_path, DEVICE, epoch, class_weights)
+                save_predictions_as_imgs(val_loader, model, evl_folder_path,
+                                         DEVICE, epoch, model_type, batch_size)
+
+        # else:
+        #     device_ = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+        #     check_accuracy(val_loader, model, out_channels, evl_folder_path, DEVICE)
+        #     # print some examples to a folder
+        #     save_predictions_as_imgs(
+        #         val_loader, model, folder=evl_folder_path, device=device_
+        #     )
+
+
+if __name__ == "__main__":
+    main()
