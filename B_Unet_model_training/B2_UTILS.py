@@ -53,17 +53,17 @@ def get_loaders(
 
 
 # # ============ TEST ====================
-# TRAIN_DIR = "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/ready_to_train_and_val"
+# TRAIN_DIR = "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST/train_val_data/train"
 # train_map_dirs = [
 #     os.path.join(TRAIN_DIR, 'map_sample'),
-#     # os.path.join(TRAIN_DIR, 'secondary_strctures')
+#     os.path.join(TRAIN_DIR, 'secondary_strctures_pred_prob')
 # ]
 # train_model_dir = os.path.join(TRAIN_DIR, 'key_atoms')
 
 # val_map_dirs = train_map_dirs
 # val_model_dir = train_model_dir
 
-# BATCH_SIZE = 32
+# BATCH_SIZE = 8
 # NUM_WORKERS = 4
 # PIN_MEMORY = True
 # train_loader, val_loader = get_loaders(train_map_dirs,
@@ -73,8 +73,9 @@ def get_loaders(
 #                                        batch_size=BATCH_SIZE,
 #                                        num_workers=NUM_WORKERS,
 #                                        pin_memory=PIN_MEMORY)
-# train_features, train_labels = next(iter(train_loader))
-# print(train_features.size(), train_labels.size())
+# for i in range(100):
+#     train_features, train_labels = next(iter(train_loader))
+#     print(train_features.size(), train_labels.size())
 
 
 def print_and_write(filepath, content):

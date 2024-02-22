@@ -8,10 +8,12 @@ import torch.nn as nn
 import torch.optim as optim
 import os
 import json
+import numpy as np
 
-# Train? Test training?
-BATCH_1_TEST = False
-TRAIN = True
+# Test train? Train? Predict?
+BATCH_1_TEST = True
+TRAIN = False
+PREDICT = False
 
 # Set training epoch munbers, early stopping epoch num
 training_epoch_num = 100
@@ -20,8 +22,13 @@ early_stopping_patience = 5
 # ====================== Hyperparameters etc. ========================
 MAIN_PATH = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST'
 MODEL_TYPES = ['secondary_strctures', 'key_atoms', 'residue_types']
-MAP_DIRS_TYPES = [['map_sample'], ['map_sample', 'secondary_strctures'],
-                  ['map_sample', 'secondary_strctures', 'key_atoms']]
+MAP_DIRS_TYPES = [['map_sample'],
+                  ['map_sample', 'secondary_strctures_pred_prob'],
+                  [
+                      'map_sample', 'secondary_strctures_pred_prob',
+                      'key_atoms_pred_prob'
+                  ]]
+# IN_CHANNELS = [1, 6, 10]
 # LOAD_MODEL = False
 
 data_path = os.path.join(MAIN_PATH, 'train_val_data')
@@ -35,7 +42,7 @@ pin_memory = True
 # IMAGE_HEIGHT, IMAGE_WIDTH, IMAGE_DEPTH = [64, 64, 64]
 
 
-def initial_setting(model_type, data_path, map_dirs, device):
+def initial_setting(model_index, data_path, map_dirs, device):
     """
     This function performs the initial setup before training process:
     1. Read the class weights of the UNET model,
@@ -43,6 +50,7 @@ def initial_setting(model_type, data_path, map_dirs, device):
     3. Generate paths of file that will be loaded to UNET model.
     """
 
+    model_type = MODEL_TYPES[model_index]
     # Load the class weights of all model types
     weight_path = os.path.join(data_path, 'class_weight_for_training.txt')
     try:
@@ -59,6 +67,11 @@ def initial_setting(model_type, data_path, map_dirs, device):
 
             # Calculate the number of output channels based on the number of tags in model_type
             out_channels = len(c_w)
+            in_channels = 1
+            if model_index > 0:
+                for ii in range(model_index):
+                    in_channels = in_channels + len(
+                        weight_all[MODEL_TYPES[ii]])
 
     except FileNotFoundError:
         print("Weight file does not exist.")
@@ -79,9 +92,6 @@ def initial_setting(model_type, data_path, map_dirs, device):
     # Save the updated load_epoch_num_all data
     with open(load_epoch_num_path, "w") as file:
         json.dump(load_epoch_num_all, file)
-
-    # Calculate the number of output channels based on the num of input map types
-    in_channels = len(map_dirs)
 
     # Set file paths and make some directories when not existed
     train_map_dirs = [
@@ -157,14 +167,13 @@ def batch_1_test(loader, model, optimizer, loss_fn, scaler):
 
 def main():
 
-    for type_index, model_type in enumerate(MODEL_TYPES):
-        if type_index > 0:
-            exit()
-        print(f"Start training for {model_type} U-net:")
-        map_dirs = MAP_DIRS_TYPES[type_index]
+    for model_index, model_type in enumerate(MODEL_TYPES):
+        if model_index != 1:
+            continue
+        map_dirs = MAP_DIRS_TYPES[model_index]
 
         class_weights, in_channels, out_channels, load_epoch_num, train_map_dirs, val_map_dirs, train_model_dir, val_model_dir, load_model_path, evl_folder_path = initial_setting(
-            model_type, data_path, map_dirs, DEVICE)
+            model_index, data_path, map_dirs, DEVICE)
 
         model = UNET(in_channels, out_channels).to(DEVICE)
         loss_fn = nn.CrossEntropyLoss(weight=class_weights)
@@ -183,6 +192,8 @@ def main():
             exit()
 
         if TRAIN:
+            print(f"Start training for {model_type} U-net:")
+
             # Early stopping initialization
             best_loss, no_improvement_count = 10, 0
 
@@ -240,14 +251,16 @@ def main():
                 save_predictions_as_imgs(val_loader, model, evl_folder_path,
                                          DEVICE, epoch, model_type, batch_size)
 
-        # else:
-        #     device_ = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-        #     check_accuracy(val_loader, model, out_channels, evl_folder_path, DEVICE)
-        #     # print some examples to a folder
-        #     save_predictions_as_imgs(
-        #         val_loader, model, folder=evl_folder_path, device=device_
-        #     )
 
+# if PREDICT:
+
+# else:
+#     device_ = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+#     check_accuracy(val_loader, model, out_channels, evl_folder_path, DEVICE)
+#     # print some examples to a folder
+#     save_predictions_as_imgs(
+#         val_loader, model, folder=evl_folder_path, device=device_
+#     )
 
 if __name__ == "__main__":
     main()

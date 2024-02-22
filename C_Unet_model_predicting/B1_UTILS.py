@@ -32,7 +32,6 @@ def map_normalizing(map_path):
     return map_data, zoom_factors
 
 
-
 def MapReading(MapPath):
     with mrcfile.mmap(MapPath) as mrc:
 
@@ -48,7 +47,7 @@ def MapReading(MapPath):
         # print(dada.sum()/(mrc.header.nz*mrc.header.ny*mrc.header.nx))
         # exit()
         map_data = np.where(map_data > data_99, data_99, map_data)
-        map_data = map_data/data_99
+        map_data = map_data / data_99
         map_data = map_data.astype(np.float32)
 
     return map_data
@@ -58,11 +57,15 @@ def map_reshape(map_data):
     new_shape = np.zeros(3, int)
     insert_idx = np.zeros((3, 2), int)
     for i in range(3):
-        new_shape[i] = 50*((map_data.shape[i])//50+1)+14
+        new_shape[i] = 50 * ((map_data.shape[i]) // 50 + 1) + 14
         insert_idx[i, 0] = 7
         insert_idx[i, 1] = 7 + map_data.shape[i]
     new_shape_map = np.zeros(tuple(new_shape), np.float32)
-    new_shape_map[7:insert_idx[0, 1], 7:insert_idx[1, 1], 7:insert_idx[2, 1],] = map_data
+    new_shape_map[
+        7:insert_idx[0, 1],
+        7:insert_idx[1, 1],
+        7:insert_idx[2, 1],
+    ] = map_data
 
     return new_shape_map, insert_idx
 
@@ -109,16 +112,16 @@ def identify_chain(model_data, tag=11, pos_tag=[]):
     VoxelThreshold = 1000.
     # print("=> Identify different chains:")
     [a, b, c] = model_data.shape
-    ModelData = np.zeros([a+2, b+2, c+2])
+    ModelData = np.zeros([a + 2, b + 2, c + 2])
     ModelData[1:-1, 1:-1, 1:-1] = model_data
     shape = ModelData.shape
     # num = np.zeros(tag)
     num = np.zeros([tag, 2])
     longest_segments = np.zeros([1, 2])
     # print(shape)
-    for z in range(1, ModelData.shape[0]-1):
-        for y in range(1, ModelData.shape[1]-1):
-            for x in range(1, ModelData.shape[2]-1):
+    for z in range(1, ModelData.shape[0] - 1):
+        for y in range(1, ModelData.shape[1] - 1):
+            for x in range(1, ModelData.shape[2] - 1):
                 if ModelData[z, y, x] == 1:
                     pos_tag = []
                     print(f"\rChain No.{tag-10}: ", end="\t")
@@ -129,12 +132,14 @@ def identify_chain(model_data, tag=11, pos_tag=[]):
 
                     num = np.append(num, [[tag, 1]], axis=0)
                     while num[tag, 1] < len(pos_tag):
-                        pos_around = search_around(ModelData, list(pos_tag[int(num[tag, 1])]), tag)
+                        pos_around = search_around(
+                            ModelData, list(pos_tag[int(num[tag, 1])]), tag)
                         pos_tag.extend(pos_around)
                         print(f"num = {num[tag, 1]}          ", end="\r\t\t")
                         num[tag, 1] += 1
                     if num[tag, 1] > VoxelThreshold:
-                        longest_segments = np.append(longest_segments, [[tag, num[tag, 1]]], 0)
+                        longest_segments = np.append(longest_segments,
+                                                     [[tag, num[tag, 1]]], 0)
                     # print(f"{num[tag, 1]} voxels.")
 
                     # num = np.append(num, 1)
@@ -149,20 +154,18 @@ def identify_chain(model_data, tag=11, pos_tag=[]):
 
                     tag += 1
 
-
     print(f"\rThere are {len(longest_segments[:,0])-1} long segments:")
     segments_data = np.zeros([a, b, c]).astype(np.int_)
     Model_Data = (ModelData[1:-1, 1:-1, 1:-1]).astype(np.int_)
 
-    idx_sort = np.argsort(longest_segments[:,1])[::-1]
+    idx_sort = np.argsort(longest_segments[:, 1])[::-1]
 
-    for i in range(len(longest_segments)-1):
+    for i in range(len(longest_segments) - 1):
         tagg = longest_segments[idx_sort[i], 0]
         numm = longest_segments[idx_sort[i], 1]
-        lks = np.where(Model_Data==int(tagg), 1, 0)
-        segments_data = np.where(Model_Data==int(tagg), i+1, segments_data)
-        print(i+1, "\t", int(tagg), "\t", numm, lks.sum())
-
+        lks = np.where(Model_Data == int(tagg), 1, 0)
+        segments_data = np.where(Model_Data == int(tagg), i + 1, segments_data)
+        print(i + 1, "\t", int(tagg), "\t", numm, lks.sum())
 
     return Model_Data, longest_segments, segments_data
 
@@ -170,7 +173,8 @@ def identify_chain(model_data, tag=11, pos_tag=[]):
 def search_around(ModelData, idx, tag):
     z, y, x = idx
     pos_temp = []
-    for around in [(z, y, x-1), (z, y, x+1), (z, y-1, x),(z, y+1, x),(z-1, y, x),(z+1, y, x)]:
+    for around in [(z, y, x - 1), (z, y, x + 1), (z, y - 1, x), (z, y + 1, x),
+                   (z - 1, y, x), (z + 1, y, x)]:
         if ModelData[around] == 1:
             ModelData[around] = tag
             pos_temp.append(around)
@@ -183,9 +187,8 @@ def smooth_location(model_data, tag):
     location_data[1:-1, 1:-1, 1:-1] = (  model_data[1:-1, 1:-1, 1:-1]\
                                        + model_data[0:-2, 1:-1, 1:-1] + model_data[1:-1, 0:-2, 1:-1] + model_data[1:-1, 1:-1, 0:-2]\
                                        + model_data[2:lenz, 1:-1, 1:-1]+model_data[1:-1, 2:leny, 1:-1]+model_data[1:-1, 1:-1, 2:lenx])/7
-    location_data = np.where(location_data<tag/2, 0, tag)
-    return(location_data)
-
+    location_data = np.where(location_data < tag / 2, 0, tag)
+    return (location_data)
 
 
 def predict_location(map_data, model, out_channels, device):
@@ -193,45 +196,49 @@ def predict_location(map_data, model, out_channels, device):
     new_shape_map, insert_idx = map_reshape(map_data)
     new_shape = new_shape_map.shape
     new_shape_map = torch.from_numpy(new_shape_map)
-    new_shape_model = torch.zeros((out_channels,) + new_shape)
+    new_shape_model = torch.zeros((out_channels, ) + new_shape)
 
     model.eval()
     # Iterate over 3D cubes of the map data
     with torch.no_grad():
         cube_size = 50
-        num_cubes = (new_shape[0] // cube_size) * (new_shape[1] // cube_size) * (new_shape[2] // cube_size)
+        num_cubes = (new_shape[0] // cube_size) * (
+            new_shape[1] // cube_size) * (new_shape[2] // cube_size)
         num_completed = 0
         for zz in range(new_shape[0] // cube_size):
             for yy in range(new_shape[1] // cube_size):
                 for xx in range(new_shape[2] // cube_size):
                     # Extract a 3D cube from the map data
-                    cube = new_shape_map[None, None, cube_size*zz:64+cube_size*zz, cube_size*yy:64+cube_size*yy, cube_size*xx:64+cube_size*xx]
+                    cube = new_shape_map[None, None,
+                                         cube_size * zz:64 + cube_size * zz,
+                                         cube_size * yy:64 + cube_size * yy,
+                                         cube_size * xx:64 + cube_size * xx]
 
                     # Move the cube to the specified device and perform prediction
                     cube = cube.to(device)
                     pred_data = torch.softmax(model(cube), 1)
 
                     # Write predicted data to new_shape_model
-                    new_shape_model[:, 7+cube_size*zz:57+cube_size*zz, 7+cube_size*yy:57+cube_size*yy, 7+cube_size*xx:57+cube_size*xx] = pred_data[0, :, 7:57, 7:57, 7:57]
+                    new_shape_model[:, 7 + cube_size * zz:57 + cube_size * zz,
+                                    7 + cube_size * yy:57 + cube_size * yy,
+                                    7 + cube_size * xx:57 +
+                                    cube_size * xx] = pred_data[0, :, 7:57,
+                                                                7:57, 7:57]
 
                     # Update progress
                     num_completed += 1
-                    print(f"{num_completed}/{num_cubes} of prediction is done.", end='\r')
+                    print(
+                        f"{num_completed}/{num_cubes} of prediction is done.",
+                        end='\r')
         # print("\n")
 
     # Extract model data
-    part_possibility = new_shape_model[:, insert_idx[0, 0]:insert_idx[0, 1], insert_idx[1, 0]:insert_idx[1, 1], insert_idx[2, 0]:insert_idx[2, 1]].numpy()
+    part_possibility = new_shape_model[:, insert_idx[0, 0]:insert_idx[0, 1],
+                                       insert_idx[1, 0]:insert_idx[1, 1],
+                                       insert_idx[2, 0]:insert_idx[2,
+                                                                   1]].numpy()
 
     return part_possibility
-
-
-
-
-
-
-
-
-
 
 
 # def search_around(ModelData, idx, tag):
@@ -252,7 +259,6 @@ def predict_location(map_data, model, out_channels, device):
 #         search_around(ModelData, [z-1, y, x], tag)
 #     if ModelData[z+1, y, x] == 1:
 #         search_around(ModelData, [z+1, y, x], tag)
-
 
 # def identify_chain(ModelData, tag = 11):
 #     print("Identify different chains:???? ")
@@ -301,8 +307,6 @@ def predict_location(map_data, model, out_channels, device):
 #     #     aaa = np.where(ModelData==ii, 1, 0)
 #     #     numbers[1, ii-11] = aaa.sum()
 #     return chains, numbers
-
-
 
 
 def download_map_model(emdb, pdb, resolution, directory):
