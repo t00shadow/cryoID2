@@ -10,13 +10,16 @@ import os
 import json
 import numpy as np
 
+import splitfolders
+import shutil
+
 # Test train? Train? Predict?
-BATCH_1_TEST = True
-TRAIN = False
+BATCH_1_TEST = False
+TRAIN = True
 PREDICT = False
 
 # Set training epoch munbers, early stopping epoch num
-training_epoch_num = 100
+training_epoch_num = 40
 early_stopping_patience = 5
 
 # ====================== Hyperparameters etc. ========================
@@ -29,17 +32,16 @@ MAP_DIRS_TYPES = [['map_sample'],
                       'key_atoms_pred_prob'
                   ]]
 # IN_CHANNELS = [1, 6, 10]
-# LOAD_MODEL = False
 
 data_path = os.path.join(MAIN_PATH, 'train_val_data')
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
-batch_size = 8  # batch_size vs GPU Memory: 1vs2877; 2vs3485; 4vs4668; 8vs7162
+# batch_size (vs GPU Memory: 1vs2877; 2vs3485; 4vs4668; 8vs7162)
+batch_size = 8
 
 num_workers = 2
 learning_rate = 1e-4
 pin_memory = True
-# IMAGE_HEIGHT, IMAGE_WIDTH, IMAGE_DEPTH = [64, 64, 64]
 
 
 def initial_setting(model_index, data_path, map_dirs, device):
@@ -152,7 +154,7 @@ def batch_1_test(loader, model, optimizer, loss_fn, scaler):
         # forward
         with torch.cuda.amp.autocast():
             predictions = model(data)
-            print(predictions.shape)
+            # print(predictions.shape)
             loss = loss_fn(predictions, targets)
 
         # backward
@@ -165,10 +167,72 @@ def batch_1_test(loader, model, optimizer, loss_fn, scaler):
         loop.set_postfix(loss=loss.item())
 
 
+def predict(model, pre_map_dirs, model_index):
+
+    temp_sample_path = os.path.join(MAIN_PATH, 'ready_to_train_and_val')
+    model_type = MODEL_TYPES[model_index]
+    os.makedirs(os.path.join(temp_sample_path, f'{model_type}_pred_prob'),
+                exist_ok=True)
+
+    map_names = [sorted(os.listdir(map_dir)) for map_dir in pre_map_dirs]
+    # print(map_names[0])
+    # print(map_names[1])
+
+    model.eval()
+
+    with torch.no_grad():
+
+        count = 0
+
+        for index in range(len(map_names[0])):
+            count += 1
+            print(f'Finished: {count}/{len(map_names[0])}')
+            # if count < 11776:
+            #     continue
+            for i in range(len(pre_map_dirs)):
+                map_dir = pre_map_dirs[i]
+                map_name = map_names[i][index]
+                map_path = os.path.join(map_dir, map_name)
+                map_part = np.load(map_path)
+
+                # concatenate maps in different features
+                if i == 0:
+                    # add a dimension of feature to original map
+                    map = np.expand_dims(map_part, axis=0)
+                else:
+                    map = np.concatenate((map, map_part), axis=0)
+            map = np.expand_dims(map, axis=0)
+
+            # Move map to the specified device and perform prediction
+            map = torch.from_numpy(map)
+            map = map.to(DEVICE)
+            pred_prob = torch.softmax(model(map), 1)
+            writen = pred_prob[0, :, :, :, :].cpu().numpy()
+
+            file_name = f"{model_type}_pred_prob.{map_name.split('.')[-2]}.npy"
+            file_path = os.path.join(temp_sample_path,
+                                     f'{model_type}_pred_prob', file_name)
+            np.save(file_path, writen)
+
+    model.train()
+
+
+def split(temp_sample_path, sample_path):
+    # split data into training and testing dataset
+    os.makedirs(sample_path, exist_ok=True)
+    splitfolders.ratio(input=temp_sample_path,
+                       output=sample_path,
+                       seed=44,
+                       ratio=(.8, .2),
+                       group_prefix=None,
+                       move=True)
+    shutil.rmtree(temp_sample_path)
+
+
 def main():
 
     for model_index, model_type in enumerate(MODEL_TYPES):
-        if model_index != 1:
+        if model_index != 2:
             continue
         map_dirs = MAP_DIRS_TYPES[model_index]
 
@@ -251,8 +315,14 @@ def main():
                 save_predictions_as_imgs(val_loader, model, evl_folder_path,
                                          DEVICE, epoch, model_type, batch_size)
 
+        if PREDICT:
+            # predict(model, train_map_dirs, model_index)
+            # predict(model, val_map_dirs, model_index)
+            temp_sample_path = os.path.join(MAIN_PATH,
+                                            'ready_to_train_and_val')
+            sample_path = os.path.join(MAIN_PATH, 'train_val_data')
+            split(temp_sample_path, sample_path)
 
-# if PREDICT:
 
 # else:
 #     device_ = 'cuda:0' if torch.cuda.is_available() else 'cpu'

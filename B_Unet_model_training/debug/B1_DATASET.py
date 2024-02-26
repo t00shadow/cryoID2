@@ -18,21 +18,21 @@ class MapModelDataset(Dataset):
         return len(self.models)
 
     def __getitem__(self, index):
-        map = None
         for i in range(len(self.map_dirs)):
             map_dir = self.map_dirs[i]
             map_name = self.maps[i][index]
             map_path = os.path.join(map_dir, map_name)
             # print(map_path)
+            map_part = np.load(map_path)
 
-            # add a dimension for feature
-            map_part = np.expand_dims(np.load(map_path), axis=0)
             # concatenate maps in different features
-            if map is None:
-                map = map_part
+            if i == 0:
+                # add a dimension of feature to original map
+                map = np.expand_dims(map_part, axis=0)
+                # print(map.shape)
             else:
                 map = np.concatenate((map, map_part), axis=0)
-            # print(map.shape)
+                # print(map.shape)
 
         model_path = os.path.join(self.model_dir, self.models[index])
         model = np.load(model_path)
@@ -47,12 +47,11 @@ TRAIN_DIR = "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Tra
 
 map_dirs = [
     os.path.join(TRAIN_DIR, 'map_sample'),
-    os.path.join(TRAIN_DIR, 'secondary_strctures'),
-    os.path.join(TRAIN_DIR, 'residue_types')
+    os.path.join(TRAIN_DIR, 'secondary_strctures_pred_prob'),
+    # os.path.join(TRAIN_DIR, 'residue_types_pred_prob')
 ]
 model_dir = os.path.join(TRAIN_DIR, 'key_atoms')
 
 train_ds = MapModelDataset(map_dirs, model_dir)
-
 for i in range(10):
     train_ds.__getitem__(i)
