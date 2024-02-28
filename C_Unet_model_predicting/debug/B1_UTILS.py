@@ -53,7 +53,9 @@ def MapReading(MapPath):
     return map_data
 
 
-# need to rewrite so that it can deal with map.shape=[:, x, x, x]
+################################################# 2/27/2024
+# need to rewrite so that it can deal with map.shape=[:, x, x, x] 2/27/2024
+################################################# 2/27/2024
 def map_reshape(map_data):
     new_shape = np.zeros(3, int)
     insert_idx = np.zeros((3, 2), int)
