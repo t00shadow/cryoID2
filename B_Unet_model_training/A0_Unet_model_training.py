@@ -316,8 +316,8 @@ def main():
                                          DEVICE, epoch, model_type, batch_size)
 
         if PREDICT:
-            # predict(model, train_map_dirs, model_index)
-            # predict(model, val_map_dirs, model_index)
+            predict(model, train_map_dirs, model_index)
+            predict(model, val_map_dirs, model_index)
             temp_sample_path = os.path.join(MAIN_PATH,
                                             'ready_to_train_and_val')
             sample_path = os.path.join(MAIN_PATH, 'train_val_data')
