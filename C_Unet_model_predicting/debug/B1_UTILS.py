@@ -57,18 +57,27 @@ def MapReading(MapPath):
 # need to rewrite so that it can deal with map.shape=[:, x, x, x] 2/27/2024
 ################################################# 2/27/2024
 def map_reshape(map_data):
+    map_shape = map_data.shape
+
     new_shape = np.zeros(3, int)
     insert_idx = np.zeros((3, 2), int)
-    for i in range(3):
-        new_shape[i] = 50 * ((map_data.shape[i]) // 50 + 1) + 14
+    for i in [-1, -2, -3]:
+        new_shape[i] = 50 * ((map_shape[i]) // 50 + 1) + 14
         insert_idx[i, 0] = 7
-        insert_idx[i, 1] = 7 + map_data.shape[i]
-    new_shape_map = np.zeros(tuple(new_shape), np.float32)
-    new_shape_map[
-        7:insert_idx[0, 1],
-        7:insert_idx[1, 1],
-        7:insert_idx[2, 1],
-    ] = map_data
+        insert_idx[i, 1] = 7 + map_shape[i]
+
+    if len(map_shape) == 3:
+        new_shape_map = np.zeros(tuple(new_shape), np.float32)
+        new_shape_map[7:insert_idx[0, 1], 7:insert_idx[1, 1],
+                      7:insert_idx[2, 1]] = map_data
+    else:
+        new_shape = np.insert(new_shape, 0, map_shape[0])
+        new_shape_map = np.zeros(tuple(new_shape), np.float32)
+        new_shape_map[:, 7:insert_idx[0, 1], 7:insert_idx[1, 1],
+                      7:insert_idx[2, 1]] = map_data
+
+    print(map_shape)
+    print(new_shape_map.shape)
 
     return new_shape_map, insert_idx
 
@@ -199,29 +208,42 @@ def predict_location(map_data, model, out_channels, device):
     new_shape_map, insert_idx = map_reshape(map_data)
     new_shape = new_shape_map.shape
     new_shape_map = torch.from_numpy(new_shape_map)
-    new_shape_model = torch.zeros((out_channels, ) + new_shape)
 
     model.eval()
     # Iterate over 3D cubes of the map data
     with torch.no_grad():
         cube_size = 50
-        num_cubes = (new_shape[0] // cube_size) * (
-            new_shape[1] // cube_size) * (new_shape[2] // cube_size)
+        num_cubes = (new_shape[-3] // cube_size) * (
+            new_shape[-2] // cube_size) * (new_shape[-1] // cube_size)
         num_completed = 0
-        for zz in range(new_shape[0] // cube_size):
-            for yy in range(new_shape[1] // cube_size):
-                for xx in range(new_shape[2] // cube_size):
+        for zz in range(new_shape[-3] // cube_size):
+            for yy in range(new_shape[-2] // cube_size):
+                for xx in range(new_shape[-1] // cube_size):
                     # Extract a 3D cube from the map data
-                    cube = new_shape_map[None, None,
-                                         cube_size * zz:64 + cube_size * zz,
-                                         cube_size * yy:64 + cube_size * yy,
-                                         cube_size * xx:64 + cube_size * xx]
+                    if len(new_shape) == 3:
+                        cube = new_shape_map[None, None, cube_size * zz:64 +
+                                             cube_size * zz, cube_size *
+                                             yy:64 + cube_size * yy,
+                                             cube_size * xx:64 +
+                                             cube_size * xx]
+                    else:
+                        cube = new_shape_map[None, :, cube_size * zz:64 +
+                                             cube_size * zz, cube_size *
+                                             yy:64 + cube_size * yy,
+                                             cube_size * xx:64 +
+                                             cube_size * xx]
 
                     # Move the cube to the specified device and perform prediction
                     cube = cube.to(device)
+                    a = model(cube)
+                    print(f'model shape is {a.shape}')
+
                     pred_data = torch.softmax(model(cube), 1)
 
                     # Write predicted data to new_shape_model
+                    model_shape = new_shape[-3:]
+                    model_shape = np.insert(model_shape, 0, out_channels)
+                    new_shape_model = torch.zeros(tuple(model_shape))
                     new_shape_model[:, 7 + cube_size * zz:57 + cube_size * zz,
                                     7 + cube_size * yy:57 + cube_size * yy,
                                     7 + cube_size * xx:57 +
