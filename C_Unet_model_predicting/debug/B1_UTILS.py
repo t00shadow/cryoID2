@@ -235,8 +235,8 @@ def predict_location(map_data, model, out_channels, device):
 
                     # Move the cube to the specified device and perform prediction
                     cube = cube.to(device)
-                    a = model(cube)
-                    print(f'model shape is {a.shape}')
+                    # a = model(cube)
+                    # print(f'model shape is {a.shape}')
 
                     pred_data = torch.softmax(model(cube), 1)
 
