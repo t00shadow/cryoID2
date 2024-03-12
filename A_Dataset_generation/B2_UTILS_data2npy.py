@@ -9,6 +9,7 @@ import numpy as np
 
 import sys
 from pathlib import Path
+import random
 
 sys.path.append(str(Path(__file__).parent.parent))
 
@@ -307,7 +308,9 @@ def split_to_npy(data,
                     ratio_tags.append(ratio_tag)
                 # print(ratio_tags)
                 if max(ratio_tags) < 0.01:
-                    continue
+                    random_number = random.randint(1, 10)
+                    if random_number < 6:
+                        continue
                 # Save seperated files for model tags
                 for idx in range(0, len(data) - 1):
                     file_name = os.path.join(

@@ -93,7 +93,6 @@ def generate_dataset(HOME_PATH, csv_path):
             # Add number of each tag in new sampled model
             for key, value_list in num_of_tag_in_each_part.items():
                 num_of_tag_in_each_part_for_all_models[key] += value_list
-            # print(num_of_tag_in_each_part_for_all_models)
 
         # Delete 0s in tag number list and calculate 1/ratio of tag number
         ratio_of_tag = {}
@@ -120,8 +119,7 @@ def generate_dataset(HOME_PATH, csv_path):
 
         # split data into training and testing dataset
         import splitfolders
-        sample_path = os.path.join(HOME_PATH, "TEST", "train_val_data")
-        # sample_path = os.path.join(HOME_PATH, "TEST", "train_val_data", "test")
+        sample_path = os.path.join(HOME_PATH, "TEST_with_blank", "train_val_data")
 
         os.makedirs(sample_path, exist_ok=True)
         splitfolders.ratio(input=temp_sample_path,

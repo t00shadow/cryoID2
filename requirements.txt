@@ -7,5 +7,6 @@ mrcfile
 gemmi
 matplotlib
 tqdm
+split-folders
 pickle
 shutil

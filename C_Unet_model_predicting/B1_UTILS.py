@@ -12,6 +12,55 @@ GRID_SIZE = 64
 SAMPLE_NUMBER = 1
 
 
+def predict_location(map_data_, model, out_channels, device, cube_size=50, pad_size=7):
+    map_shape = map_data_.shape
+
+    cube_nums = [map_shape[i] // cube_size + 1 for i in range(1, len(map_shape))]
+    num_cubes = cube_nums[0] * cube_nums[1] * cube_nums[2]
+    larger_shape = [cube_size * cube_nums[i] + pad_size * 2 for i in range(len(cube_nums))]
+    larger_shape.insert(0, map_shape[0])
+
+    reshaped_map_data = np.zeros(tuple(larger_shape), np.float32)
+    reshaped_map_data[:, pad_size:pad_size+map_shape[1], pad_size:pad_size+map_shape[2], pad_size:pad_size+map_shape[3]] = map_data_
+
+    reshaped_map_data = torch.from_numpy(reshaped_map_data)
+    model_larger_shape = larger_shape[-3:]
+    model_larger_shape = np.insert(model_larger_shape, 0, out_channels)
+    reshaped_model = torch.zeros(tuple(model_larger_shape))
+
+    model.eval()
+    # Iterate over 3D cubes of the map data
+    with torch.no_grad():
+        num_completed = 0
+
+        for zz in range(cube_nums[0]):
+            zstrt = cube_size * zz
+            for yy in range(cube_nums[1]):
+                ystrt = cube_size * yy
+                for xx in range(cube_nums[2]):
+                    # Extract a 3D cube from the map data
+                    xstrt = cube_size * xx
+                    cube = reshaped_map_data[None, :, zstrt:64+zstrt, ystrt:64+ystrt, xstrt:64+xstrt]
+
+                    # Move the cube to the specified device and perform prediction
+                    cube = cube.to(device)
+                    pred_data = torch.softmax(model(cube), 1)
+
+                    # Write predicted data to reshaped_model
+                    reshaped_model[:, 7+zstrt:57+zstrt, 7+ystrt:57+ystrt, 7+xstrt:57+xstrt] = pred_data[0, :, 7:57, 7:57, 7:57]
+
+                    # Update progress
+                    num_completed += 1
+                    print(
+                        f"{num_completed}/{num_cubes} of prediction is done.",
+                        end='\r')
+
+    # Extract model data
+    part_possibility = reshaped_model[:, pad_size:pad_size+map_shape[1], pad_size:pad_size+map_shape[2], pad_size:pad_size+map_shape[3]].numpy()
+
+    return part_possibility
+
+
 def map_normalizing(map_path):
     with mrcfile.mmap(map_path) as mrc:
         # Load map data
@@ -53,21 +102,6 @@ def MapReading(MapPath):
     return map_data
 
 
-def map_reshape(map_data):
-    new_shape = np.zeros(3, int)
-    insert_idx = np.zeros((3, 2), int)
-    for i in range(3):
-        new_shape[i] = 50 * ((map_data.shape[i]) // 50 + 1) + 14
-        insert_idx[i, 0] = 7
-        insert_idx[i, 1] = 7 + map_data.shape[i]
-    new_shape_map = np.zeros(tuple(new_shape), np.float32)
-    new_shape_map[
-        7:insert_idx[0, 1],
-        7:insert_idx[1, 1],
-        7:insert_idx[2, 1],
-    ] = map_data
-
-    return new_shape_map, insert_idx
 
 
 def map_writing(InputMap, ModelData, OutputMap, zoom_factors, is_int=False):
@@ -191,54 +225,7 @@ def smooth_location(model_data, tag):
     return (location_data)
 
 
-def predict_location(map_data, model, out_channels, device):
 
-    new_shape_map, insert_idx = map_reshape(map_data)
-    new_shape = new_shape_map.shape
-    new_shape_map = torch.from_numpy(new_shape_map)
-    new_shape_model = torch.zeros((out_channels, ) + new_shape)
-
-    model.eval()
-    # Iterate over 3D cubes of the map data
-    with torch.no_grad():
-        cube_size = 50
-        num_cubes = (new_shape[0] // cube_size) * (
-            new_shape[1] // cube_size) * (new_shape[2] // cube_size)
-        num_completed = 0
-        for zz in range(new_shape[0] // cube_size):
-            for yy in range(new_shape[1] // cube_size):
-                for xx in range(new_shape[2] // cube_size):
-                    # Extract a 3D cube from the map data
-                    cube = new_shape_map[None, None,
-                                         cube_size * zz:64 + cube_size * zz,
-                                         cube_size * yy:64 + cube_size * yy,
-                                         cube_size * xx:64 + cube_size * xx]
-
-                    # Move the cube to the specified device and perform prediction
-                    cube = cube.to(device)
-                    pred_data = torch.softmax(model(cube), 1)
-
-                    # Write predicted data to new_shape_model
-                    new_shape_model[:, 7 + cube_size * zz:57 + cube_size * zz,
-                                    7 + cube_size * yy:57 + cube_size * yy,
-                                    7 + cube_size * xx:57 +
-                                    cube_size * xx] = pred_data[0, :, 7:57,
-                                                                7:57, 7:57]
-
-                    # Update progress
-                    num_completed += 1
-                    print(
-                        f"{num_completed}/{num_cubes} of prediction is done.",
-                        end='\r')
-        # print("\n")
-
-    # Extract model data
-    part_possibility = new_shape_model[:, insert_idx[0, 0]:insert_idx[0, 1],
-                                       insert_idx[1, 0]:insert_idx[1, 1],
-                                       insert_idx[2, 0]:insert_idx[2,
-                                                                   1]].numpy()
-
-    return part_possibility
 
 
 # def search_around(ModelData, idx, tag):

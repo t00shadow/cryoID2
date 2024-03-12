@@ -23,7 +23,8 @@ training_epoch_num = 40
 early_stopping_patience = 5
 
 # ====================== Hyperparameters etc. ========================
-MAIN_PATH = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST'
+MAIN_PATH = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_with_blank'
+
 MODEL_TYPES = ['secondary_strctures', 'key_atoms', 'residue_types']
 MAP_DIRS_TYPES = [['map_sample'],
                   ['map_sample', 'secondary_strctures_pred_prob'],
