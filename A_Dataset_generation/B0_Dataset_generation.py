@@ -139,14 +139,3 @@ def generate_dataset(HOME_PATH, csv_path):
 
 if __name__ == "__main__":
     generate_dataset(HOME_PATH, csv_path)
-
-# OLD TRANNING DATASET before 20240101：
-# sugar_ring_new: 1:85
-# nitrogenous_bases_in_sugar_new: 1:344:279:366:419
-
-# RNA_backbone: 1:40:51;
-# sugar_ring_old: 1:63;
-# nitrogenous_bases_in_sugar_old: 1:255:206:270:309
-# nitrogenous_bases: 1:200:149:247:282
-# phosphorus_C1: 1:315:315
-# sugar_ring_center: 1:316

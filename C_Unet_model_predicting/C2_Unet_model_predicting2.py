@@ -25,10 +25,10 @@ data_path = os.path.join(MAIN_PATH, 'train_val_data')
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 # batch_size (vs GPU Memory: 1vs2877; 2vs3485; 4vs4668; 8vs7162)
-batch_size = 8
-num_workers = 2
-learning_rate = 1e-4
-pin_memory = True
+# batch_size = 8
+# num_workers = 2
+# learning_rate = 1e-4
+# pin_memory = True
 
 
 def initial_setting(model_index, data_path, device):

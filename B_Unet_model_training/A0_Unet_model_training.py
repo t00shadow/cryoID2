@@ -16,11 +16,16 @@ import shutil
 # Test train? Train? Predict?
 BATCH_1_TEST = False
 TRAIN = True
+MODEL_INDEX = 2
 PREDICT = False
 
 # Set training epoch munbers, early stopping epoch num
-training_epoch_num = 40
+training_epoch_num = 150
 early_stopping_patience = 5
+
+# batch_size (vs GPU Memory: 1vs2877; 2vs3485; 4vs4668; 8vs7162)
+batch_size = 12
+learning_rate = 1e-4
 
 # ====================== Hyperparameters etc. ========================
 MAIN_PATH = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_with_blank'
@@ -37,11 +42,8 @@ MAP_DIRS_TYPES = [['map_sample'],
 data_path = os.path.join(MAIN_PATH, 'train_val_data')
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
-# batch_size (vs GPU Memory: 1vs2877; 2vs3485; 4vs4668; 8vs7162)
-batch_size = 8
 
 num_workers = 2
-learning_rate = 1e-4
 pin_memory = True
 
 
@@ -176,8 +178,6 @@ def predict(model, pre_map_dirs, model_index):
                 exist_ok=True)
 
     map_names = [sorted(os.listdir(map_dir)) for map_dir in pre_map_dirs]
-    # print(map_names[0])
-    # print(map_names[1])
 
     model.eval()
 
@@ -187,7 +187,7 @@ def predict(model, pre_map_dirs, model_index):
 
         for index in range(len(map_names[0])):
             count += 1
-            print(f'Finished: {count}/{len(map_names[0])}')
+            print(f'Finished: {count}/{len(map_names[0])}', end='\r')
             # if count < 11776:
             #     continue
             for i in range(len(pre_map_dirs)):
@@ -233,7 +233,7 @@ def split(temp_sample_path, sample_path):
 def main():
 
     for model_index, model_type in enumerate(MODEL_TYPES):
-        if model_index != 2:
+        if model_index != MODEL_INDEX:
             continue
         map_dirs = MAP_DIRS_TYPES[model_index]
 
@@ -310,11 +310,11 @@ def main():
                           early_stopping_patience, "epochs.")
                     break
 
-                # Check accuracy
-                check_accuracy(val_loader, model, out_channels, loss_fn,
-                               evl_folder_path, DEVICE, epoch, class_weights)
-                save_predictions_as_imgs(val_loader, model, evl_folder_path,
-                                         DEVICE, epoch, model_type, batch_size)
+                # # Check accuracy
+                # check_accuracy(val_loader, model, out_channels, loss_fn,
+                #                evl_folder_path, DEVICE, epoch, class_weights)
+                # save_predictions_as_imgs(val_loader, model, evl_folder_path,
+                #                          DEVICE, epoch, model_type, batch_size)
 
         if PREDICT:
             predict(model, train_map_dirs, model_index)
@@ -324,14 +324,6 @@ def main():
             sample_path = os.path.join(MAIN_PATH, 'train_val_data')
             split(temp_sample_path, sample_path)
 
-
-# else:
-#     device_ = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-#     check_accuracy(val_loader, model, out_channels, evl_folder_path, DEVICE)
-#     # print some examples to a folder
-#     save_predictions_as_imgs(
-#         val_loader, model, folder=evl_folder_path, device=device_
-#     )
 
 if __name__ == "__main__":
     main()

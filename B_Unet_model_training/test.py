@@ -7,7 +7,11 @@ import torch.nn as nn
 import torch.optim as optim
 import os, json
 
-for idx, a in enumerate(range(10)):
-    print(idx, a)
 
-print(idx, a)
+
+for i in range(10000000000000):
+    if i != 9999999999999:
+        print(f'Finished: {i}', end='\r')
+    else:
+        print(f'Finished: {i}')
+
