@@ -223,6 +223,8 @@ def predict(model, pre_map_dirs, model_index):
             pred_prob = torch.softmax(model(map), 1)
             writen = pred_prob[0, :, :, :, :].cpu().numpy()
 
+# preds = torch.argmax(torch.softmax(model(x), 1), 1)
+
             file_name = f"{model_type}_pred_prob.{map_name.split('.')[-2]}.npy"
             file_path = os.path.join(
                 temp_sample_path, f"{model_type}_pred_prob", file_name
