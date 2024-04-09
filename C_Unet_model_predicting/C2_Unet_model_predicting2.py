@@ -22,7 +22,7 @@ import pandas as pd
 
 # ====================== Hyperparameters etc. ========================
 MAIN_PATH = (
-    "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST"
+    "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_with_BLANK"
 )
 MODEL_TYPES = ["secondary_strctures", "key_atoms", "residue_types"]
 MAP_DIRS_TYPES = [

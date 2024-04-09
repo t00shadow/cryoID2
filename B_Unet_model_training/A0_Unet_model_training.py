@@ -21,7 +21,7 @@ import shutil
 # Test train? Train? Predict?
 BATCH_1_TEST = False
 TRAIN = True
-MODEL_INDEX = 0
+MODEL_INDEX = 1
 PREDICT = False
 
 # Set training epoch munbers, early stopping epoch num
@@ -348,8 +348,8 @@ def main():
                 # # Check accuracy
                 # check_accuracy(val_loader, model, out_channels, loss_fn,
                 #                evl_folder_path, DEVICE, epoch, class_weights)
-                # save_predictions_as_imgs(val_loader, model, evl_folder_path,
-                #                          DEVICE, epoch, model_type, batch_size)
+                save_predictions_as_imgs(val_loader, model, evl_folder_path,
+                                         DEVICE, epoch, model_type, batch_size)
 
         if PREDICT:
             predict(model, train_map_dirs, model_index)

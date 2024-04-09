@@ -15,9 +15,9 @@ import shutil
 
 # Test train? Train? Predict?
 BATCH_1_TEST = False
-TRAIN = True
+TRAIN = False
 MODEL_INDEX = 1
-PREDICT = False
+PREDICT = True
 
 # Set training epoch munbers, early stopping epoch num
 training_epoch_num = 150
