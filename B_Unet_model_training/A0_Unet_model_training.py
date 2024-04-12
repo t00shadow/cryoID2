@@ -21,7 +21,7 @@ import shutil
 # Test train? Train? Predict?
 BATCH_1_TEST = False
 TRAIN = True
-MODEL_INDEX = 1
+MODEL_INDEX = 2
 PREDICT = False
 
 # Set training epoch munbers, early stopping epoch num
@@ -298,6 +298,14 @@ def main():
             if not load_epoch_num == 0:
                 # Load previous check point
                 load_checkpoint(load_model_path, model, map_location=DEVICE)
+
+            # # Check accuracy
+            # check_accuracy(val_loader, model, out_channels, loss_fn,
+            #                 evl_folder_path, DEVICE, load_epoch_num, class_weights)
+            # save_predictions_as_imgs(val_loader, model, evl_folder_path,
+            #                             DEVICE, load_epoch_num, model_type, batch_size)
+
+            # exit()
 
             for epoch in range(
                 load_epoch_num + 1, load_epoch_num + 1 + training_epoch_num
