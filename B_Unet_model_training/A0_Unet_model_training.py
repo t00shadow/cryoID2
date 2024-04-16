@@ -6,7 +6,7 @@ from B2_UTILS import (
     check_accuracy,
     save_predictions_as_imgs,
     print_and_write,
-)
+) 
 import torch
 from tqdm import tqdm  # makes your loops show a smart progress meter
 import torch.nn as nn
