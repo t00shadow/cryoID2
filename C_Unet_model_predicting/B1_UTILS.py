@@ -53,10 +53,10 @@ def predict_location(map_data_, model, out_channels, device, cube_size=50, pad_s
                     num_completed += 1
                     print(
                         f"{num_completed}/{num_cubes} of prediction is done.",
-                        end='\r')
+                        end='\r')    
 
     # Extract model data
-    part_possibility = reshaped_model[:, pad_size:pad_size+map_shape[1], pad_size:pad_size+map_shape[2], pad_size:pad_size+map_shape[3]].numpy()
+    part_possibility = reshaped_model[:, pad_size:pad_size+map_shape[1], pad_size:pad_size+map_shape[2], pad_size:pad_size+map_shape[3]].cpu().numpy()
 
     return part_possibility
 
