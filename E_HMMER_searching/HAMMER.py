@@ -4,15 +4,6 @@ from typing import Iterable
 import numpy as np
 import torch
 
-#from misc_utils import assertion_check
-from residue_constants import (
-    restype_1_order_to_hmm,
-    index_to_hmm_restype_1,
-    num_prot,
-    restype_1_to_index,
-    restype_3_to_index,
-)
-
 from pyhmmer.plan7 import HMM, HMMFile
 import os
 
@@ -24,6 +15,110 @@ def assertion_check(if_statement: bool, failure_message: str = ""):
 def negative_log_prob_to_hmm_line(nlp: Iterable) -> str:
     return "  ".join([f"{x: >.5f}" if np.isfinite(x) else "*" for x in nlp])
 
+
+num_prot = 20
+
+index_to_restype_1 = [
+    "A",
+    "R",
+    "N",
+    "D",
+    "C",
+    "Q",
+    "E",
+    "G",
+    "H",
+    "I",
+    "L",
+    "K",
+    "M",
+    "F",
+    "P",
+    "S",
+    "T",
+    "W",
+    "Y",
+    "V",
+    "x",
+    "y",
+    "z",
+    "t",
+    "a",
+    "c",
+    "g",
+    "u",
+    "1",
+    "2",
+    "3",
+]
+
+restype_1_to_index = {
+    "A": 0,
+    "R": 1,
+    "N": 2,
+    "D": 3,
+    "C": 4,
+    "Q": 5,
+    "E": 6,
+    "G": 7,
+    "H": 8,
+    "I": 9,
+    "L": 10,
+    "K": 11,
+    "M": 12,
+    "F": 13,
+    "P": 14,
+    "S": 15,
+    "T": 16,
+    "W": 17,
+    "Y": 18,
+    "V": 19,
+    "x": 20,
+    "y": 21,
+    "z": 22,
+    "t": 23,
+    "a": 24,
+    "c": 25,
+    "g": 26,
+    "u": 27,
+    "1": 28,
+    "2": 29,
+    "3": 30,
+}
+
+restype_3_to_index = {
+    "ALA": 0,
+    "ARG": 1,
+    "ASN": 2,
+    "ASP": 3,
+    "CYS": 4,
+    "GLN": 5,
+    "GLU": 6,
+    "GLY": 7,
+    "HIS": 8,
+    "ILE": 9,
+    "LEU": 10,
+    "LYS": 11,
+    "MET": 12,
+    "PHE": 13,
+    "PRO": 14,
+    "SER": 15,
+    "THR": 16,
+    "TRP": 17,
+    "TYR": 18,
+    "VAL": 19,
+    "DA": 20,
+    "DC": 21,
+    "DG": 22,
+    "DT": 23,
+    "A": 24,
+    "C": 25,
+    "G": 26,
+    "U": 27,
+    "UNK":28,
+    "DN": 29,
+    "N": 30,
+}
 
 fixed_insertion_log_probs = {
     "A": 2.54091,
@@ -94,6 +189,8 @@ alphabet_to_index = {
     "DNA": {"A": 20, "C": 21, "G": 22, "T": 23},
 }
 
+index_to_hmm_restype_1 = sorted(index_to_restype_1[:num_prot])
+restype_1_order_to_hmm = [restype_1_to_index[aa] for aa in index_to_hmm_restype_1]
 
 def aa_log_probs_to_hmm_file(
     name: str,
@@ -190,65 +287,6 @@ def aa_log_probs_to_hmm_file(
         file_handle.write("//\n")
 
 
-def aa_logits_to_hmm(
-    aa_logits: np.ndarray,
-    confidence: np.ndarray = None,
-    base_dir: str = "/tmp",
-    alphabet_type: str = "amino",
-    eps: float = 1e-6,
-) -> HMM:
-    processed_aa_logits = np.ones_like(aa_logits) * -100
-    processed_aa_logits[alphabet_to_slice[alphabet_type]] = aa_logits[
-        alphabet_to_slice[alphabet_type]
-    ]
-    if alphabet_type != "PP":
-        aa_log_probs = torch.from_numpy(processed_aa_logits).log_softmax(dim=-1).numpy()
-    else:
-        alphabet_type = "RNA"  # Treat all purine-pyrimidine matches as RNA
-        # What follows is a custom implementation of log_softmax
-        c = aa_logits[..., 20:].max(axis=-1, keepdims=True)
-        m = aa_logits[..., 20:].min(axis=-1, keepdims=True)
-        exp_logits = np.exp(aa_logits - c)
-        exp_logits_gather = np.zeros_like(exp_logits) + np.exp(m - c)
-        exp_logits_gather[..., restype_3_to_index["G"]] = exp_logits[
-            ...,
-            [
-                restype_3_to_index["DA"],
-                restype_3_to_index["DG"],
-                restype_3_to_index["A"],
-                restype_3_to_index["G"],
-            ],
-        ].sum(axis=-1)
-        exp_logits_gather[..., restype_3_to_index["C"]] = exp_logits[
-            ...,
-            [
-                restype_3_to_index["DC"],
-                restype_3_to_index["DT"],
-                restype_3_to_index["C"],
-                restype_3_to_index["U"],
-            ],
-        ].sum(axis=-1)
-        exp_logits_gather += eps
-        aa_logits_gather = np.log(exp_logits_gather)
-        logsumexp = np.log(exp_logits_gather.sum(axis=-1, keepdims=True))
-        aa_log_probs = aa_logits_gather - logsumexp
-
-    tmp_path = os.path.join(base_dir, f"model_angelo_temp.hmm")
-    aa_log_probs_to_hmm_file(
-        name="model_angelo_search",
-        aa_log_probs=aa_log_probs,
-        confidence=confidence,
-        output_path=tmp_path,
-        alphabet_type=alphabet_type,
-    )
-
-    with HMMFile(tmp_path) as hmm_file:
-        hmm = hmm_file.read()
-
-    os.remove(tmp_path)
-    return hmm
-
-
 def dump_aa_logits_to_hmm_file(
     aa_logits: np.ndarray,
     output_file: str,
@@ -264,3 +302,17 @@ def dump_aa_logits_to_hmm_file(
         output_path=output_file,
         alphabet_type=alphabet_type,
     )
+
+
+if __name__ == "__main__":
+
+    test_file = './test5'
+
+    test_array = np.zeros((20, 28))
+    test_array[:] = 0.1/27
+    test_array[:, 20:] = -100
+    for i in range(20):
+        test_array[i, i] = 0.9
+
+    test_array /= .5
+    dump_aa_logits_to_hmm_file(test_array, test_file)

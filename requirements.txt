@@ -10,3 +10,4 @@ tqdm
 split-folders
 pickle
 shutil
+pyhmmer
