@@ -171,13 +171,22 @@ def main(MAP_PATH):
 
 
 if __name__ == "__main__":
-    RAW_DATA_PATH = (
-        "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Raw"
-    )
+    # RAW_DATA_PATH = (
+    #     "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Raw"
+    # )
     # MAP_PATH = os.path.join(RAW_DATA_PATH, "EMD-0065_re_3.27", "emd_0065.map")
     # MAP_PATH = os.path.join(RAW_DATA_PATH, "EMD-0128_re_3.8", "emd_0128.map")
-    MAP_PATH = os.path.join(RAW_DATA_PATH, "EMD-3941_re_3.0", "emd_3941.map")
+    # MAP_PATH = os.path.join(RAW_DATA_PATH, "EMD-3941_re_3.0", "emd_3941.map")
 
+    # RAW_DATA_PATH = (
+    #     "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/LabData_testing/Hongcheng"
+    # )
+    # MAP_PATH = os.path.join(RAW_DATA_PATH, "kshv-targetdensity", "kshv-targetdensity.mrc")
+
+    RAW_DATA_PATH = (
+        "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/cryoREAD_example"
+    )
+    MAP_PATH = os.path.join(RAW_DATA_PATH, "EMD-21051", "21051.mrc")
 
     # for MAP_PATH in raw_map_paths:
     main(MAP_PATH)

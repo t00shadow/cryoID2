@@ -115,7 +115,7 @@ restype_3_to_index = {
     "C": 25,
     "G": 26,
     "U": 27,
-    "UNK":28,
+    "UNK": 28,
     "DN": 29,
     "N": 30,
 }
@@ -191,6 +191,7 @@ alphabet_to_index = {
 
 index_to_hmm_restype_1 = sorted(index_to_restype_1[:num_prot])
 restype_1_order_to_hmm = [restype_1_to_index[aa] for aa in index_to_hmm_restype_1]
+
 
 def aa_log_probs_to_hmm_file(
     name: str,
@@ -291,7 +292,7 @@ def dump_aa_logits_to_hmm_file(
     aa_logits: np.ndarray,
     output_file: str,
     confidence: np.ndarray = None,
-    name: str = "model_angelo_search",
+    name: str = "cryo_ID_search",
     alphabet_type: str = "amino",
 ):
     aa_probs = torch.from_numpy(aa_logits).log_softmax(dim=-1).numpy()
@@ -306,13 +307,18 @@ def dump_aa_logits_to_hmm_file(
 
 if __name__ == "__main__":
 
-    test_file = './test5'
+    test_file = "./test5"
 
     test_array = np.zeros((20, 28))
-    test_array[:] = 0.1/27
+    test_array[:] = 0.1 / 27
     test_array[:, 20:] = -100
     for i in range(20):
         test_array[i, i] = 0.9
 
-    test_array /= .5
-    dump_aa_logits_to_hmm_file(test_array, test_file)
+    test_array /= 0.5
+    dump_aa_logits_to_hmm_file(
+        aa_logits=test_array,
+        output_file=test_file,
+        name="cryo_ID_search",
+        alphabet_type="amino",
+    )
