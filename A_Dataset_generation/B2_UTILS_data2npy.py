@@ -296,7 +296,7 @@ def split_to_npy(data,
                 idx_x = sample_start_x + extract_stride * n_x
                 samples = []
                 counts = []
-                ratio_tags = []
+                # ratio_tags = []
                 for idx in range(0, len(data) - 1):
                     sample = data[idx][idx_z:idx_z + npy_size,
                                        idx_y:idx_y + npy_size,
@@ -304,13 +304,13 @@ def split_to_npy(data,
                     samples.append(sample)
                     count = np.bincount(sample.flatten())
                     counts.append(count)
-                    ratio_tag = 1 - count[0] / count.sum()
-                    ratio_tags.append(ratio_tag)
-                # print(ratio_tags)
-                if max(ratio_tags) < 0.01:
-                    random_number = random.randint(1, 10)
-                    if random_number < 6:
-                        continue
+                #     ratio_tag = 1 - count[0] / count.sum()
+                #     ratio_tags.append(ratio_tag)
+                # # print(ratio_tags)
+                # if max(ratio_tags) < 0.01:
+                #     random_number = random.randint(1, 10)
+                #     if random_number < 6:
+                #         continue
                 # Save seperated files for model tags
                 for idx in range(0, len(data) - 1):
                     file_name = os.path.join(
