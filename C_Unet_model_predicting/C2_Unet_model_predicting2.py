@@ -19,7 +19,10 @@ from B2_UTILS_modeling import refine_mass_centers, write_pdb  # track_5_3,
 
 
 # ====================== Hyperparameters etc. ========================
-MAIN_PATH = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_with_blank'
+# MAIN_PATH = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_with_blank'
+
+MAIN_PATH = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_with_all'
+
 MODEL_TYPES = ['secondary_strctures', 'key_atoms', 'residue_types']
 MAP_DIRS_TYPES = [['map_sample'],
                   ['map_sample', 'secondary_strctures_pred_prob'],
@@ -187,6 +190,12 @@ if __name__ == "__main__":
         "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/cryoREAD_example"
     )
     MAP_PATH = os.path.join(RAW_DATA_PATH, "EMD-21051", "21051.mrc")
+
+
+    # RAW_DATA_PATH = (
+    #     "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Testing"
+    # )
+    # MAP_PATH = os.path.join(RAW_DATA_PATH, "zero", "zeros.mrc")
 
     # for MAP_PATH in raw_map_paths:
     main(MAP_PATH)

@@ -20,7 +20,8 @@ PATH_SETTINGS = {
     "Filtered_Dateset": [
         os.path.join(MAIN_HOME_PATH, 'Raw'),
         os.path.join(MAIN_HOME_PATH, 'Training'),
-        os.path.join(MAIN_HOME_PATH, 'Raw', 'final-20240212.csv'),
+        # os.path.join(MAIN_HOME_PATH, 'Raw', 'final-20240212.csv'),
+        os.path.join(MAIN_HOME_PATH, 'Raw', 'final-20240520.csv'),
     ],
 }
 
@@ -120,7 +121,9 @@ def generate_dataset(HOME_PATH, csv_path):
         # split data into training and testing dataset
         import splitfolders
         # sample_path = os.path.join(HOME_PATH, "TEST_with_blank", "train_val_data")
-        sample_path = os.path.join(HOME_PATH, "TEST_with_all", "train_val_data")
+        # sample_path = os.path.join(HOME_PATH, "TEST_with_all", "train_val_data")
+        sample_path = os.path.join(HOME_PATH, "TEST_20240520", "train_val_data")
+
 
         os.makedirs(sample_path, exist_ok=True)
         splitfolders.ratio(input=temp_sample_path,
@@ -131,7 +134,7 @@ def generate_dataset(HOME_PATH, csv_path):
                            move=True)
         shutil.rmtree(temp_sample_path)
 
-        # Calculate and save weight (ratio of tags)
+        # Calculate weight, create weight file and save it (ratio of tags)
         weight_path = os.path.join(sample_path,
                                    'class_weight_for_training.txt')
         with open(weight_path, "w") as file:

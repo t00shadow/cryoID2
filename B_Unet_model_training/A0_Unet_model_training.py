@@ -21,7 +21,7 @@ import shutil
 # Test train? Train? Predict?
 BATCH_1_TEST = False
 TRAIN = True
-MODEL_INDEX = 2
+MODEL_INDEX = 0
 PREDICT = False
 
 # Set training epoch munbers, early stopping epoch num
@@ -29,14 +29,13 @@ training_epoch_num = 150
 early_stopping_patience = 5
 
 # batch_size (vs GPU Memory: 1vs2877; 2vs3485; 4vs4668; 8vs7162)
-batch_size = 12
+batch_size = 8
 learning_rate = 1e-4
 
 # ====================== Hyperparameters etc. ========================
 # MAIN_PATH = "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_with_blank"
-
-
-MAIN_PATH = "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_with_all"
+# MAIN_PATH = "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_with_all"
+MAIN_PATH = "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_20240520"
 
 
 MODEL_TYPES = ["secondary_strctures", "key_atoms", "residue_types"]

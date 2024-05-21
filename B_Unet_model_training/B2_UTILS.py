@@ -216,6 +216,6 @@ def save_predictions_as_imgs(loader, model, folder, device, epoch, part_name,
             plt.suptitle(f"Epoch {epoch} for {part_name}")
             map_name = f"eval.{jj}.epoch{epoch}.png"
             plt.savefig(os.path.join(folder, map_name))
-            # plt.close('all')
+            plt.close()
 
     model.train()
