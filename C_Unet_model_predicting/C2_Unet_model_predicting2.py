@@ -20,8 +20,9 @@ from B2_UTILS_modeling import refine_mass_centers, write_pdb  # track_5_3,
 
 # ====================== Hyperparameters etc. ========================
 # MAIN_PATH = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_with_blank'
+# MAIN_PATH = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_with_all'
 
-MAIN_PATH = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_with_all'
+MAIN_PATH = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_20240520'
 
 MODEL_TYPES = ['secondary_strctures', 'key_atoms', 'residue_types']
 MAP_DIRS_TYPES = [['map_sample'],
@@ -174,22 +175,24 @@ def main(MAP_PATH):
 
 
 if __name__ == "__main__":
-    # RAW_DATA_PATH = (
-    #     "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Raw"
-    # )
-    # MAP_PATH = os.path.join(RAW_DATA_PATH, "EMD-0065_re_3.27", "emd_0065.map")
-    # MAP_PATH = os.path.join(RAW_DATA_PATH, "EMD-0128_re_3.8", "emd_0128.map")
-    # MAP_PATH = os.path.join(RAW_DATA_PATH, "EMD-3941_re_3.0", "emd_3941.map")
+    RAW_DATA_PATH = (
+        "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Raw"
+    )
+    MAP_PATH = os.path.join(RAW_DATA_PATH, "EMD-0065_re_3.27", "emd_0065.map")
+    MAP_PATH = os.path.join(RAW_DATA_PATH, "EMD-0128_re_3.8", "emd_0128.map")
+    MAP_PATH = os.path.join(RAW_DATA_PATH, "EMD-3941_re_3.0", "emd_3941.map")
+    # MAP_PATH = os.path.join(RAW_DATA_PATH, "EMD-8361_re_2.54", "emd_8361.map")
+    # MAP_PATH = os.path.join(RAW_DATA_PATH, "EMD-11118_re_3.02", "emd_11118.map")
 
     # RAW_DATA_PATH = (
     #     "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/LabData_testing/Hongcheng"
     # )
     # MAP_PATH = os.path.join(RAW_DATA_PATH, "kshv-targetdensity", "kshv-targetdensity.mrc")
 
-    RAW_DATA_PATH = (
-        "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/cryoREAD_example"
-    )
-    MAP_PATH = os.path.join(RAW_DATA_PATH, "EMD-21051", "21051.mrc")
+    # RAW_DATA_PATH = (
+    #     "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/cryoREAD_example"
+    # )
+    # MAP_PATH = os.path.join(RAW_DATA_PATH, "EMD-21051", "21051.mrc")
 
 
     # RAW_DATA_PATH = (
