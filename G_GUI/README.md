@@ -16,6 +16,7 @@ python3 main_cryoID_developmental.py
     - **file_upload.qrc** is just something generated in Designer to add the svg in
 - **chimerax_launcher.py** is imported as a module into main, but also works as a standalone script.
 - **misc_pdbs** is just for testing opening chimerax with files. will remove once finish implementing file fetching.
+- **test.py** isn't mine. it was already in this G_GUI folder
 
 ## notes about editing the GUI
 - To change buttons and other visual stuff about the GUI, edit the .ui file, and generate new python code with pyuic5.
