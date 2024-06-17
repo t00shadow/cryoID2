@@ -21,11 +21,13 @@ import shutil
 # Test train? Train? Predict?
 BATCH_1_TEST = False
 TRAIN = True
-MODEL_INDEX = 0
+MODEL_INDEX = 1
 PREDICT = False
 
 # Set training epoch munbers, early stopping epoch num
 training_epoch_num = 150
+
+
 early_stopping_patience = 5
 
 # batch_size (vs GPU Memory: 1vs2877; 2vs3485; 4vs4668; 8vs7162)
@@ -42,7 +44,7 @@ MODEL_TYPES = ["secondary_strctures", "key_atoms", "residue_types"]
 MAP_DIRS_TYPES = [
     ["map_sample"],
     ["map_sample", "secondary_strctures_pred_prob"],
-    ["map_sample", "secondary_strctures_pred_prob", "key_atoms_pred_prob"],
+    ["map_sample", "secondary_strctures_pred_prob", "key_ato ms_pred_prob"],
 ]
 # IN_CHANNELS = [1, 6, 10]
 
@@ -296,7 +298,7 @@ def main():
             print(f"Start training for {model_type} U-net:")
 
             # Early stopping initialization
-            best_loss, no_improvement_count = 10, 0
+            best_loss, no_improvement_count = 10., 0
 
             if not load_epoch_num == 0:
                 # Load previous check point

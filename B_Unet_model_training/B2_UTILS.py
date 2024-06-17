@@ -192,13 +192,13 @@ def save_predictions_as_imgs(loader, model, folder, device, epoch, part_name,
     x = x.to(device=device)
     with torch.no_grad():
         preds = torch.argmax(torch.softmax(model(x), 1), 1)
-        plt.figure(figsize=(12, 12))
         # print(x.size(), y.size(), preds.size())
         xx = x.cpu().numpy()
         yy = y.cpu().numpy()
         predspreds = preds.cpu().numpy()
 
         for jj in range(batch_size):
+            plt.figure(figsize=(12, 12))
             for ii in range(18, 58, 18):
                 pos = ii // 18
                 plt.subplot(3, 3, 3 * pos - 2, label=f'subplot{ii+jj}')

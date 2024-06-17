@@ -180,7 +180,7 @@ if __name__ == "__main__":
     )
     MAP_PATH = os.path.join(RAW_DATA_PATH, "EMD-0065_re_3.27", "emd_0065.map")
     MAP_PATH = os.path.join(RAW_DATA_PATH, "EMD-0128_re_3.8", "emd_0128.map")
-    MAP_PATH = os.path.join(RAW_DATA_PATH, "EMD-3941_re_3.0", "emd_3941.map")
+    # MAP_PATH = os.path.join(RAW_DATA_PATH, "EMD-3941_re_3.0", "emd_3941.map")
     # MAP_PATH = os.path.join(RAW_DATA_PATH, "EMD-8361_re_2.54", "emd_8361.map")
     # MAP_PATH = os.path.join(RAW_DATA_PATH, "EMD-11118_re_3.02", "emd_11118.map")
 
@@ -190,15 +190,14 @@ if __name__ == "__main__":
     # MAP_PATH = os.path.join(RAW_DATA_PATH, "kshv-targetdensity", "kshv-targetdensity.mrc")
 
     # RAW_DATA_PATH = (
+    #     "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/LabData_testing/Saarang/20240531"
+    # )
+    # MAP_PATH = os.path.join(RAW_DATA_PATH, "crop_map_cryoID.mrc")
+
+    # RAW_DATA_PATH = (
     #     "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/cryoREAD_example"
     # )
     # MAP_PATH = os.path.join(RAW_DATA_PATH, "EMD-21051", "21051.mrc")
-
-
-    # RAW_DATA_PATH = (
-    #     "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Testing"
-    # )
-    # MAP_PATH = os.path.join(RAW_DATA_PATH, "zero", "zeros.mrc")
 
     # for MAP_PATH in raw_map_paths:
     main(MAP_PATH)
