@@ -28,7 +28,7 @@ atoms_base_G = [
 ]
 atoms_base_C = ['N1', 'C2', 'O2', 'N3', 'C4', 'N4', 'C5', 'C6']
 atoms_base_U = ['N1', 'C2', 'O2', 'N3', 'C4', 'O4', 'C5', 'C6']
-atoms_nuc_base = [atoms_base_A,atoms_base_G,atoms_base_C,atoms_base_U]
+atoms_nuc_base = list(set(atoms_base_A + atoms_base_G + atoms_base_C + atoms_base_U))
 
 # Protein_residues
 atoms_alanine_ALA = ['CB']
