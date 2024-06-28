@@ -144,6 +144,7 @@ def train_fn(loader, model, optimizer, loss_fn, scaler):
 
     for batch_idx, (data, targets) in enumerate(loop):
         data, targets = data.to(device=DEVICE), targets.long().to(device=DEVICE)
+        print(batch_idx)
 
         # forward
         with torch.cuda.amp.autocast():
@@ -189,25 +190,20 @@ def batch_1_test(loader, model, optimizer, loss_fn, scaler):
 
 def predict(model, pre_map_dirs, model_index):
 
-    temp_sample_path = os.path.join(MAIN_PATH, "ready_to_train_and_val")
     model_type = MODEL_TYPES[model_index]
-    os.makedirs(
-        os.path.join(temp_sample_path, f"{model_type}_pred_prob"), exist_ok=True
-    )
+    temp_sample_path = os.path.join(os.path.dirname(pre_map_dirs[0]), f'{model_type}_pred_prob')
+    os.makedirs(temp_sample_path, exist_ok=True)
 
     map_names = [sorted(os.listdir(map_dir)) for map_dir in pre_map_dirs]
 
     model.eval()
-
     with torch.no_grad():
 
         count = 0
 
         for index in range(len(map_names[0])):
             count += 1
-            print(f"Finished: {count}/{len(map_names[0])}", end="\r")
-            # if count < 11776:
-            #     continue
+            print(f'{count}/{len(map_names[0])}')
             for i in range(len(pre_map_dirs)):
                 map_dir = pre_map_dirs[i]
                 map_name = map_names[i][index]
@@ -225,32 +221,14 @@ def predict(model, pre_map_dirs, model_index):
             # Move map to the specified device and perform prediction
             map = torch.from_numpy(map)
             map = map.to(DEVICE)
-            pred_prob = torch.softmax(model(map), 1)
+            pred_prob = model(map)
             writen = pred_prob[0, :, :, :, :].cpu().numpy()
 
-# preds = torch.argmax(torch.softmax(model(x), 1), 1)
-
             file_name = f"{model_type}_pred_prob.{map_name.split('.')[-2]}.npy"
-            file_path = os.path.join(
-                temp_sample_path, f"{model_type}_pred_prob", file_name
-            )
+            file_path = os.path.join(temp_sample_path, file_name)
             np.save(file_path, writen)
 
     model.train()
-
-
-def split(temp_sample_path, sample_path):
-    # split data into training and testing dataset
-    os.makedirs(sample_path, exist_ok=True)
-    splitfolders.ratio(
-        input=temp_sample_path,
-        output=sample_path,
-        seed=44,
-        ratio=(0.8, 0.2),
-        group_prefix=None,
-        move=True,
-    )
-    shutil.rmtree(temp_sample_path)
 
 
 def main():
@@ -365,11 +343,9 @@ def main():
                                          DEVICE, epoch, model_type, batch_size)
 
         if PREDICT:
-            predict(model, train_map_dirs, model_index)
+            load_checkpoint(load_model_path, model, map_location=DEVICE)
+            # predict(model, train_map_dirs, model_index)
             predict(model, val_map_dirs, model_index)
-            temp_sample_path = os.path.join(MAIN_PATH, "ready_to_train_and_val")
-            sample_path = os.path.join(MAIN_PATH, "train_val_data")
-            split(temp_sample_path, sample_path)
 
 
 if __name__ == "__main__":

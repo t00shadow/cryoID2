@@ -179,7 +179,7 @@ if __name__ == "__main__":
         "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Raw"
     )
     MAP_PATH = os.path.join(RAW_DATA_PATH, "EMD-0065_re_3.27", "emd_0065.map")
-    MAP_PATH = os.path.join(RAW_DATA_PATH, "EMD-0128_re_3.8", "emd_0128.map")
+    # MAP_PATH = os.path.join(RAW_DATA_PATH, "EMD-0128_re_3.8", "emd_0128.map")
     # MAP_PATH = os.path.join(RAW_DATA_PATH, "EMD-3941_re_3.0", "emd_3941.map")
     # MAP_PATH = os.path.join(RAW_DATA_PATH, "EMD-8361_re_2.54", "emd_8361.map")
     # MAP_PATH = os.path.join(RAW_DATA_PATH, "EMD-11118_re_3.02", "emd_11118.map")
