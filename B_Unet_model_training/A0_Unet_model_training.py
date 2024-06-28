@@ -21,7 +21,7 @@ import shutil
 # Test train? Train? Predict?
 BATCH_1_TEST = False
 TRAIN = True
-MODEL_INDEX = 1
+MODEL_INDEX = 2
 PREDICT = False
 
 # Set training epoch munbers, early stopping epoch num
@@ -44,7 +44,7 @@ MODEL_TYPES = ["secondary_strctures", "key_atoms", "residue_types"]
 MAP_DIRS_TYPES = [
     ["map_sample"],
     ["map_sample", "secondary_strctures_pred_prob"],
-    ["map_sample", "secondary_strctures_pred_prob", "key_ato ms_pred_prob"],
+    ["map_sample", "secondary_strctures_pred_prob", "key_atoms_pred_prob"],
 ]
 # IN_CHANNELS = [1, 6, 10]
 
@@ -203,7 +203,7 @@ def predict(model, pre_map_dirs, model_index):
 
         for index in range(len(map_names[0])):
             count += 1
-            print(f'{count}/{len(map_names[0])}')
+            print(f'{count}/{len(map_names[0])}', end='\r', flush=True)
             for i in range(len(pre_map_dirs)):
                 map_dir = pre_map_dirs[i]
                 map_name = map_names[i][index]
@@ -344,7 +344,7 @@ def main():
 
         if PREDICT:
             load_checkpoint(load_model_path, model, map_location=DEVICE)
-            # predict(model, train_map_dirs, model_index)
+            predict(model, train_map_dirs, model_index)
             predict(model, val_map_dirs, model_index)
 
 
