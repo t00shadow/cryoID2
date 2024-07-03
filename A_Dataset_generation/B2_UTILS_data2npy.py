@@ -55,8 +55,7 @@ atoms_protein_residue = list(set(atoms_alanine_ALA+atoms_arginine_ARG+atoms_aspa
                          atoms_glutamic_acid_GLU+atoms_glutamine_GLN+atoms_glycine_GLY+atoms_histidine_HIS+atoms_isoleucine_ILE+
                          atoms_leucine_LEU+atoms_lysine_LYS+atoms_methionine_MET+atoms_phenylalanine_PHE+atoms_proline_PRO+
                          atoms_serine_SER+atoms_threonine_THR+atoms_tryptophan_TRP+atoms_tyrosine_TYR+atoms_valine_VAL))
-print(atoms_protein_residue)
-exit()
+
 # Protein and rna residues
 residues_protein = [
     'ALA', 'ARG', 'ASN', 'ASP', 'CYS', 'GLU', 'GLN', 'GLY', 'HIS', 'ILE',
@@ -148,23 +147,14 @@ def data_to_npy(map_path: str,
             data.append(model_data)
             part_names.append(part_name)
 
-        # Tag CA, P, sugar atoms with 1, 2, 3 repectively
+        # Tag CA, P, sugar, rna base, protein side chain atoms with 1, 2, 3, 4, 5 repectively
         elif part_name == "key_atoms":
             for tag in range(1, len(key_atoms) + 1):
-                if key_atoms[tag - 1] in [["CA"]]:
+                if key_atoms[tag - 1] in [["CA"]] or key_atoms[tag - 1] in [atoms_protein_residue]:
                     part_coords = atom_coord_cif(structure, residues_protein,
                                                  key_atoms[tag - 1])
-                elif key_atoms[tag - 1] in [['P']]:
+                else:
                     part_coords = atom_coord_cif(structure, residues_rna,
-                                                 key_atoms[tag - 1])
-                elif key_atoms[tag - 1] in [atoms_sugar_ring_new]:
-                    part_coords = atom_coord_cif(structure, residues_rna,
-                                                 key_atoms[tag - 1])
-                elif key_atoms[tag - 1] in [atoms_nuc_base]:
-                    part_coords = atom_coord_cif(structure, residues_rna,
-                                                 key_atoms[tag - 1])
-                elif key_atoms[tag - 1] in [atoms_protein_residue]:
-                    part_coords = atom_coord_cif(structure, residues_protein,
                                                  key_atoms[tag - 1])
                 model_data, dis_array = tag_npy(model_data, part_coords, tag,
                                                 dis_array)
