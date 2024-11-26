@@ -38,7 +38,7 @@ learning_rate = 1e-4
 # MAIN_PATH = "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_with_blank"
 # MAIN_PATH = "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_with_all"
 # MAIN_PATH = "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_20240520"
-MAIN_PATH = '/home/qiboxu/Database/CryoDataBot_Data/Training/ribosome_res_3-4_20240924_001_Final-preprocess-dice-keep-159trainentries'
+MAIN_PATH = '/home/qiboxu/Database/CryoDataBot_Data/Training/control-dataset'
 
 
 MODEL_TYPES = ["secondary_strctures", "key_atoms", "residue_types"]
@@ -55,7 +55,7 @@ data_path = MAIN_PATH
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-num_workers = 2
+num_workers = 4
 pin_memory = True
 
 
