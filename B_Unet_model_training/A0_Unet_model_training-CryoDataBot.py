@@ -38,7 +38,11 @@ learning_rate = 1e-4
 # MAIN_PATH = "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_with_blank"
 # MAIN_PATH = "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_with_all"
 # MAIN_PATH = "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_20240520"
+
+# MAIN_PATH = '/home/qiboxu/Database/CryoDataBot_Data/Training/experimental-dataset'
 MAIN_PATH = '/home/qiboxu/Database/CryoDataBot_Data/Training/control-dataset'
+
+
 
 
 MODEL_TYPES = ["secondary_strctures", "key_atoms", "residue_types"]
@@ -142,12 +146,13 @@ def initial_setting(model_index, data_path, map_dirs, device):
 
 
 def train_fn(loader, model, optimizer, loss_fn, scaler):
-    loop = tqdm(loader)
+    # loop = tqdm(loader)
     total_loss = 0
 
-    for batch_idx, (data, targets) in enumerate(loop):
+    # for batch_idx, (data, targets) in enumerate(loop):
+    for batch_idx, (data, targets) in enumerate(loader):
         data, targets = data.to(device=DEVICE), targets.long().to(device=DEVICE)
-        print(batch_idx)
+        # print(f'\r{batch_idx}/15458', end='')
 
         # forward
         with torch.cuda.amp.autocast():
@@ -161,8 +166,8 @@ def train_fn(loader, model, optimizer, loss_fn, scaler):
         scaler.step(optimizer)
         scaler.update()
 
-        # update tqdm loop
-        loop.set_postfix(loss=loss.item())
+        # # update tqdm loop
+        # loop.set_postfix(loss=loss.item())
     average_loss = total_loss / (batch_idx + 1)
 
     return round(average_loss, 4)
@@ -279,7 +284,8 @@ def main():
             print(f"Start training for {model_type} U-net:")
 
             # Early stopping initialization
-            best_loss, no_improvement_count = 10., 0
+            # best_loss, no_improvement_count = 10., 0
+            best_loss, no_improvement_count = 0.1598, 0 # 2024/12/3 continu training for control dataset
 
             if not load_epoch_num == 0:
                 # Load previous check point
