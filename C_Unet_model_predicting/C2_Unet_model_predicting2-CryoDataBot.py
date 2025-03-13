@@ -3,6 +3,10 @@ import os
 import pickle
 
 import numpy as np
+# import pandas
+from pandas import read_csv
+
+
 
 # import pandas as pd
 import torch
@@ -22,8 +26,8 @@ from B2_UTILS_modeling import refine_mass_centers, write_pdb  # track_5_3,
 # MAIN_PATH = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_with_blank'
 # MAIN_PATH = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_with_all'
 # MAIN_PATH = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_20240520'
-MAIN_PATH = '/home/qiboxu/Database/CryoDataBot_Data/Training/control-dataset'
-# MAIN_PATH = '/home/qiboxu/Database/CryoDataBot_Data/Training/experimental-dataset'
+# MAIN_PATH = '/home/qiboxu/Database/CryoDataBot_Data/Training/control-dataset'
+MAIN_PATH = '/home/qiboxu/Database/CryoDataBot_Data/Training/experimental-dataset'
 
 
 MODEL_TYPES = ['secondary_strctures', 'key_atoms', 'residue_types']
@@ -118,14 +122,18 @@ def output(MAP_PATH, out_channels, part_possibility, model_data, model_type,
     for channel_num in range(1, out_channels):
 
         possibility = part_possibility[channel_num, :, :, :]
-        out_map_file = f"{map_name.split('.mrc')[0]}_{model_type}_{channel_num}_possibility.mrc"
-        out_map = os.path.join(folder_path, "possibility", out_map_file)
+        # out_map_file = f"{map_name.split('.mrc')[0]}_{model_type}_{channel_num}_possibility.mrc"
+        # out_map = os.path.join(folder_path, "possibility", out_map_file)
+
+        out_map_file = f"{map_name.split('.mrc')[0]}_experimental_{model_type}_{channel_num}_possibility.mrc"
+        out_map = os.path.join(folder_path, out_map_file)
+
         map_writing(MAP_PATH, possibility, out_map, zoom_factors)
 
-        label_data = np.where(model_data == channel_num, 1, 0)
-        out_map_file = f"{map_name.split('.mrc')[0]}_{model_type}_{channel_num}.mrc"
-        out_map = os.path.join(folder_path, "unrefined", out_map_file)
-        map_writing(MAP_PATH, label_data, out_map, zoom_factors, is_int=True)
+        # label_data = np.where(model_data == channel_num, 1, 0)
+        # out_map_file = f"{map_name.split('.mrc')[0]}_{model_type}_{channel_num}.mrc"
+        # out_map = os.path.join(folder_path, "unrefined", out_map_file)
+        # map_writing(MAP_PATH, label_data, out_map, zoom_factors, is_int=True)
 
         # smooth_loc = smooth_location(label_data, channel_num)
         # out_map_file = f"{map_name.split('.mrc')[0]}_{model_type}_{channel_num}_refined.mrc"
@@ -137,9 +145,9 @@ def main(MAP_PATH):
 
     # Create sub-folders
     folder_path = os.path.dirname(MAP_PATH)
-    created_folders = ["possibility", "unrefined"]  #, "refined", "chains", "temp_in_chain"]
-    for created_folder in created_folders:
-        os.makedirs(os.path.join(folder_path, created_folder), exist_ok=True)
+    # created_folders = ["possibility", "unrefined"]  #, "refined", "chains", "temp_in_chain"]
+    # for created_folder in created_folders:
+    #     os.makedirs(os.path.join(folder_path, created_folder), exist_ok=True)
 
     # Read map file and normalize it
     map_data, zoom_factors = map_normalizing(MAP_PATH)
@@ -180,33 +188,36 @@ def main(MAP_PATH):
         map_data_ = np.concatenate((map_data_, part_possibility), axis=0)
 
 
+def read_csv_info(csv_path, raw_dir):
+    df = read_csv(csv_path)
+    emdbs, pdbs = df["emdb_id"], df["fitted_pdbs"]
+    resolutions = df["resolution"].astype(str)
+    # print(emdbs)
+    emdb_ids = [emdb.split("-")[1] for emdb in emdbs]
+    folders = [
+        f"{emdb}_re_{resolution}"
+        for emdb, resolution in zip(emdbs, resolutions)
+    ]
+    raw_maps = [f"emd_{emdb_id}.map" for emdb_id in emdb_ids]
+    models = [f"{pdb}.cif" for pdb in pdbs]
+
+    raw_map_paths = [os.path.join(raw_dir, folder, raw_map) for folder, raw_map in zip(folders, raw_maps)]
+    model_paths = [os.path.join(raw_dir, folder, model) for folder, model in zip(folders, models)]
+    normalized_map_paths = [os.path.join(raw_dir, folder, f"{os.path.splitext(os.path.basename(raw_map_path))[0]}_normalized.mrc")\
+                             for folder, raw_map_path in zip(folders, raw_map_paths)]
+
+    csv_info = (emdb_ids, pdbs, resolutions, folders, raw_maps, models)
+    path_info = (raw_map_paths, model_paths, normalized_map_paths)
+    return csv_info, path_info
+
+
+
 if __name__ == "__main__":
-    RAW_DATA_PATH = (
-        "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Raw"
-    )
+    csv_path = '/home/qiboxu/MyProject/test/test_dataset_metadata.csv'
+    RAW_DATA_PATH = '/home/qiboxu/Database/CryoDataBot_Data/Test-cryodatabot'
+    csv_info, path_info = read_csv_info(csv_path, RAW_DATA_PATH)
+    (raw_map_paths, model_paths, normalized_map_paths) = path_info
 
 
-
-    MAP_PATH = os.path.join(RAW_DATA_PATH, "EMD-3245_re_3.6", "emd_3245.map")
-    MAP_PATH = os.path.join(RAW_DATA_PATH, "EMD-10537_re_3.1", "emd_10537.map")
-
-
-
-
-    # RAW_DATA_PATH = (
-    #     "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/LabData_testing/Hongcheng"
-    # )
-    # MAP_PATH = os.path.join(RAW_DATA_PATH, "kshv-targetdensity", "kshv-targetdensity.mrc")
-
-    # RAW_DATA_PATH = (
-    #     "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/LabData_testing/Saarang/20240531"
-    # )
-    # MAP_PATH = os.path.join(RAW_DATA_PATH, "crop_map_cryoID.mrc")
-
-    # RAW_DATA_PATH = (
-    #     "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/cryoREAD_example"
-    # )
-    # MAP_PATH = os.path.join(RAW_DATA_PATH, "EMD-21051", "21051.mrc")
-
-    # for MAP_PATH in raw_map_paths:
-    main(MAP_PATH)
+    for MAP_PATH in raw_map_paths:
+        main(MAP_PATH)
