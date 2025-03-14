@@ -61,24 +61,58 @@ def predict_location(map_data_, model, out_channels, device, cube_size=50, pad_s
     return part_possibility
 
 
-def map_normalizing(map_path):
-    with mrcfile.mmap(map_path) as mrc:
+# map normalization on recommended contour level
+def map_normalizing(map_path, recl=0.0):
+    if recl == '':
+        recl = 0.0
+    with mrcfile.mmap(map_path, 'r+') as mrc:
         # Load map data
         map_data = np.array(mrc.data, dtype=np.float32)
+        map_origin = np.array([mrc.header.nxstart, mrc.header.nystart, mrc.header.nzstart], dtype=np.int8)
+        map_orientation = np.array([mrc.header.mapc, mrc.header.mapr, mrc.header.maps], dtype=np.float32)
+
 
         # Resample map to 1.0A*1.0A*1.0A grid size
         zoom_factors = [mrc.voxel_size.z, mrc.voxel_size.y, mrc.voxel_size.x]
         map_data = zoom(map_data, zoom_factors)
 
-        # Normalize map values to the range (0.0, 1.0)
-        data_99_9 = np.percentile(map_data, 99.9)
-        if data_99_9 == 0.:
-            print('data_99_9 == 0!!')
-            raise ValueError('99.9th percentile of map data is zero')
-        map_data /= data_99_9
+        # remove noisy values that are too small
+        count_good = np.sum(map_data > max(0, recl))
+        count_total = map_data.size
+        if recl>0.0:
+            # set some small values less than 0 to make the recommended contour level 15th percentile among positive values
+            bottom_value_percentile = (1-(count_good/0.85)/count_total)*100
+            if bottom_value_percentile > 100:
+                value_bottom = 0
+            else:
+                value_bottom = np.percentile(map_data, bottom_value_percentile)
+        else:
+            # set 30% lowest positive values less than 0
+            bottom_value_percentile = (1-(count_good*0.7)/count_total)*100
+            value_bottom = np.percentile(map_data, bottom_value_percentile)
+        map_data -= max(value_bottom, 0)
+
+        # # Normalize map values to the range (0.0, 1.0)
+        # data_99_9 = np.percentile(map_data, 99.9)
+        # if data_99_9 == 0.:
+        #     print('data_99_9 == 0!!')
+        #     raise ValueError('99.9th percentile of map data is zero')
+        # map_data /= data_99_9
+        # map_data = np.clip(map_data, 0., 1.)
+
+        positive_data = map_data
+        positive_data = positive_data[positive_data >= 0]
+        positive_data_99 = np.percentile(positive_data, 99)
+        if positive_data_99 == 0.:
+            raise ValueError('Empty map (99.9th percentile of map data is zero)')
+        map_data = map_data / positive_data_99
         map_data = np.clip(map_data, 0., 1.)
 
+        map_orientation = np.array([mrc.header.mapc-1, mrc.header.mapr-1, mrc.header.maps-1], dtype=np.int32)
+        map_data = np.transpose(map_data, map_orientation)
+
     return map_data, zoom_factors
+
 
 
 def MapReading(MapPath):
