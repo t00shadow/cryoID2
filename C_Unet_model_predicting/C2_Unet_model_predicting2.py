@@ -127,7 +127,7 @@ def output(MAP_PATH, out_channels, part_possibility, model_data, model_type,
         # map_writing(MAP_PATH, smooth_loc, out_map, zoom_factors, is_int=True)
 
 
-def main(MAP_PATH):
+def main(MAP_PATH, recl=0.0):
 
     # Create sub-folders
     folder_path = os.path.dirname(MAP_PATH)
@@ -136,7 +136,7 @@ def main(MAP_PATH):
         os.makedirs(os.path.join(folder_path, created_folder), exist_ok=True)
 
     # Read map file and normalize it
-    map_data, zoom_factors = map_normalizing(MAP_PATH)
+    map_data, zoom_factors = map_normalizing(MAP_PATH, recl)
 
     for model_index in range(3):
 

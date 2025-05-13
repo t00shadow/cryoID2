@@ -26,8 +26,10 @@ from B2_UTILS_modeling import refine_mass_centers, write_pdb  # track_5_3,
 # MAIN_PATH = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_with_blank'
 # MAIN_PATH = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_with_all'
 # MAIN_PATH = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_20240520'
-# MAIN_PATH = '/home/qiboxu/Database/CryoDataBot_Data/Training/control-dataset'
-MAIN_PATH = '/home/qiboxu/Database/CryoDataBot_Data/Training/experimental-dataset'
+
+EX_OR_CO = 'experimental'  # 'control'
+MAIN_PATH = f'/home/qiboxu/Database/CryoDataBot_Data/Training/{EX_OR_CO}-dataset'
+
 
 
 MODEL_TYPES = ['secondary_strctures', 'key_atoms', 'residue_types']
@@ -125,7 +127,7 @@ def output(MAP_PATH, out_channels, part_possibility, model_data, model_type,
         # out_map_file = f"{map_name.split('.mrc')[0]}_{model_type}_{channel_num}_possibility.mrc"
         # out_map = os.path.join(folder_path, "possibility", out_map_file)
 
-        out_map_file = f"{map_name.split('.mrc')[0]}_experimental_{model_type}_{channel_num}_possibility.mrc"
+        out_map_file = f"{map_name.split('.mrc')[0]}_{EX_OR_CO}_{model_type}_{channel_num}_possibility.mrc"
         out_map = os.path.join(folder_path, out_map_file)
 
         map_writing(MAP_PATH, possibility, out_map, zoom_factors)
@@ -141,7 +143,7 @@ def output(MAP_PATH, out_channels, part_possibility, model_data, model_type,
         # map_writing(MAP_PATH, smooth_loc, out_map, zoom_factors, is_int=True)
 
 
-def main(MAP_PATH):
+def main(MAP_PATH, recl):
 
     # Create sub-folders
     folder_path = os.path.dirname(MAP_PATH)
@@ -150,7 +152,7 @@ def main(MAP_PATH):
     #     os.makedirs(os.path.join(folder_path, created_folder), exist_ok=True)
 
     # Read map file and normalize it
-    map_data, zoom_factors = map_normalizing(MAP_PATH)
+    map_data, zoom_factors = map_normalizing(MAP_PATH, recl)
 
     for model_index in range(1):
 
@@ -192,6 +194,7 @@ def read_csv_info(csv_path, raw_dir):
     df = read_csv(csv_path)
     emdbs, pdbs = df["emdb_id"], df["fitted_pdbs"]
     resolutions = df["resolution"].astype(str)
+    recls = df["recommended_contour_level"].astype(float)
     # print(emdbs)
     emdb_ids = [emdb.split("-")[1] for emdb in emdbs]
     folders = [
@@ -206,7 +209,7 @@ def read_csv_info(csv_path, raw_dir):
     normalized_map_paths = [os.path.join(raw_dir, folder, f"{os.path.splitext(os.path.basename(raw_map_path))[0]}_normalized.mrc")\
                              for folder, raw_map_path in zip(folders, raw_map_paths)]
 
-    csv_info = (emdb_ids, pdbs, resolutions, folders, raw_maps, models)
+    csv_info = (emdb_ids, pdbs, resolutions, folders, raw_maps, models, recls)
     path_info = (raw_map_paths, model_paths, normalized_map_paths)
     return csv_info, path_info
 
@@ -217,7 +220,8 @@ if __name__ == "__main__":
     RAW_DATA_PATH = '/home/qiboxu/Database/CryoDataBot_Data/Test-cryodatabot'
     csv_info, path_info = read_csv_info(csv_path, RAW_DATA_PATH)
     (raw_map_paths, model_paths, normalized_map_paths) = path_info
+    emdb_ids, pdbs, resolutions, folders, raw_maps, models, recls = csv_info
 
 
-    for MAP_PATH in raw_map_paths:
-        main(MAP_PATH)
+    for i in range(len(raw_map_paths)):
+        main(raw_map_paths[i], recls[i])
