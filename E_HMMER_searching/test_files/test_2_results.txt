@@ -1,0 +1,60 @@
+# hmmsearch :: search profile(s) against a sequence database
+# HMMER 3.3.2 (Nov 2020); http://hmmer.org/
+# Copyright (C) 2020 Howard Hughes Medical Institute.
+# Freely distributed under the BSD open source license.
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# query HMM file:                  test_files/test_2.hmm
+# target sequence database:        search_pool.fasta
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+Query:       model_angelo_search  [M=20]
+Scores for complete sequences (score includes all domains):
+   --- full sequence ---   --- best 1 domain ---    -#dom-
+    E-value  score  bias    E-value  score  bias    exp  N  Sequence   Description
+    ------- ------ -----    ------- ------ -----   ---- --  --------   -----------
+    1.7e-12   37.5   0.1    1.7e-12   37.5   0.1    1.0  1  CORRECT002  
+  ------ inclusion threshold ------
+       0.56    0.2  23.9          1   -0.7  23.9    1.6  1  C001        
+
+
+Domain annotation for each sequence (and alignments):
+>> CORRECT002  
+   #    score  bias  c-Evalue  i-Evalue hmmfrom  hmm to    alifrom  ali to    envfrom  env to     acc
+ ---   ------ ----- --------- --------- ------- -------    ------- -------    ------- -------    ----
+   1 !   37.5   0.1   2.9e-13   1.7e-12       2      20 .]       1      19 [.       1      19 [. 0.97
+
+  Alignments for each domain:
+  == domain 1  score: 37.5 bits;  conditional E-value: 2.9e-13
+  model_angelo_search  2 vywtspfmklihgeqcdnr 20
+                         vywtspfmklihgeqcdnr
+           CORRECT002  1 VYWTSPFMKLIHGEQCDNR 19
+                         8*****************8 PP
+
+>> C001  
+   #    score  bias  c-Evalue  i-Evalue hmmfrom  hmm to    alifrom  ali to    envfrom  env to     acc
+ ---   ------ ----- --------- --------- ------- -------    ------- -------    ------- -------    ----
+   1 ?   -0.7  23.9      0.17         1       2      19 ..       2      19 ..       1      20 [] 0.41
+
+  Alignments for each domain:
+  == domain 1  score: -0.7 bits;  conditional E-value: 0.17
+  model_angelo_search  2 vywtspfmklihgeqcdn 19
+                         +++++++++++++++c++
+                 C001  2 CCCCCCCCCCCCCCCCCC 19
+                         344444444444444444 PP
+
+
+
+Internal pipeline statistics summary:
+-------------------------------------
+Query model(s):                            1  (20 nodes)
+Target sequences:                         12  (240 residues searched)
+Passed MSV filter:                         3  (0.25); expected 0.2 (0.02)
+Passed bias filter:                        3  (0.25); expected 0.2 (0.02)
+Passed Vit filter:                         3  (0.25); expected 0.0 (0.001)
+Passed Fwd filter:                         2  (0.166667); expected 0.0 (1e-05)
+Initial search space (Z):                 12  [actual number of targets]
+Domain search space  (domZ):               2  [number of targets reported over threshold]
+# CPU time: 0.00u 0.00s 00:00:00.00 Elapsed: 00:00:00.00
+# Mc/sec: 4.56
+//
+[ok]
