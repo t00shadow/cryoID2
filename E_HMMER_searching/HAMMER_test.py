@@ -299,106 +299,26 @@ def dump_aa_logits_to_hmm_file(
         alphabet_type=alphabet_type,
     )
 
+def generate_test_matrix(input: str):
+    mapping = {'A': 0, 'R': 1, 'N': 2, 'D': 3, 'C': 4, 'Q': 5, 'E': 6, 'G': 7, 'H': 8, 'I': 9,
+               'L': 10, 'K': 11, 'M': 12, 'F': 13, 'P': 14, 'S': 15, 'T': 16, 'W': 17, 'Y': 18, 'V': 19,}
+    test_array = np.zeros((20, 28))
+    test_array[:] = 0.1/27
+    test_array[:, 20:] = -100
+    for i in range(20):
+        test_array[i,mapping[input[i]]] = 0.9
+    test_array /= 0.5
+    return test_array
+
+
 if __name__ == "__main__":
     test_file = 'test_files/test_'
-
-    # test 1: 20 amino acids: arndcqeghilkmfpstwyv
-    # corresponds to CORRECT001
-    test_array = np.zeros((20, 28))
-    test_array[:] = 0.1/27
-    test_array[:, 20:] = -100
-    for i in range(20):
-       test_array[i,i] = 0.9
-    test_array /= .5
-    dump_aa_logits_to_hmm_file(test_array, test_file+'1'+".hmm")
-
-    # test 2: 20 amino acids reversed: vywtspfmklihgeqcdnra
-    # corresponds to CORRECT002
-    test_array = np.zeros((20, 28))
-    test_array[:] = 0.1/27
-    test_array[:, 20:] = -100
-    for i in range(20):
-       test_array[i,20-i] = 0.9
-    test_array /= .5
-    dump_aa_logits_to_hmm_file(test_array, test_file+'2'+".hmm")
-
-
-    # test 3: displacement aarraaaaaaaaaaaaaaaa -> aannaaaaaaaaaaaaaaaa
-    # corresponds to CORRECT003
-    test_array = np.zeros((20, 28))
-    test_array[:] = 0.1/27
-    test_array[:, 20:] = -100
-    test_array[[0, 1, *range(4, 20)],0] = 0.9
-    test_array[2:3,2] = 0.9
-    test_array /= .5
-    dump_aa_logits_to_hmm_file(test_array, test_file+'3'+".hmm")
-
-    # test 4: deletion aarraaaaaaaaaaaaaaaa -> aaraaaaaaaaaaaaaaaa
-    # corresponds to CORRECT003
-    test_array = np.zeros((20, 28))
-    test_array[:] = 0.1/27
-    test_array[:, 20:] = -100
-    test_array[[0, 1, *range(3, 19)],0] = 0.9
-    test_array[2,1] = 0.9
-    test_array /= .5
-    dump_aa_logits_to_hmm_file(test_array, test_file+'4'+".hmm")
-
-    # test 5: insersion aarraaaaaaaaaaaaaaaa -> aarrnaaaaaaaaaaaaaaaa
-    # corresponds to CORRECT003
-    test_array = np.zeros((21, 28))
-    test_array[:] = 0.1/27
-    test_array[:, 20:] = -100
-    test_array[[0, 1, *range(5, 21)],0] = 0.9
-    test_array[2:3,1] = 0.9
-    test_array[4,2] = 0.9
-    test_array /= .5
-    dump_aa_logits_to_hmm_file(test_array, test_file+'5'+".hmm")
-
-    # test 6: displacement nnarnnnnnnnnnnnnnnnn -> nnrannnnnnnnnnnnnnnn
-    # corresponds to CORRECT004
-    test_array = np.zeros((20, 28))
-    test_array[:] = 0.1/27
-    test_array[:, 20:] = -100
-    test_array[[0, 1, *range(4, 20)],2] = 0.9
-    test_array[2,1] = 0.9
-    test_array[3,0] = 0.9
-    test_array /= .5
-    dump_aa_logits_to_hmm_file(test_array, test_file+'6'+".hmm")
-
-    # test 7: deletion nnarnnnnnnnnnnnnnnnn -> nnnnnnnnnnnnnnnnnn
-    # corresponds to CORRECT004
-    test_array = np.zeros((20, 28))
-    test_array[:] = 0.1/27
-    test_array[:, 20:] = -100
-    test_array[0:17,2] = 0.9
-    test_array /= .5
-    dump_aa_logits_to_hmm_file(test_array, test_file+'7'+".hmm")
-
-    # test 8: insersion nnarnnnnnnnnnnnnnnnn -> nnarnnannnnnnnnnnnnnna
-    # corresponds to CORRECT004
-    test_array = np.zeros((22, 28))
-    test_array[:] = 0.1/27
-    test_array[:, 20:] = -100
-    test_array[[0, 1, 4, 5, *range(7, 21)],2] = 0.9
-    test_array[[2,6,20],0] = 0.9
-    test_array[3,1] = 0.9
-    test_array /= .5
-    dump_aa_logits_to_hmm_file(test_array, test_file+'8'+".hmm")
-
-    # test 9: not found e*20
-    # corresponds to none
-    test_array = np.zeros((20, 28))
-    test_array[:] = 0.1/27
-    test_array[:, 20:] = -100
-    test_array[0:19,6] = 0.9
-    test_array /= .5
-    dump_aa_logits_to_hmm_file(test_array, test_file+'9'+".hmm")
-
-    # test 10: not found v*20
-    # corresponds to none
-    test_array = np.zeros((20, 28))
-    test_array[:] = 0.1/27
-    test_array[:, 20:] = -100
-    test_array[0:19,20] = 0.9
-    test_array /= .5
-    dump_aa_logits_to_hmm_file(test_array, test_file+'10'+".hmm")
+    inputs = ('MSHINYNVEKRKSLKKHNNN',
+              'MATNSNNNNSSNNNNNLENI',
+              'MRSKYYKEEENKGFIKTHYF',
+              'MKCTSVNIRNVLDISLKKKI',
+              'MEGNDKCLNVTLADIEKDTM',
+              )
+    for i, input in enumerate(inputs):
+        test_array = generate_test_matrix(input)
+        dump_aa_logits_to_hmm_file(test_array, f"{test_file}{i+1}.hmm")

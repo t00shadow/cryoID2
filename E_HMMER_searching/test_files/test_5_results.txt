@@ -7,67 +7,40 @@
 # target sequence database:        search_pool.fasta
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Query:       model_angelo_search  [M=21]
+Query:       model_angelo_search  [M=20]
 Scores for complete sequences (score includes all domains):
    --- full sequence ---   --- best 1 domain ---    -#dom-
-    E-value  score  bias    E-value  score  bias    exp  N  Sequence   Description
-    ------- ------ -----    ------- ------ -----   ---- --  --------   -----------
-  ------ inclusion threshold ------
-       0.02    4.9  16.1      0.025    4.5  16.1    1.3  1  CORRECT003  
-      0.057    3.4  18.6      0.078    2.9  18.6    1.3  1  C001        
-      0.061    3.3  19.0       0.27    1.2  19.0    1.9  1  A001        
+    E-value  score  bias    E-value  score  bias    exp  N  Sequence        Description
+    ------- ------ -----    ------- ------ -----   ---- --  --------        -----------
+    4.3e-08   29.0   0.1    7.4e-07   25.0   0.1    3.5  1  PF3D7_0111800.1  
 
 
 Domain annotation for each sequence (and alignments):
->> CORRECT003  
+>> PF3D7_0111800.1  
    #    score  bias  c-Evalue  i-Evalue hmmfrom  hmm to    alifrom  ali to    envfrom  env to     acc
  ---   ------ ----- --------- --------- ------- -------    ------- -------    ------- -------    ----
-   1 ?    4.5  16.1    0.0063     0.025       2      19 ..       2      19 ..       1      20 [] 0.46
+   1 !   25.0   0.1     1e-09   7.4e-07       1      20 []       1      20 [.       1      20 [. 0.98
 
   Alignments for each domain:
-  == domain 1  score: 4.5 bits;  conditional E-value: 0.0063
-  model_angelo_search  2 aranaaaaaaaaaaaaaa 19
-                         ar  aaaaaaaaaaaaaa
-           CORRECT003  2 ARRAAAAAAAAAAAAAAA 19
-                         565555555554444444 PP
-
->> C001  
-   #    score  bias  c-Evalue  i-Evalue hmmfrom  hmm to    alifrom  ali to    envfrom  env to     acc
- ---   ------ ----- --------- --------- ------- -------    ------- -------    ------- -------    ----
-   1 ?    2.9  18.6     0.019     0.078       2      20 ..       2      19 ..       1      20 [] 0.33
-
-  Alignments for each domain:
-  == domain 1  score: 2.9 bits;  conditional E-value: 0.019
-  model_angelo_search  2 aranaaaaaaaaaaaaaaa 20
-                         +++ +++++++++++++++
-                 C001  2 CCC-CCCCCCCCCCCCCCC 19
-                         333.333333333333333 PP
-
->> A001  
-   #    score  bias  c-Evalue  i-Evalue hmmfrom  hmm to    alifrom  ali to    envfrom  env to     acc
- ---   ------ ----- --------- --------- ------- -------    ------- -------    ------- -------    ----
-   1 ?    1.2  19.0     0.068      0.27       6      18 ..       5      17 ..       1      20 [] 0.30
-
-  Alignments for each domain:
-  == domain 1  score: 1.2 bits;  conditional E-value: 0.068
-  model_angelo_search  6 aaaaaaaaaaaaa 18
-                         aaaaaaaaaaaaa
-                 A001  5 AAAAAAAAAAAAA 17
-                         2222222222222 PP
+  == domain 1  score: 25.0 bits;  conditional E-value: 1e-09
+  model_angelo_search  1 megndkclnvtladiekdtm 20
+                         megndkclnvtladiekdtm
+      PF3D7_0111800.1  1 MEGNDKCLNVTLADIEKDTM 20
+                         8******************9 PP
 
 
 
 Internal pipeline statistics summary:
 -------------------------------------
-Query model(s):                            1  (21 nodes)
-Target sequences:                         12  (240 residues searched)
-Passed MSV filter:                         4  (0.333333); expected 0.2 (0.02)
-Passed bias filter:                        4  (0.333333); expected 0.2 (0.02)
-Passed Vit filter:                         3  (0.25); expected 0.0 (0.001)
-Passed Fwd filter:                         3  (0.25); expected 0.0 (1e-05)
-Initial search space (Z):                 12  [actual number of targets]
-Domain search space  (domZ):               3  [number of targets reported over threshold]
+Query model(s):                            1  (20 nodes)
+Target sequences:                        719  (901224 residues searched)
+Passed MSV filter:                        49  (0.0681502); expected 14.4 (0.02)
+Passed bias filter:                       45  (0.0625869); expected 14.4 (0.02)
+Passed Vit filter:                         2  (0.00278164); expected 0.7 (0.001)
+Passed Fwd filter:                         1  (0.00139082); expected 0.0 (1e-05)
+Initial search space (Z):                719  [actual number of targets]
+Domain search space  (domZ):               1  [number of targets reported over threshold]
 # CPU time: 0.00u 0.00s 00:00:00.00 Elapsed: 00:00:00.00
-# Mc/sec: 4.70
+# Mc/sec: 2079.70
 //
 [ok]
