@@ -1,0 +1,54 @@
+# hmmsearch :: search profile(s) against a sequence database
+# HMMER 3.3.2 (Nov 2020); http://hmmer.org/
+# Copyright (C) 2020 Howard Hughes Medical Institute.
+# Freely distributed under the BSD open source license.
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# query HMM file:                  test_files/test_6_0.7.hmm
+# target sequence database:        search_pool.fasta
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+Query:       test_files/test_6_0.7  [M=19]
+Scores for complete sequences (score includes all domains):
+   --- full sequence ---   --- best 1 domain ---    -#dom-
+    E-value  score  bias    E-value  score  bias    exp  N  Sequence        Description
+    ------- ------ -----    ------- ------ -----   ---- --  --------        -----------
+  ------ inclusion threshold ------
+      0.032   10.0   8.2      0.045    9.5   0.4    6.3  2  PF3D7_0104300.1  
+
+
+Domain annotation for each sequence (and alignments):
+>> PF3D7_0104300.1  
+   #    score  bias  c-Evalue  i-Evalue hmmfrom  hmm to    alifrom  ali to    envfrom  env to     acc
+ ---   ------ ----- --------- --------- ------- -------    ------- -------    ------- -------    ----
+   1 ?    9.5   0.4   6.2e-05     0.045       1      19 []       1      20 [.       1      20 [. 0.87
+   2 ?   -4.6   2.3         1   7.2e+02       3      18 ..    2953    2968 ..    2951    2969 .. 0.72
+
+  Alignments for each domain:
+  == domain 1  score: 9.5 bits;  conditional E-value: 6.2e-05
+  test_files/test_6_0.7  1 mshi.ynvekrkslkkhnnn 19
+                           mshi ynvekrkslkkhnnn
+        PF3D7_0104300.1  1 MSHInYNVEKRKSLKKHNNN 20
+                           677649************97 PP
+
+  == domain 2  score: -4.6 bits;  conditional E-value: 1
+  test_files/test_6_0.7    3 hiynvekrkslkkhnn 18  
+                             ++ nv ++k+ k+h+ 
+        PF3D7_0104300.1 2953 MMKNVKHMKNIKQHCS 2968
+                             5668888888888875 PP
+
+
+
+Internal pipeline statistics summary:
+-------------------------------------
+Query model(s):                            1  (19 nodes)
+Target sequences:                        719  (901224 residues searched)
+Passed MSV filter:                       127  (0.176634); expected 14.4 (0.02)
+Passed bias filter:                      118  (0.164117); expected 14.4 (0.02)
+Passed Vit filter:                         5  (0.0069541); expected 0.7 (0.001)
+Passed Fwd filter:                         2  (0.00278164); expected 0.0 (1e-05)
+Initial search space (Z):                719  [actual number of targets]
+Domain search space  (domZ):               1  [number of targets reported over threshold]
+# CPU time: 0.00u 0.00s 00:00:00.00 Elapsed: 00:00:00.01
+# Mc/sec: 1646.54
+//
+[ok]

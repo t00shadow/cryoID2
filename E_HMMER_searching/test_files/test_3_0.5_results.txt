@@ -3,44 +3,38 @@
 # Copyright (C) 2020 Howard Hughes Medical Institute.
 # Freely distributed under the BSD open source license.
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# query HMM file:                  test_files/test_3.hmm
+# query HMM file:                  test_files/test_3_0.5.hmm
 # target sequence database:        search_pool.fasta
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Query:       model_angelo_search  [M=20]
+Query:       test_files/test_3_0.5  [M=20]
 Scores for complete sequences (score includes all domains):
    --- full sequence ---   --- best 1 domain ---    -#dom-
     E-value  score  bias    E-value  score  bias    exp  N  Sequence        Description
     ------- ------ -----    ------- ------ -----   ---- --  --------        -----------
-    2.7e-07   26.4   0.9    2.7e-07   26.4   0.9    5.5  3  PF3D7_0106000.1  
+  ------ inclusion threshold ------
+       0.19    7.5   5.8       0.55    5.9   0.1    5.6  2  PF3D7_0104300.1  
 
 
 Domain annotation for each sequence (and alignments):
->> PF3D7_0106000.1  
+>> PF3D7_0104300.1  
    #    score  bias  c-Evalue  i-Evalue hmmfrom  hmm to    alifrom  ali to    envfrom  env to     acc
  ---   ------ ----- --------- --------- ------- -------    ------- -------    ------- -------    ----
-   1 !   26.4   0.9   3.7e-10   2.7e-07       1      20 []       1      20 [.       1      20 [. 0.98
-   2 ?   -3.1   0.2      0.48   3.5e+02       4      13 ..     682     692 ..     681     697 .. 0.57
-   3 ?   -3.5   0.4      0.61   4.4e+02       5      17 ..     778     791 ..     776     793 .. 0.46
+   1 ?    5.9   0.1   0.00077      0.55       1      20 []       1      20 [.       1      20 [. 0.94
+   2 ?   -4.5   1.7         1   7.2e+02       3      18 ..    2952    2967 ..    2950    2969 .. 0.70
 
   Alignments for each domain:
-  == domain 1  score: 26.4 bits;  conditional E-value: 3.7e-10
-  model_angelo_search  1 mrskyykeeenkgfikthyf 20
-                         mrskyykeeenkgfikthyf
-      PF3D7_0106000.1  1 MRSKYYKEEENKGFIKTHYF 20
-                         8******************8 PP
+  == domain 1  score: 5.9 bits;  conditional E-value: 0.00077
+  test_files/test_3_0.5  1 mshinynvekrkslkkhnnn 20
+                           mshinynvekrkslkkhnnn
+        PF3D7_0104300.1  1 MSHINYNVEKRKSLKKHNNN 20
+                           78***************986 PP
 
-  == domain 2  score: -3.1 bits;  conditional E-value: 0.48
-  model_angelo_search   4 kyykee.enkg 13 
-                           yyke  +nk 
-      PF3D7_0106000.1 682 NYYKEViYNKL 692
-                          58898524554 PP
-
-  == domain 3  score: -3.5 bits;  conditional E-value: 0.61
-  model_angelo_search   5 yykeeen.kgfikt 17 
-                          y k+ e+   f+ t
-      PF3D7_0106000.1 778 YKKWPEYtDVFWNT 791
-                          44454441445555 PP
+  == domain 2  score: -4.5 bits;  conditional E-value: 1
+  test_files/test_3_0.5    3 hinynvekrkslkkhn 18  
+                             h++ nv ++k+ k+h+
+        PF3D7_0104300.1 2952 HMMKNVKHMKNIKQHC 2967
+                             6777888888877776 PP
 
 
 
@@ -48,13 +42,13 @@ Internal pipeline statistics summary:
 -------------------------------------
 Query model(s):                            1  (20 nodes)
 Target sequences:                        719  (901224 residues searched)
-Passed MSV filter:                       112  (0.155772); expected 14.4 (0.02)
-Passed bias filter:                      103  (0.143255); expected 14.4 (0.02)
+Passed MSV filter:                        37  (0.0514604); expected 14.4 (0.02)
+Passed bias filter:                       34  (0.0472879); expected 14.4 (0.02)
 Passed Vit filter:                         2  (0.00278164); expected 0.7 (0.001)
 Passed Fwd filter:                         2  (0.00278164); expected 0.0 (1e-05)
 Initial search space (Z):                719  [actual number of targets]
 Domain search space  (domZ):               1  [number of targets reported over threshold]
-# CPU time: 0.00u 0.00s 00:00:00.00 Elapsed: 00:00:00.01
-# Mc/sec: 1716.55
+# CPU time: 0.00u 0.00s 00:00:00.00 Elapsed: 00:00:00.00
+# Mc/sec: 2329.66
 //
 [ok]

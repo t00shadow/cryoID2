@@ -3,44 +3,44 @@
 # Copyright (C) 2020 Howard Hughes Medical Institute.
 # Freely distributed under the BSD open source license.
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# query HMM file:                  test_files/test_4.hmm
+# query HMM file:                  test_files/test_8_0.9.hmm
 # target sequence database:        search_pool.fasta
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Query:       model_angelo_search  [M=20]
+Query:       test_files/test_8_0.9  [M=16]
 Scores for complete sequences (score includes all domains):
    --- full sequence ---   --- best 1 domain ---    -#dom-
     E-value  score  bias    E-value  score  bias    exp  N  Sequence        Description
     ------- ------ -----    ------- ------ -----   ---- --  --------        -----------
-    7.6e-08   28.2   0.1    4.5e-06   22.5   0.1    4.7  1  PF3D7_0110600.1  
+    0.00077   15.2   0.1       0.09    8.5   0.1    5.4  1  PF3D7_0104300.1  
 
 
 Domain annotation for each sequence (and alignments):
->> PF3D7_0110600.1  
+>> PF3D7_0104300.1  
    #    score  bias  c-Evalue  i-Evalue hmmfrom  hmm to    alifrom  ali to    envfrom  env to     acc
  ---   ------ ----- --------- --------- ------- -------    ------- -------    ------- -------    ----
-   1 !   22.5   0.1   6.2e-09   4.5e-06       1      20 []       1      20 [.       1      20 [. 0.97
+   1 !    8.5   0.1   0.00013      0.09       1      16 []       1      15 [.       1      15 [. 0.91
 
   Alignments for each domain:
-  == domain 1  score: 22.5 bits;  conditional E-value: 6.2e-09
-  model_angelo_search  1 mkctsvnirnvldislkkki 20
-                         mkctsvnirnvldislkkki
-      PF3D7_0110600.1  1 MKCTSVNIRNVLDISLKKKI 20
-                         8*****************97 PP
+  == domain 1  score: 8.5 bits;  conditional E-value: 0.00013
+  test_files/test_8_0.9  1 mshianynvekrkslk 16
+                           mshi nynvekrkslk
+        PF3D7_0104300.1  1 MSHI-NYNVEKRKSLK 15
+                           8998.9********97 PP
 
 
 
 Internal pipeline statistics summary:
 -------------------------------------
-Query model(s):                            1  (20 nodes)
+Query model(s):                            1  (16 nodes)
 Target sequences:                        719  (901224 residues searched)
-Passed MSV filter:                        86  (0.119611); expected 14.4 (0.02)
-Passed bias filter:                       79  (0.109875); expected 14.4 (0.02)
-Passed Vit filter:                         4  (0.00556328); expected 0.7 (0.001)
+Passed MSV filter:                        78  (0.108484); expected 14.4 (0.02)
+Passed bias filter:                       72  (0.100139); expected 14.4 (0.02)
+Passed Vit filter:                         1  (0.00139082); expected 0.7 (0.001)
 Passed Fwd filter:                         1  (0.00139082); expected 0.0 (1e-05)
 Initial search space (Z):                719  [actual number of targets]
 Domain search space  (domZ):               1  [number of targets reported over threshold]
-# CPU time: 0.01u 0.00s 00:00:00.01 Elapsed: 00:00:00.00
-# Mc/sec: 2046.86
+# CPU time: 0.00u 0.00s 00:00:00.00 Elapsed: 00:00:00.00
+# Mc/sec: 2075.17
 //
 [ok]

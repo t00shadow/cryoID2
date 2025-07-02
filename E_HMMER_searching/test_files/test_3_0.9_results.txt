@@ -3,11 +3,11 @@
 # Copyright (C) 2020 Howard Hughes Medical Institute.
 # Freely distributed under the BSD open source license.
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# query HMM file:                  test_files/test_1.hmm
+# query HMM file:                  test_files/test_3_0.9.hmm
 # target sequence database:        search_pool.fasta
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-Query:       model_angelo_search  [M=20]
+Query:       test_files/test_3_0.9  [M=20]
 Scores for complete sequences (score includes all domains):
    --- full sequence ---   --- best 1 domain ---    -#dom-
     E-value  score  bias    E-value  score  bias    exp  N  Sequence        Description
@@ -28,40 +28,40 @@ Domain annotation for each sequence (and alignments):
 
   Alignments for each domain:
   == domain 1  score: 23.3 bits;  conditional E-value: 3.4e-09
-  model_angelo_search  1 mshinynvekrkslkkhnnn 20
-                         mshinynvekrkslkkhnnn
-      PF3D7_0104300.1  1 MSHINYNVEKRKSLKKHNNN 20
-                         8*****************98 PP
+  test_files/test_3_0.9  1 mshinynvekrkslkkhnnn 20
+                           mshinynvekrkslkkhnnn
+        PF3D7_0104300.1  1 MSHINYNVEKRKSLKKHNNN 20
+                           8*****************98 PP
 
   == domain 2  score: -6.7 bits;  conditional E-value: 1
-  model_angelo_search   5 nynvekrkslkkhnnn 20 
-                          n n   +ks    nnn
-      PF3D7_0104300.1 187 NNNNINMKSNTNNNNN 202
-                          6677788888877765 PP
+  test_files/test_3_0.9   5 nynvekrkslkkhnnn 20 
+                            n n   +ks    nnn
+        PF3D7_0104300.1 187 NNNNINMKSNTNNNNN 202
+                            6677788888877765 PP
 
   == domain 3  score: -2.0 bits;  conditional E-value: 0.21
-  model_angelo_search   3 hinynvekrkslkkh 17 
-                           inyn  +rk  k  
-      PF3D7_0104300.1 231 SINYNDIHRKEKKNK 245
-                          59****999986643 PP
+  test_files/test_3_0.9   3 hinynvekrkslkkh 17 
+                             inyn  +rk  k  
+        PF3D7_0104300.1 231 SINYNDIHRKEKKNK 245
+                            59****999986643 PP
 
   == domain 4  score: -13.4 bits;  conditional E-value: 1
-  model_angelo_search   7 n 7  
-                          n
-      PF3D7_0104300.1 920 N 920
-                          1 PP
+  test_files/test_3_0.9   7 n 7  
+                            n
+        PF3D7_0104300.1 920 N 920
+                            1 PP
 
   == domain 5  score: -14.5 bits;  conditional E-value: 1
-  model_angelo_search   12 kslkkhn 18  
-                                 n
-      PF3D7_0104300.1 1707 NNNNNNN 1713
-                           2222222 PP
+  test_files/test_3_0.9   12 kslkkhn 18  
+                                   n
+        PF3D7_0104300.1 1707 NNNNNNN 1713
+                             2222222 PP
 
   == domain 6  score: -4.8 bits;  conditional E-value: 1
-  model_angelo_search    2 shinynvekrkslkkhnnn 20  
-                            h++ nv ++k  k+h+ n
-      PF3D7_0104300.1 2951 NHMMKNVKHMKNIKQHCSN 2969
-                           58999*******9999865 PP
+  test_files/test_3_0.9    2 shinynvekrkslkkhnnn 20  
+                              h++ nv ++k  k+h+ n
+        PF3D7_0104300.1 2951 NHMMKNVKHMKNIKQHCSN 2969
+                             58999*******9999865 PP
 
 
 
@@ -76,6 +76,6 @@ Passed Fwd filter:                        26  (0.0361613); expected 0.0 (1e-05)
 Initial search space (Z):                719  [actual number of targets]
 Domain search space  (domZ):               1  [number of targets reported over threshold]
 # CPU time: 0.03u 0.00s 00:00:00.03 Elapsed: 00:00:00.03
-# Mc/sec: 472.10
+# Mc/sec: 495.19
 //
 [ok]

@@ -299,26 +299,34 @@ def dump_aa_logits_to_hmm_file(
         alphabet_type=alphabet_type,
     )
 
-def generate_test_matrix(input: str):
+def generate_test_matrix(input: str, prob: float = 0.5) -> np.ndarray:
     mapping = {'A': 0, 'R': 1, 'N': 2, 'D': 3, 'C': 4, 'Q': 5, 'E': 6, 'G': 7, 'H': 8, 'I': 9,
                'L': 10, 'K': 11, 'M': 12, 'F': 13, 'P': 14, 'S': 15, 'T': 16, 'W': 17, 'Y': 18, 'V': 19,}
-    test_array = np.zeros((20, 28))
-    test_array[:] = 0.1/27
+    length = len(input)
+    test_array = np.zeros((length, 28), dtype=np.float32)
+    test_array[:] = (1-prob)/27
     test_array[:, 20:] = -100
-    for i in range(20):
-        test_array[i,mapping[input[i]]] = 0.9
+    for i in range(length):
+        test_array[i,mapping[input[i]]] = prob
     test_array /= 0.5
     return test_array
 
 
 if __name__ == "__main__":
     test_file = 'test_files/test_'
-    inputs = ('MSHINYNVEKRKSLKKHNNN',
-              'MATNSNNNNSSNNNNNLENI',
-              'MRSKYYKEEENKGFIKTHYF',
-              'MKCTSVNIRNVLDISLKKKI',
-              'MEGNDKCLNVTLADIEKDTM',
+    inputs = ('MSHINYNVEK',            # test_1: length = 10
+              'MSHINYNVEKRKSLK',       # test_2: length = 15
+              'MSHINYNVEKRKSLKKHNNN',  # test_3: length = 20
+              'MSHIYNVEK',             # test_4: deletion at position 4
+              'MSHIYNVEKRKSLK',        # test_5: deletion at position 4
+              'MSHIYNVEKRKSLKKHNNN',   # test_6: deletion at position 4
+              'MSHIANYNVEK',           # test_7: insertion at position 4
+              'MSHIANYNVEKRKSLK',      # test_8: insertion at position 4
+              'MSHIANYNVEKRKSLKKHNNN', # test_9: insertion at position 4
               )
+    probs = (0.5, 0.7, 0.9)
     for i, input in enumerate(inputs):
-        test_array = generate_test_matrix(input)
-        dump_aa_logits_to_hmm_file(test_array, f"{test_file}{i+1}.hmm")
+        for prob in probs:
+            test_matrix = generate_test_matrix(input, prob)
+            output_file = test_file + str(i+1) + '_' + str(prob) + '.hmm'
+            dump_aa_logits_to_hmm_file(test_matrix, output_file, name=test_file + str(i+1) + '_' + str(prob), alphabet_type='amino')

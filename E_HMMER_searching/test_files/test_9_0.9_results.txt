@@ -1,0 +1,81 @@
+# hmmsearch :: search profile(s) against a sequence database
+# HMMER 3.3.2 (Nov 2020); http://hmmer.org/
+# Copyright (C) 2020 Howard Hughes Medical Institute.
+# Freely distributed under the BSD open source license.
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# query HMM file:                  test_files/test_9_0.9.hmm
+# target sequence database:        search_pool.fasta
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+Query:       test_files/test_9_0.9  [M=21]
+Scores for complete sequences (score includes all domains):
+   --- full sequence ---   --- best 1 domain ---    -#dom-
+    E-value  score  bias    E-value  score  bias    exp  N  Sequence        Description
+    ------- ------ -----    ------- ------ -----   ---- --  --------        -----------
+    6.7e-05   18.7   1.6    6.7e-05   18.7   1.6   10.3  6  PF3D7_0104300.1  
+
+
+Domain annotation for each sequence (and alignments):
+>> PF3D7_0104300.1  
+   #    score  bias  c-Evalue  i-Evalue hmmfrom  hmm to    alifrom  ali to    envfrom  env to     acc
+ ---   ------ ----- --------- --------- ------- -------    ------- -------    ------- -------    ----
+   1 !   18.7   1.6   9.3e-08   6.7e-05       1      21 []       1      20 [.       1      20 [. 0.94
+   2 ?   -7.2   4.7         1   7.2e+02       6      21 .]     187     202 ..     184     203 .. 0.72
+   3 ?   -3.4   0.4      0.59   4.3e+02       6      17 ..     233     244 ..     230     248 .. 0.71
+   4 ?  -13.2  12.0         1   7.2e+02      10      10 ..     922     922 ..     892     944 .. 0.58
+   5 ?  -14.6  12.5         1   7.2e+02      13      19 ..    1707    1713 ..    1698    1724 .. 0.45
+   6 ?   -5.4   4.5         1   7.2e+02       4      21 .]    2952    2969 ..    2950    2969 .. 0.78
+
+  Alignments for each domain:
+  == domain 1  score: 18.7 bits;  conditional E-value: 9.3e-08
+  test_files/test_9_0.9  1 mshianynvekrkslkkhnnn 21
+                           mshi nynvekrkslkkhnnn
+        PF3D7_0104300.1  1 MSHI-NYNVEKRKSLKKHNNN 20
+                           8998.9*************98 PP
+
+  == domain 2  score: -7.2 bits;  conditional E-value: 1
+  test_files/test_9_0.9   6 nynvekrkslkkhnnn 21 
+                            n n   +ks    nnn
+        PF3D7_0104300.1 187 NNNNINMKSNTNNNNN 202
+                            6677788998877765 PP
+
+  == domain 3  score: -3.4 bits;  conditional E-value: 0.59
+  test_files/test_9_0.9   6 nynvekrkslkk 17 
+                            nyn  +rk  k 
+        PF3D7_0104300.1 233 NYNDIHRKEKKN 244
+                            899999997664 PP
+
+  == domain 4  score: -13.2 bits;  conditional E-value: 1
+  test_files/test_9_0.9  10 e 10 
+                             
+        PF3D7_0104300.1 922 N 922
+                            1 PP
+
+  == domain 5  score: -14.6 bits;  conditional E-value: 1
+  test_files/test_9_0.9   13 kslkkhn 19  
+                                   n
+        PF3D7_0104300.1 1707 NNNNNNN 1713
+                             2222222 PP
+
+  == domain 6  score: -5.4 bits;  conditional E-value: 1
+  test_files/test_9_0.9    4 ianynvekrkslkkhnnn 21  
+                             +++ nv ++k  k+h+ n
+        PF3D7_0104300.1 2952 HMMKNVKHMKNIKQHCSN 2969
+                             457799999999999865 PP
+
+
+
+Internal pipeline statistics summary:
+-------------------------------------
+Query model(s):                            1  (21 nodes)
+Target sequences:                        719  (901224 residues searched)
+Passed MSV filter:                       303  (0.421419); expected 14.4 (0.02)
+Passed bias filter:                      294  (0.408901); expected 14.4 (0.02)
+Passed Vit filter:                        36  (0.0500695); expected 0.7 (0.001)
+Passed Fwd filter:                        23  (0.0319889); expected 0.0 (1e-05)
+Initial search space (Z):                719  [actual number of targets]
+Domain search space  (domZ):               1  [number of targets reported over threshold]
+# CPU time: 0.03u 0.00s 00:00:00.03 Elapsed: 00:00:00.03
+# Mc/sec: 501.60
+//
+[ok]
