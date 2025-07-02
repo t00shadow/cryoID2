@@ -19,12 +19,12 @@ import splitfolders
 import shutil
 
 # Test train? Train? Predict?
-BATCH_1_TEST = False
-TRAIN = True
-MODEL_INDEX = 2
-PREDICT = False
+BATCH_1_TEST = True # If True, do a batch 1 test to check if the U-Net model works.
+TRAIN = False # If True, train the U-Net model.
+MODEL_INDEX = 0  # 0: secondary_strctures; 1: key_atoms; 2: residue_types
+PREDICT = False # If True, predict the U-Net model and save the results.
 
-# Set training epoch munbers, early stopping epoch num
+# Set training epoch numbers, early stopping epoch num
 training_epoch_num = 150
 
 
@@ -300,9 +300,14 @@ def main():
                     f"EPOCH {epoch} of {model_type}: \nAverage Loss = {average_loss}.",
                 )
 
+                # Check accuracy
+                val_average_loss = check_accuracy(val_loader, model, out_channels, loss_fn,
+                               evl_folder_path, DEVICE, epoch, class_weights)
+                save_predictions_as_imgs(val_loader, model, evl_folder_path,
+                                         DEVICE, epoch, model_type, batch_size)
                 # Check if the current loss is better than the previous best loss
-                if average_loss < best_loss:
-                    best_loss = average_loss
+                if val_average_loss < best_loss:
+                    best_loss = val_average_loss
                     no_improvement_count = 0
 
                     # Save model and update the loading epoch number file
@@ -335,12 +340,6 @@ def main():
                         "epochs.",
                     )
                     break
-
-                # # Check accuracy
-                # check_accuracy(val_loader, model, out_channels, loss_fn,
-                #                evl_folder_path, DEVICE, epoch, class_weights)
-                save_predictions_as_imgs(val_loader, model, evl_folder_path,
-                                         DEVICE, epoch, model_type, batch_size)
 
         if PREDICT:
             load_checkpoint(load_model_path, model, map_location=DEVICE)

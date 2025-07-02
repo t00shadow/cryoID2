@@ -163,7 +163,7 @@ def check_accuracy(loader, model, num_class, loss_fn, evl_folder_path, device,
 
     model.train()
 
-    # return average_loss
+    return average_loss
 
 
 # import glob
