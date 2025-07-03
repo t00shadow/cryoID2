@@ -19,8 +19,8 @@ import splitfolders
 import shutil
 
 # Test train? Train? Predict?
-BATCH_1_TEST = True # If True, do a batch 1 test to check if the U-Net model works.
-TRAIN = False # If True, train the U-Net model.
+BATCH_1_TEST = False # If True, do a batch 1 test to check if the U-Net model works.
+TRAIN = True # If True, train the U-Net model.
 MODEL_INDEX = 0  # 0: secondary_strctures; 1: key_atoms; 2: residue_types
 PREDICT = False # If True, predict the U-Net model and save the results.
 
@@ -28,17 +28,17 @@ PREDICT = False # If True, predict the U-Net model and save the results.
 training_epoch_num = 150
 
 
-early_stopping_patience = 5
+early_stopping_patience = 15 #5
 
 # batch_size (vs GPU Memory: 1vs2877; 2vs3485; 4vs4668; 8vs7162)
-batch_size = 8
+batch_size = 16 #8
 learning_rate = 1e-4
 
 # ====================== Hyperparameters etc. ========================
 # MAIN_PATH = "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_with_blank"
 # MAIN_PATH = "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_with_all"
-MAIN_PATH = "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_20240520"
-
+# MAIN_PATH = "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_20240520"
+MAIN_PATH = "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/cryoID2_metadata_Final-VOF-filter"
 
 MODEL_TYPES = ["secondary_strctures", "key_atoms", "residue_types"]
 MAP_DIRS_TYPES = [
@@ -52,7 +52,7 @@ data_path = os.path.join(MAIN_PATH, "train_val_data")
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-num_workers = 2
+num_workers = 8 #12 #16
 pin_memory = True
 
 
@@ -147,7 +147,7 @@ def train_fn(loader, model, optimizer, loss_fn, scaler):
         print(batch_idx)
 
         # forward
-        with torch.cuda.amp.autocast():
+        with torch.amp.autocast('cuda'):
             predictions = model(data)
             loss = loss_fn(predictions, targets)
             total_loss += loss.item()
@@ -173,7 +173,7 @@ def batch_1_test(loader, model, optimizer, loss_fn, scaler):
 
     for epoch in range(500):
         # forward
-        with torch.cuda.amp.autocast():
+        with torch.amp.autocast('cuda'):
             predictions = model(data)
             # print(predictions.shape)
             loss = loss_fn(predictions, targets)
@@ -254,7 +254,14 @@ def main():
         model = UNET(in_channels, out_channels).to(DEVICE)
         loss_fn = nn.CrossEntropyLoss(weight=class_weights)
         optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-        scaler = torch.cuda.amp.GradScaler()
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                    optimizer,
+                    mode='min',
+                    factor=0.5,
+                    patience=5,
+                    verbose=True
+                )
+        scaler = torch.amp.GradScaler()
 
         # Generate data loaders
         train_loader, val_loader = get_loaders(
@@ -276,7 +283,8 @@ def main():
             print(f"Start training for {model_type} U-net:")
 
             # Early stopping initialization
-            best_loss, no_improvement_count = 10., 0
+            # best_loss, no_improvement_count = 10., 0
+            best_loss, no_improvement_count = 0.1757, 0
 
             if not load_epoch_num == 0:
                 # Load previous check point
@@ -289,6 +297,8 @@ def main():
             #                             DEVICE, load_epoch_num, model_type, batch_size)
 
             # exit()
+
+            previous_lr = optimizer.param_groups[0]['lr']
 
             for epoch in range(
                 load_epoch_num + 1, load_epoch_num + 1 + training_epoch_num
@@ -305,6 +315,17 @@ def main():
                                evl_folder_path, DEVICE, epoch, class_weights)
                 save_predictions_as_imgs(val_loader, model, evl_folder_path,
                                          DEVICE, epoch, model_type, batch_size)
+
+                scheduler.step(val_average_loss)
+                current_lr = optimizer.param_groups[0]['lr']
+
+                if current_lr != previous_lr:
+                    print_and_write(
+                        f"{evl_folder_path}/check_accuracy.log",
+                        f"=========\nLearning rate changed from {previous_lr:.8f} to {current_lr:.8f} at Epoch {epoch + 1}\n=========\n",
+                    )
+                    previous_lr = current_lr
+
                 # Check if the current loss is better than the previous best loss
                 if val_average_loss < best_loss:
                     best_loss = val_average_loss
