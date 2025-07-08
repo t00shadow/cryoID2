@@ -612,7 +612,7 @@ if __name__ == "__main__":
     input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering\meanshift_clusters_threshold_0_25.pdb"
     # joblib_file = "my_trained_model.joblib"      #* used to refine the backbone after TSP
 
-    output_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\tracing_outputs\protein_backbone.pdb"
+    output_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\tracing\protein_backbone.pdb"
 
     # Note: handle file I/O stuff like the naming of input/output files OUTSIDE of the trace_backbone() function
     trace_backbone("protein", input_file=input_file, output_file=output_file)

@@ -109,22 +109,22 @@ def write_as_PDB(final_coords, output_file_name):   # add additional args as nee
 
 
 
-# Example Usage
-# foo = r"C:\Users\noelu\Downloads\Testing clustering-20240514T081052Z-001(DELETE LATER)\Testing clustering\emd_0065\emd_0065.map_key_atoms_2_possibility.mrc"
-# bar = r"C:\Users\noelu\Downloads\Testing clustering-20240514T081052Z-001(DELETE LATER)\Testing clustering\emd_0065\emd_0065_normalized.mrc"
-foo = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\test_files\emd_0065_Unet\emd_0065.map_key_atoms_2_possibility.mrc"    # nucleic acid phosphoruses (P)
-foo = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\test_files\emd_0065_Unet\emd_0065.map_key_atoms_1_possibility.mrc"    # protein (alpha carbons, CA)
-bar = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\test_files\emd_0065_Unet\emd_0065_normalized.mrc"
+if __name__ == "__main__":
+    # foo = r"C:\Users\noelu\Downloads\Testing clustering-20240514T081052Z-001(DELETE LATER)\Testing clustering\emd_0065\emd_0065.map_key_atoms_2_possibility.mrc"
+    # bar = r"C:\Users\noelu\Downloads\Testing clustering-20240514T081052Z-001(DELETE LATER)\Testing clustering\emd_0065\emd_0065_normalized.mrc"
+    foo = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\test_files\emd_0065_Unet\emd_0065.map_key_atoms_2_possibility.mrc"    # nucleic acid phosphoruses (P)
+    foo = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\test_files\emd_0065_Unet\emd_0065.map_key_atoms_1_possibility.mrc"    # protein (alpha carbons, CA)
+    bar = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\test_files\emd_0065_Unet\emd_0065_normalized.mrc"
 
-THRESHOLD = 0.25
-output = clustering_fxn(UNET_FILE=foo, OG_MRC_FILE=bar, unet_threshold=THRESHOLD)
-#print(output)
+    THRESHOLD = 0.25
+    output = clustering_fxn(UNET_FILE=foo, OG_MRC_FILE=bar, unet_threshold=THRESHOLD)
+    #print(output)
 
-# Write to PDB file
-# TODO: make a wrapper fxn
-dirname = os.path.dirname(__file__)
-#print(dirname)
-outputfilename = os.path.join(dirname, 'outputs/clustering/meanshift_clusters' + "_threshold_" + str(THRESHOLD).replace(".", "_") + '.pdb')
-#print(outputfilename)
-write_as_PDB(output, outputfilename)
-print("Wrote to", outputfilename)
+    # Write to PDB file
+    # TODO: make a wrapper fxn
+    dirname = os.path.dirname(__file__)
+    #print(dirname)
+    outputfilename = os.path.join(dirname, 'outputs/clustering/meanshift_clusters' + "_threshold_" + str(THRESHOLD).replace(".", "_") + '.pdb')
+    #print(outputfilename)
+    write_as_PDB(output, outputfilename)
+    print("Wrote to", outputfilename)
