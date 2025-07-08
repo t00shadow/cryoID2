@@ -110,8 +110,11 @@ def write_as_PDB(final_coords, output_file_name):   # add additional args as nee
 
 
 # Example Usage
-foo = r"C:\Users\noelu\Downloads\Testing clustering-20240514T081052Z-001(DELETE LATER)\Testing clustering\emd_0065\emd_0065.map_key_atoms_2_possibility.mrc"
-bar = r"C:\Users\noelu\Downloads\Testing clustering-20240514T081052Z-001(DELETE LATER)\Testing clustering\emd_0065\emd_0065_normalized.mrc"
+# foo = r"C:\Users\noelu\Downloads\Testing clustering-20240514T081052Z-001(DELETE LATER)\Testing clustering\emd_0065\emd_0065.map_key_atoms_2_possibility.mrc"
+# bar = r"C:\Users\noelu\Downloads\Testing clustering-20240514T081052Z-001(DELETE LATER)\Testing clustering\emd_0065\emd_0065_normalized.mrc"
+foo = r"C:\Users\noelu\Downloads\drive-download-20250702T231250Z-1-001\emd_0065.map_key_atoms_2_possibility.mrc"    # nucleic acid phosphoruses (P)
+foo = r"C:\Users\noelu\Downloads\drive-download-20250702T231250Z-1-001\emd_0065.map_key_atoms_1_possibility.mrc"    # protein (alpha carbons, CA)
+bar = r"C:\Users\noelu\Downloads\drive-download-20250702T231250Z-1-001\emd_0065_normalized.mrc"
 
 THRESHOLD = 0.25
 output = clustering_fxn(UNET_FILE=foo, OG_MRC_FILE=bar, unet_threshold=THRESHOLD)
@@ -121,7 +124,7 @@ output = clustering_fxn(UNET_FILE=foo, OG_MRC_FILE=bar, unet_threshold=THRESHOLD
 # TODO: make a wrapper fxn
 dirname = os.path.dirname(__file__)
 #print(dirname)
-outputfilename = os.path.join(dirname, 'clustering_results/meanshift_clusters' + "_threshold_" + str(THRESHOLD).replace(".", "_") + '.pdb')
+outputfilename = os.path.join(dirname, 'output/meanshift_clusters' + "_threshold_" + str(THRESHOLD).replace(".", "_") + '.pdb')
 #print(outputfilename)
 write_as_PDB(output, outputfilename)
 print("Wrote to", outputfilename)
