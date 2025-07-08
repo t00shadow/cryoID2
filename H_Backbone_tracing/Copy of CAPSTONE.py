@@ -606,11 +606,10 @@ def trace_backbone(molecule_type: str, max_bond_length: float | None = None, *, 
 if __name__ == "__main__":
     # "Ground truth" PDB files
     # input_file = "C:/Users/david/Desktop/Capstone/Large.pdb"    
-    # input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\test_files\6hlq_pho_prediction.pdb"
+    # input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\test_files\misc_ground_truths\6hlq_pho_prediction.pdb"
 
     # PDB files from clustering Unet predictions
-    input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\Z_Developmental_Clustering\output\meanshift_clusters_threshold_0_25.pdb"
-    
+    input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering\meanshift_clusters_threshold_0_25.pdb"
     # joblib_file = "my_trained_model.joblib"      #* used to refine the backbone after TSP
 
     output_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\tracing_outputs\protein_backbone.pdb"
