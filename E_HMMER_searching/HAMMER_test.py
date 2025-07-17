@@ -314,15 +314,18 @@ def generate_test_matrix(input: str, prob: float = 0.5) -> np.ndarray:
 
 if __name__ == "__main__":
     test_file = 'test_files/test_'
-    inputs = ('MSHINYNVEK',            # test_1: length = 10
-              'MSHINYNVEKRKSLK',       # test_2: length = 15
-              'MSHINYNVEKRKSLKKHNNN',  # test_3: length = 20
-              'MSHIYNVEK',             # test_4: deletion at position 4
-              'MSHIYNVEKRKSLK',        # test_5: deletion at position 4
-              'MSHIYNVEKRKSLKKHNNN',   # test_6: deletion at position 4
-              'MSHIANYNVEK',           # test_7: insertion at position 4
-              'MSHIANYNVEKRKSLK',      # test_8: insertion at position 4
-              'MSHIANYNVEKRKSLKKHNNN', # test_9: insertion at position 4
+    inputs = ('MSHINYNVEK',             # test_1: length = 10
+              'MSHINYNVEKRKSLK',        # test_2: length = 15
+              'MSHINYNVEKRKSLKKHNNN',   # test_3: length = 20
+              'MSHIYNVEK',              # test_4: deletion at position 4
+              'MSHIYNVEKRKSLK',         # test_5: deletion at position 4
+              'MSHIYNVEKRKSLKKHNNN',    # test_6: deletion at position 4
+              'MSHIANYNVEK',            # test_7: replacement at position 4
+              'MSHIANYNVEKRKSLK',       # test_8: replacement at position 4
+              'MSHIANYNVEKRKSLKKHNNN',  # test_9: replacement at position 4
+              'MSHIANYNVEK',            # test_10: insertion at position 4
+              'MSHIANYNVEKRKSLK',       # test_11: insertion at position 4
+              'MSHIANYNVEKRKSLKKHNNN',  # test_12: insertion at position 4
               )
     probs = (0.5, 0.7, 0.9)
     for i, input in enumerate(inputs):
