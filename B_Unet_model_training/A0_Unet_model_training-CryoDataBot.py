@@ -6,7 +6,7 @@ from B2_UTILS import (
     check_accuracy,
     save_predictions_as_imgs,
     print_and_write,
-) 
+)
 import torch
 from tqdm import tqdm  # makes your loops show a smart progress meter
 import torch.nn as nn
@@ -14,13 +14,14 @@ import torch.optim as optim
 import os
 import json
 import numpy as np
+from torchsummary import summary
 
 # import splitfolders
 # import shutil
 
 # Test train? Train? Predict?
 BATCH_1_TEST = False
-TRAIN = True
+TRAIN = False
 MODEL_INDEX = 0
 PREDICT = False
 
@@ -285,7 +286,7 @@ def main():
 
             # Early stopping initialization
             # best_loss, no_improvement_count = 10., 0
-            best_loss, no_improvement_count = 0.1598, 0 # 2024/12/3 continu training for control dataset
+            best_loss, no_improvement_count = 0.1598, 0  # 2024/12/3 continu training for control dataset
 
             if not load_epoch_num == 0:
                 # Load previous check point
@@ -299,11 +300,11 @@ def main():
 
             # exit()
 
-            for epoch in range(
-                load_epoch_num + 1, load_epoch_num + 1 + training_epoch_num
-            ):
+            for epoch in range(load_epoch_num + 1,
+                               load_epoch_num + 1 + training_epoch_num):
                 # Train U-net model and get the average loss
-                average_loss = train_fn(train_loader, model, optimizer, loss_fn, scaler)
+                average_loss = train_fn(train_loader, model, optimizer,
+                                        loss_fn, scaler)
                 print_and_write(
                     f"{evl_folder_path}/check_accuracy.log",
                     f"EPOCH {epoch} of {model_type}: \nAverage Loss = {average_loss}.",
@@ -320,12 +321,13 @@ def main():
                         "optimizer": optimizer.state_dict(),
                     }
                     save_model_name = f"{model_type}.epoch{epoch}.pth.tar"
-                    save_checkpoint(
-                        checkpoint, os.path.dirname(load_model_path), save_model_name
-                    )
+                    save_checkpoint(checkpoint,
+                                    os.path.dirname(load_model_path),
+                                    save_model_name)
 
                     # Update the epoch number in file
-                    load_epoch_num_path = os.path.join(data_path, "epoch_num_path.txt")
+                    load_epoch_num_path = os.path.join(data_path,
+                                                       "epoch_num_path.txt")
 
                     with open(load_epoch_num_path, "r") as file:
                         load_epoch_num_all = json.load(file)
@@ -355,6 +357,9 @@ def main():
             load_checkpoint(load_model_path, model, map_location=DEVICE)
             predict(model, train_map_dirs, model_index)
             predict(model, val_map_dirs, model_index)
+
+
+        summary(model, input_size=(1, 64, 64, 64))
 
 
 if __name__ == "__main__":

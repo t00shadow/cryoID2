@@ -12,21 +12,33 @@ GRID_SIZE = 64
 SAMPLE_NUMBER = 1
 
 
-def predict_location(map_data_, model, out_channels, device, cube_size=50, pad_size=7):
+def predict_location(map_data_,
+                     model,
+                     out_channels,
+                     device,
+                     cube_size=50,
+                     pad_size=7):
     map_shape = map_data_.shape
 
-    cube_nums = [map_shape[i] // cube_size + 1 for i in range(1, len(map_shape))]
+    cube_nums = [
+        map_shape[i] // cube_size + 1 for i in range(1, len(map_shape))
+    ]
     num_cubes = cube_nums[0] * cube_nums[1] * cube_nums[2]
-    larger_shape = [cube_size * cube_nums[i] + pad_size * 2 for i in range(len(cube_nums))]
+    larger_shape = [
+        cube_size * cube_nums[i] + pad_size * 2 for i in range(len(cube_nums))
+    ]
     larger_shape.insert(0, map_shape[0])
 
     reshaped_map_data = np.zeros(tuple(larger_shape), np.float32)
-    reshaped_map_data[:, pad_size:pad_size+map_shape[1], pad_size:pad_size+map_shape[2], pad_size:pad_size+map_shape[3]] = map_data_
+    reshaped_map_data[:, pad_size:pad_size + map_shape[1],
+                      pad_size:pad_size + map_shape[2],
+                      pad_size:pad_size + map_shape[3]] = map_data_
 
     reshaped_map_data = torch.from_numpy(reshaped_map_data)
     model_larger_shape = larger_shape[-3:]
     model_larger_shape = np.insert(model_larger_shape, 0, out_channels)
     reshaped_model = torch.zeros(tuple(model_larger_shape))
+    reshaped_model_ = reshaped_model
 
     model.eval()
     # Iterate over 3D cubes of the map data
@@ -40,25 +52,44 @@ def predict_location(map_data_, model, out_channels, device, cube_size=50, pad_s
                 for xx in range(cube_nums[2]):
                     # Extract a 3D cube from the map data
                     xstrt = cube_size * xx
-                    cube = reshaped_map_data[None, :, zstrt:64+zstrt, ystrt:64+ystrt, xstrt:64+xstrt]
+                    cube = reshaped_map_data[None, :, zstrt:64 + zstrt,
+                                             ystrt:64 + ystrt,
+                                             xstrt:64 + xstrt]
 
                     # Move the cube to the specified device and perform prediction
                     cube = cube.to(device)
-                    pred_data = torch.softmax(model(cube), 1)
+                    pred_data_ = torch.softmax(model(cube), 1)
 
                     # Write predicted data to reshaped_model
-                    reshaped_model[:, 7+zstrt:57+zstrt, 7+ystrt:57+ystrt, 7+xstrt:57+xstrt] = pred_data[0, :, 7:57, 7:57, 7:57]
-
+                    reshaped_model_[:, 7 + zstrt:57 + zstrt,
+                                    7 + ystrt:57 + ystrt,
+                                    7 + xstrt:57 + xstrt] = pred_data_[0, :,
+                                                                       7:57,
+                                                                       7:57,
+                                                                       7:57]
+                    # # Also output predicted data without softmax
+                    # pred_data = model(cube)
+                    # reshaped_model[:, 7 + zstrt:57 + zstrt,
+                    #                7 + ystrt:57 + ystrt,
+                    #                7 + xstrt:57 + xstrt] = pred_data[0, :,
+                    #                                                  7:57,
+                    #                                                  7:57,
+                    #                                                  7:57]
                     # Update progress
                     num_completed += 1
                     print(
                         f"{num_completed}/{num_cubes} of prediction is done.",
-                        end='\r')    
+                        end='\r')
 
     # Extract model data
-    part_possibility = reshaped_model[:, pad_size:pad_size+map_shape[1], pad_size:pad_size+map_shape[2], pad_size:pad_size+map_shape[3]].cpu().numpy()
+    part_possibility = reshaped_model_[:, pad_size:pad_size + map_shape[1],
+                                       pad_size:pad_size + map_shape[2],
+                                       pad_size:pad_size + map_shape[3]].cpu().numpy()
+    # prediction = reshaped_model[:, pad_size:pad_size + map_shape[1],
+    #                             pad_size:pad_size + map_shape[2],
+    #                             pad_size:pad_size + map_shape[3]].cpu().numpy()
 
-    return part_possibility
+    return part_possibility  # , prediction,
 
 
 # map normalization on recommended contour level

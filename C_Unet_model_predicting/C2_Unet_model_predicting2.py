@@ -21,8 +21,9 @@ from B2_UTILS_modeling import refine_mass_centers, write_pdb  # track_5_3,
 # ====================== Hyperparameters etc. ========================
 # MAIN_PATH = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_with_blank'
 # MAIN_PATH = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_with_all'
+# MAIN_PATH = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_20240520'
+MAIN_PATH = "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/cryoID2_metadata_Final-VOF-filter"
 
-MAIN_PATH = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_20240520'
 
 MODEL_TYPES = ['secondary_strctures', 'key_atoms', 'residue_types']
 MAP_DIRS_TYPES = [['map_sample'],

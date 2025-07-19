@@ -73,7 +73,9 @@ class UNET(nn.Module):
             concat_skip = torch.cat((skip_connection, x), dim=1)
             x = self.ups[idx + 1](concat_skip)
 
-        # return self.softmax(self.final_conv(x))   # to be noticed
+        # we don't use softmax in the training stage as we use CrossEntropyLoss
+        # return self.softmax(self.final_conv(x))
+        # but we use softmax in the predicting stage
         return self.final_conv(x)
 
 

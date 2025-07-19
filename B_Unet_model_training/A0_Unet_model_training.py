@@ -6,7 +6,7 @@ from B2_UTILS import (
     check_accuracy,
     save_predictions_as_imgs,
     print_and_write,
-) 
+)
 import torch
 from tqdm import tqdm  # makes your loops show a smart progress meter
 import torch.nn as nn
@@ -20,9 +20,9 @@ import shutil
 
 # Test train? Train? Predict?
 BATCH_1_TEST = False # If True, do a batch 1 test to check if the U-Net model works.
-TRAIN = True # If True, train the U-Net model.
+TRAIN = False # If True, train the U-Net model.
 MODEL_INDEX = 0  # 0: secondary_strctures; 1: key_atoms; 2: residue_types
-PREDICT = False # If True, predict the U-Net model and save the results.
+PREDICT = True # If True, predict the U-Net model and save the results.
 
 # Set training epoch numbers, early stopping epoch num
 training_epoch_num = 150
@@ -191,7 +191,8 @@ def batch_1_test(loader, model, optimizer, loss_fn, scaler):
 def predict(model, pre_map_dirs, model_index):
 
     model_type = MODEL_TYPES[model_index]
-    temp_sample_path = os.path.join(os.path.dirname(pre_map_dirs[0]), f'{model_type}_pred_prob')
+    temp_sample_path = os.path.join(os.path.dirname(pre_map_dirs[0]),
+                                    f'{model_type}_pred_prob')
     os.makedirs(temp_sample_path, exist_ok=True)
 
     map_names = [sorted(os.listdir(map_dir)) for map_dir in pre_map_dirs]
@@ -221,7 +222,8 @@ def predict(model, pre_map_dirs, model_index):
             # Move map to the specified device and perform prediction
             map = torch.from_numpy(map)
             map = map.to(DEVICE)
-            pred_prob = model(map)
+            # pred_prob = model(map)
+            pred_prob = torch.softmax(model(map), dim=1)
             writen = pred_prob[0, :, :, :, :].cpu().numpy()
 
             file_name = f"{model_type}_pred_prob.{map_name.split('.')[-2]}.npy"
@@ -259,7 +261,6 @@ def main():
                     mode='min',
                     factor=0.5,
                     patience=5,
-                    verbose=True
                 )
         scaler = torch.amp.GradScaler()
 
