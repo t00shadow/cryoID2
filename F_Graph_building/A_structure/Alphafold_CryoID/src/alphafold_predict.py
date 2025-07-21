@@ -2,10 +2,10 @@ import webbrowser
 from urllib.parse import quote_plus
 
 # --------------------------------------------------
-GITHUB_USER = "Xinye-Star-Yu"
-REPO        = "Alphafold_CryoID"
-BRANCH      = "main"
-NB_PATH     = "notebooks/AlphaFold2.ipynb"
+GITHUB_USER = "t00shadow"
+REPO        = "cryoID_v2"
+BRANCH      = "star"
+NB_PATH     = "F_Graph_building/A_structure/Alphafold_CryoID/notebooks/AlphaFold2.ipynb"
 # --------------------------------------------------
 
 colab_url = (
