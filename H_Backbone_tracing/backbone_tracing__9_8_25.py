@@ -224,9 +224,16 @@ def build_minimal_system(coords, route, allowed_pairs):
     positions = []
 
     for atom_idx, node_idx in enumerate(route):
-        residue = topology.addResidue("PHO", chain)
-        atom = topology.addAtom(f"P_{node_idx}", app.Element.getByAtomicNumber(15), residue)
-        system.addParticle(30.97 * unit.dalton)
+        # residue = topology.addResidue("PHO", chain)
+        # atom = topology.addAtom(f"P_{node_idx}", app.Element.getByAtomicNumber(15), residue)
+        # system.addParticle(30.97 * unit.dalton)
+
+        # TODO: make this more modular so it's easier to toggle back and forth, even a conditional could work.
+        # For protein:
+        residue = topology.addResidue("ALA", chain)  # residue name placeholder
+        atom = topology.addAtom(f"CA_{node_idx}", app.Element.getByAtomicNumber(6), residue)  # carbon
+        system.addParticle(12.01 * unit.dalton)  # carbon mass
+
 
         node_to_atom_idx[node_idx] = atom_idx
 
@@ -355,7 +362,7 @@ def angle_degrees(coords, a, b, c):
     cos_theta = max(min(cos_theta, 1.0), -1.0)
     return math.degrees(math.acos(cos_theta))
 
-def local_angle_sum(route, coords, idx):
+def local_angle_sum(route, coords, idx, min_angle=70, max_angle=160):
     """
     Sum angles at idx-1, idx, idx+1 if valid
     Each angle is formed by (k-1, k, k+1).
@@ -368,21 +375,36 @@ def local_angle_sum(route, coords, idx):
         a = route[idx-2]
         b = route[idx-1]
         c = route[idx]
-        total_ang += angle_degrees(coords, a, b, c)
+        # total_ang += angle_degrees(coords, a, b, c)
+        ang = angle_degrees(coords, a, b, c)
+        if ang < min_angle or ang > max_angle:
+            total_ang += 1000  # penalize unrealistic angles
+        else:
+            total_ang += ang
 
     # angle at (idx)
     if 0 < idx < n-1:
         a = route[idx-1]
         b = route[idx]
         c = route[idx+1]
-        total_ang += angle_degrees(coords, a, b, c)
+        # total_ang += angle_degrees(coords, a, b, c)
+        ang = angle_degrees(coords, a, b, c)
+        if ang < min_angle or ang > max_angle:
+            total_ang += 1000  # penalize unrealistic angles
+        else:
+            total_ang += ang
 
     # angle at (idx+1)
     if idx+1 < n-1:
         a = route[idx]
         b = route[idx+1]
         c = route[idx+2]
-        total_ang += angle_degrees(coords, a, b, c)
+        # total_ang += angle_degrees(coords, a, b, c)
+        ang = angle_degrees(coords, a, b, c)
+        if ang < min_angle or ang > max_angle:
+            total_ang += 1000  # penalize unrealistic angles
+        else:
+            total_ang += ang
 
     return total_ang
 
@@ -610,9 +632,20 @@ if __name__ == "__main__":
 
     # PDB files from clustering Unet predictions
     input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering\meanshift_clusters_threshold_0_25.pdb"
+    input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering_v2\centroids.pdb"
+    input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering_v2\centroids_partial.pdb"
+    input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\clustered_atoms_incremental_finalmerge.pdb"
+    input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering_v2\emd_21887_agglomerative_cd_4.0_combined_largestCC_20250908_190055.pdb"
+
     # joblib_file = "my_trained_model.joblib"      #* used to refine the backbone after TSP
+    joblib_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\Copy of my_trained_model.joblib"
 
     output_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\tracing\protein_backbone.pdb"
+    output_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\tracing\protein_backbone_partial.pdb"
+    output_file = r"how_long_will_this_take"
+    output_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\tracing\emd_21887_protein_backbone_partial.pdb"
 
     # Note: handle file I/O stuff like the naming of input/output files OUTSIDE of the trace_backbone() function
-    trace_backbone("protein", input_file=input_file, output_file=output_file)
+    # trace_backbone("protein", input_file=input_file, output_file=output_file)
+    output_file_joblib_vers = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\tracing\emd_21887_protein_backbone_partial_w_joblib.pdb"
+    trace_backbone("protein", input_file=input_file, output_file=output_file_joblib_vers, joblib_file=joblib_file)

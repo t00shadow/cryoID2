@@ -18,9 +18,6 @@ def clustering_fxn(UNET_FILE, OG_MRC_FILE, unet_threshold=0.5, og_mrc_threshold=
         TODO: maybe rename the threshold arguments above to "probability_threshold" and "density_threshold"
     '''
 
-    # Toggle whether to filter outliers or not, uses sklearn IsolationForest
-    FILTEROUTLIERSFLAG = FILTEROUTLIERSFLAG
-
     # Threshold
     threshold = unet_threshold     # unet threshold
 
@@ -56,7 +53,7 @@ def clustering_fxn(UNET_FILE, OG_MRC_FILE, unet_threshold=0.5, og_mrc_threshold=
     junkcount = 0
     for i in range(coordinates.shape[0]):
         # print(i)
-        if (density[coordinates[i, 0], coordinates[i, 1], coordinates[i, 2]] < density_threshold):   # NOTE: this threshold should not be 0.5 like for unet probabilities
+        if (density[coordinates[i, 0], coordinates[i, 1], coordinates[i, 2]] < density_threshold):   # NOTE: this threshold should be the recommended contour level. #TODO: rename the parameter as such. just say contour level and default is the recommended one. like if countour level is None, then fetch recommended one. 
             junkcount += 1
             coordinates[i] = [-1, -1, -1]             # mark for removal
 
@@ -69,7 +66,7 @@ def clustering_fxn(UNET_FILE, OG_MRC_FILE, unet_threshold=0.5, og_mrc_threshold=
     #NOTE: new stuff end
 
 
-    if FILTEROUTLIERSFLAG == True:
+    if FILTEROUTLIERSFLAG:
         # Apply outlier detection
         outlier_detector = IsolationForest(contamination='auto', random_state=0)  # Adjust contamination parameter as needed
         outlier_labels = outlier_detector.fit_predict(coordinates)
@@ -112,19 +109,31 @@ def write_as_PDB(final_coords, output_file_name):   # add additional args as nee
 if __name__ == "__main__":
     # foo = r"C:\Users\noelu\Downloads\Testing clustering-20240514T081052Z-001(DELETE LATER)\Testing clustering\emd_0065\emd_0065.map_key_atoms_2_possibility.mrc"
     # bar = r"C:\Users\noelu\Downloads\Testing clustering-20240514T081052Z-001(DELETE LATER)\Testing clustering\emd_0065\emd_0065_normalized.mrc"
-    foo = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\test_files\emd_0065_Unet\emd_0065.map_key_atoms_2_possibility.mrc"    # nucleic acid phosphoruses (P)
-    foo = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\test_files\emd_0065_Unet\emd_0065.map_key_atoms_1_possibility.mrc"    # protein (alpha carbons, CA)
-    bar = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\test_files\emd_0065_Unet\emd_0065_normalized.mrc"
+    foo = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\test_files\RETIRED\emd_0065_Unet\emd_0065.map_key_atoms_2_possibility.mrc"    # nucleic acid phosphoruses (P)
+    foo = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\test_files\RETIRED\emd_0065_Unet\emd_0065.map_key_atoms_1_possibility.mrc"    # protein (alpha carbons, CA)
+    bar = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\test_files\RETIRED\emd_0065_Unet\emd_0065_normalized.mrc"
+    # foo = bar    # test, should remove 0 lines
 
-    THRESHOLD = 0.25
-    output = clustering_fxn(UNET_FILE=foo, OG_MRC_FILE=bar, unet_threshold=THRESHOLD)
+    # NEW test data:
+    # foo = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-15905_re_3.0\possibility\emd_15905.map_key_atoms_1_possibility.mrc"
+    # bar = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-15905_re_3.0\emd_15905.map"
+    foo = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-27018_re_3.0\possibility\emd_27018.map_key_atoms_1_possibility.mrc"  # Path to UNet output
+    bar = foo
+    # bar = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-27018_re_3.0\emd_27018.map"
+    # bar = foo
+
+    THRESHOLD = 0.8
+    # BANDWIDTH = 1.6365    # 1298 atoms for emd_0065, oops should try to match the # of atoms from the agglomerative method not ground truth, since unet possibiliites dont match ground truth perfectly
+    BANDWIDTH = 1.5635      # 1364 atoms for emd_0065. closest it gets, tweaking more just bounces btwn 1367 and 1364
+    # output = clustering_fxn(UNET_FILE=foo, OG_MRC_FILE=bar, unet_threshold=THRESHOLD, meanshift_bandwith=BANDWIDTH)
+    output = clustering_fxn(UNET_FILE=foo, OG_MRC_FILE=bar, unet_threshold=0.1, meanshift_bandwith=BANDWIDTH)
     #print(output)
 
     # Write to PDB file
     # TODO: make a wrapper fxn
     dirname = os.path.dirname(__file__)
     #print(dirname)
-    outputfilename = os.path.join(dirname, 'outputs/clustering/meanshift_clusters' + "_threshold_" + str(THRESHOLD).replace(".", "_") + '.pdb')
+    outputfilename = os.path.join(dirname, 'outputs/clustering/meanshift_clusters' + "_threshold_" + str(THRESHOLD).replace(".", "_") + "_bandwidth_" + str(BANDWIDTH).replace(".", "_") + '.pdb')
     #print(outputfilename)
     write_as_PDB(output, outputfilename)
     print("Wrote to", outputfilename)

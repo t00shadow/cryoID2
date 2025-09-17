@@ -7,3 +7,11 @@
 /T_AttnPacker/AttnPackerPlusRotPTM
 .idea/
 *.pyc
+
+/zzz_local_files
+/H_Backbone_tracing/outputs
+/H_Backbone_tracing/archived/local_only
+/H_Backbone_tracing/test_files
+/H_Backbone_tracing/SMALL_MISC_EXPERIMENTS
+/H_Backbone_tracing/TOO SLOW or NOT good enough
+/H_Backbone_tracing/NEW_CLUSTERING_REFACTOR (on hold)
