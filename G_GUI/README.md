@@ -2,8 +2,15 @@
 
 ## TLDR, to run the GUI: 
 ```
-python3 main_cryoID_developmental.py
+cd G_GUI
+python3 main_gui.py
 ```
+or
+```
+python3 G_GUI/main_gui.py
+```
+
+# _The rest of this readme might be outdated in places._
 
 ## Notes
 - You can use the two sidebar file viewers interchangeably and for any folder (i.e. you can ignore the labels). It basically just lets you open any two folders. It does NOT search thru subdirectories (intentional).
