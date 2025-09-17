@@ -19,16 +19,16 @@ PyQt5==5.15.11
 ## TLDR of dev commands: 
 3 files of interest. `G_GUI/gui_skin.ui` and `G_GUI/gui_skin.py` are for the look of the GUI only. `G_GUI/main_gui.py` is where all the functionality lies.
 
-0. Edit `G_GUI/gui_skin.ui` in Qt Designer
-1. Convert the .ui file to a .py file:
+1. Edit `G_GUI/gui_skin.ui` in Qt Designer
+2. Convert the .ui file to a .py file:
 ```
 pyuic5 -x "G_GUI/gui_skin.ui" -o "G_GUI/gui_skin.py"
 ```
-2. Change the last line in `G_GUI/gui_skin.py` from "import file_upload_rc" to "from svg_assets import file_upload_rc"
+3. Change the last line in `G_GUI/gui_skin.py` from "import file_upload_rc" to "from svg_assets import file_upload_rc"
 
 This is all you need if you only want to change the **LOOK** of the GUI.
 
-3. If you want to change functionality, edit `main_gui.py`
+4. If you want to change functionality, edit `main_gui.py`
 
 # ====================================
 # _Ignore the rest of the README for now, outdated in some places._
