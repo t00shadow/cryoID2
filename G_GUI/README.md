@@ -11,9 +11,9 @@ python3 G_GUI/main_gui.py
 ```
 
 ## Required packages (at least these):
-mrcfile==1.5.4
-numpy==2.2.5
-pandas==2.2.3
+mrcfile==1.5.4,
+numpy==2.2.5,
+pandas==2.2.3,
 PyQt5==5.15.11
 
 ## TLDR of dev commands: 
