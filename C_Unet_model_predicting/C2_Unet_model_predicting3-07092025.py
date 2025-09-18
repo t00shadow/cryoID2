@@ -219,7 +219,9 @@ def read_csv_info(csv_path, raw_dir):
     return csv_info, path_info
 
 if __name__ == "__main__":
-    metadata_path = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/cryoID2_metadata/cryoID2_metadata_random_test.csv'
+    # metadata_path = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/cryoID2_metadata/cryoID2_metadata_random_test.csv'
+    metadata_path = '/home/qiboxu/Database/CryoDataBot_Data/Metadata/Gprotein_res_3-4/train_experiment_GPCR_38_entries.csv'
+
     raw_dir = "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Raw"
 
     read_csv_info_with_recl = csv_col_reader('recommended_contour_level')(read_csv_info)

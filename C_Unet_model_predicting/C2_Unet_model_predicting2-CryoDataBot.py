@@ -27,7 +27,7 @@ from B2_UTILS_modeling import refine_mass_centers, write_pdb  # track_5_3,
 # MAIN_PATH = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_with_all'
 # MAIN_PATH = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_20240520'
 
-EX_OR_CO = 'experimental'  # 'control'
+EX_OR_CO = 'control' # 'experimental'  
 MAIN_PATH = f'/home/qiboxu/Database/CryoDataBot_Data/Training/{EX_OR_CO}-dataset'
 
 
@@ -217,7 +217,9 @@ def read_csv_info(csv_path, raw_dir):
 
 if __name__ == "__main__":
     csv_path = '/home/qiboxu/MyProject/test/test_dataset_metadata.csv'
-    RAW_DATA_PATH = '/home/qiboxu/Database/CryoDataBot_Data/Test-cryodatabot'
+    # RAW_DATA_PATH = '/home/qiboxu/Database/CryoDataBot_Data/Test-cryodatabot'
+    RAW_DATA_PATH = "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Raw"
+
     csv_info, path_info = read_csv_info(csv_path, RAW_DATA_PATH)
     (raw_map_paths, model_paths, normalized_map_paths) = path_info
     emdb_ids, pdbs, resolutions, folders, raw_maps, models, recls = csv_info
