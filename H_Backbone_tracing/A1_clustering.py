@@ -8,66 +8,32 @@ from sklearn.neighbors import NearestNeighbors
 from scipy.sparse.csgraph import connected_components
 
 # ----------------------------- Configuration -----------------------------
-    # 8/18/25 addition
-# FILE_TOGGLE = "emd_15905"
-# FILE_TOGGLE = "emd_20256"
-# FILE_TOGGLE = "emd_21887"
-# FILE_TOGGLE = "emd_27018"
+from A0_config_loader import load_sample_paths, load_config_section
+
+config_file = "H_Backbone_tracing/A0_config.yaml"
+
 FILE_TOGGLE = "emd_34843"
 
-if FILE_TOGGLE == "emd_15905":
-    INPUT_MRC = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-15905_re_3.0\possibility\emd_15905.map_key_atoms_1_possibility.mrc"
-    MASK_HELIX_MRC = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-15905_re_3.0\possibility\emd_15905.map_secondary_strctures_1_possibility.mrc"
-    MASK_SHEET_MRC = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-15905_re_3.0\possibility\emd_15905.map_secondary_strctures_2_possibility.mrc"
-    MASK_RING_MRC = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-15905_re_3.0\possibility\emd_15905.map_secondary_strctures_3_possibility.mrc"
-    ORIGINAL_MAP_PATH = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-15905_re_3.0\emd_15905.map"
+paths_cfg = load_sample_paths(config_file, FILE_TOGGLE)
+INPUT_MRC = paths_cfg["CA_mrc"]
+MASK_HELIX_MRC = paths_cfg["mask_helix_mrc"]
+MASK_SHEET_MRC = paths_cfg["mask_sheet_mrc"]
+MASK_RING_MRC = paths_cfg["mask_ring_mrc"]
+ORIGINAL_MAP_PATH = paths_cfg["original_map"]
 
-elif FILE_TOGGLE == "emd_20256":
-    INPUT_MRC = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-20256_re_3.1\possibility\emd_20256.map_key_atoms_1_possibility.mrc"
-    MASK_HELIX_MRC = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-20256_re_3.1\possibility\emd_20256.map_secondary_strctures_1_possibility.mrc"
-    MASK_SHEET_MRC = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-20256_re_3.1\possibility\emd_20256.map_secondary_strctures_2_possibility.mrc"
-    MASK_RING_MRC = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-20256_re_3.1\possibility\emd_20256.map_secondary_strctures_3_possibility.mrc"
-    ORIGINAL_MAP_PATH = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-20256_re_3.1\emd_20256.map"
-
-elif FILE_TOGGLE == "emd_21887":
-    INPUT_MRC = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-21887_re_3.2\possibility\emd_21887.map_key_atoms_1_possibility.mrc"
-    MASK_HELIX_MRC = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-21887_re_3.2\possibility\emd_21887.map_secondary_strctures_1_possibility.mrc"
-    MASK_SHEET_MRC = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-21887_re_3.2\possibility\emd_21887.map_secondary_strctures_2_possibility.mrc"
-    MASK_RING_MRC = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-21887_re_3.2\possibility\emd_21887.map_secondary_strctures_3_possibility.mrc"
-    ORIGINAL_MAP_PATH = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-21887_re_3.2\emd_21887.map"
-
-elif FILE_TOGGLE == "emd_27018":
-    INPUT_MRC = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-27018_re_3.0\possibility\emd_27018.map_key_atoms_1_possibility.mrc"
-    MASK_HELIX_MRC = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-27018_re_3.0\possibility\emd_27018.map_secondary_strctures_1_possibility.mrc"
-    MASK_SHEET_MRC = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-27018_re_3.0\possibility\emd_27018.map_secondary_strctures_2_possibility.mrc"
-    MASK_RING_MRC = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-27018_re_3.0\possibility\emd_27018.map_secondary_strctures_3_possibility.mrc"
-    ORIGINAL_MAP_PATH = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-27018_re_3.0\emd_27018.map"
-
-### smaller files (second set)
-elif FILE_TOGGLE == "emd_34843":
-    INPUT_MRC = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-34843_re_3.2\possibility\emd_34843.map_key_atoms_1_possibility.mrc"
-    MASK_HELIX_MRC = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-34843_re_3.2\possibility\emd_34843.map_secondary_strctures_1_possibility.mrc"
-    MASK_SHEET_MRC = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-34843_re_3.2\possibility\emd_34843.map_secondary_strctures_2_possibility.mrc"
-    MASK_RING_MRC = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-34843_re_3.2\possibility\emd_34843.map_secondary_strctures_3_possibility.mrc"
-    ORIGINAL_MAP_PATH = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-34843_re_3.2\emd_34843.map"
-
-
-THRESHOLD = 0.9
-# CLUSTERING_METHOD = "meanshift"
-    # 8/18/25 addition
-CLUSTERING_METHOD = "agglomerative"
-BANDWIDTH = 1.9
-MIN_CLUSTER_SIZE = 5
-CONNECT_DIST = 4.0
-OUTPUT_DIR = 'H_Backbone_tracing/outputs/clustering_v2'
-    # 8/18/25 addition
-if CLUSTERING_METHOD == "meanshift":
-    OUTPUT_FILE_NAME = f"{FILE_TOGGLE}_meanshift_bw_{BANDWIDTH}"
-elif CLUSTERING_METHOD == "agglomerative":
+clustering_cfg = load_config_section(config_file, "clustering")
+OUTPUT_DIR = clustering_cfg["output_dir"]
+THRESHOLD = clustering_cfg["threshold"]
+CLUSTERING_METHOD = clustering_cfg["method"]
+if CLUSTERING_METHOD == "agglomerative":
+    CONNECT_DIST = clustering_cfg["connect_dist"]
     OUTPUT_FILE_NAME = f"{FILE_TOGGLE}_agglomerative_cd_{CONNECT_DIST}"
-SAVE_INDIVIDUAL_MRCS = False
-MAX_CLUSTERS_TO_SAVE = 50
+elif CLUSTERING_METHOD == "meanshift":
+    BANDWIDTH = clustering_cfg["bandwidth"]
+    OUTPUT_FILE_NAME = f"{FILE_TOGGLE}_meanshift_bw_{BANDWIDTH}"
+MIN_CLUSTER_SIZE = clustering_cfg["min_cluster_size"]
 
+#^ emd_21887
 # z_slice = (150, 200)
 z_slice = (200, 250)
 y_slice = (150, 200)
@@ -79,10 +45,14 @@ y_slice = (140, 200)
 x_slice = (140, 200)
 
 #^ emd_34843
-z_slice = (70, 130)
+z_slice = (50, 150)
 # z_slice = (100, 250)    # runs in about the same amt of time
-y_slice = (70, 130)
-x_slice = (70, 130)
+y_slice = (50, 150)
+x_slice = (50, 150)
+
+z_slice = (0, 999)    # max size is 208 but going over is fine since the code will fix it
+y_slice = (0, 999)
+x_slice = (0, 999)
 
 # ----------------------------- Helper functions -----------------------------
 
@@ -149,8 +119,8 @@ def remove_duplicates(coords, voxel_size, tol=1.0):
 
 
 
-# ----------------------------- Main3: Improved clustering with centroids -----------------------------
-def main3():
+# ----------------------------- main: Improved clustering with centroids -----------------------------
+def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     # Load voxel size and shape from INPUT_MRC header
@@ -226,7 +196,7 @@ def main3():
     mask_centroids_list = []
 
     for name, path in ss_masks.items():
-        print(f"\nProcessing data + {name} mask...")
+        print(f"\nProcessing data + {name} mask, path: {path} ...")
 
         # Load and threshold mask chunk
         mask_coords = load_thresholded_coords(path, THRESHOLD, z_slice, y_slice, x_slice)
@@ -248,7 +218,9 @@ def main3():
         mask_centroids_list.append(centroids)
 
     # Combine all centroids: data alone + each mask centroids
-    all_centroids = [data_centroids] + mask_centroids_list
+    all_centroids = [data_centroids] + mask_centroids_list      # effectively uses all coords rn, since LHS has all coords, and RHS is just a subset* of LHS (*well maybe not perfectly aligned since I threshold first then cluster)
+    # all_centroids = [data_centroids]    #! right now its equivalent to this
+    # all_centroids = mask_centroids_list    #! use this if want ONLY the masked stuff
     combined_centroids = np.vstack([c for c in all_centroids if c.size > 0])
 
     print(f"\nTotal combined centroids before connected components: {len(combined_centroids)}")
@@ -322,6 +294,8 @@ def main3():
 
     print(f"Saved final combined largest connected component PDB with {len(largest_centroids)} centroids to {pdb_path}")
 
+    return pdb_path
+
 
 if __name__ == "__main__":
-    main3()
+    main()
