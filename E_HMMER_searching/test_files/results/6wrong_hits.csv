@@ -1,0 +1,3 @@
+target_name,query_name,accession,E-value,score,bias,description
+EMD-21887|6WRS_2|Chain,<HMM alphabet=Alphabet.amino() M=19 name=b'test_hmm'>,,0.009544257988660513,14.846081733703613,0.008990287780761719,B|50S ribosomal protein L2|Staphylococcus aureus (1280)
+EMD-3624|5ND8_25|Chain,<HMM alphabet=Alphabet.amino() M=19 name=b'test_hmm'>,,0.009544257988660513,14.846081733703613,0.008990287780761719,Y[auth D]|50S ribosomal protein L2|Staphylococcus aureus (strain NCTC 8325) (93061)

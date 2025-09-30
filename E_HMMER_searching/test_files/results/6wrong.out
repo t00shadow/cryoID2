@@ -1,0 +1,268 @@
+# hmmsearch :: search profile(s) against a sequence database
+# HMMER 3.3.2 (Nov 2020); http://hmmer.org/
+# Copyright (C) 2020 Howard Hughes Medical Institute.
+# Freely distributed under the BSD open source license.
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# query HMM file:                  E_HMMER_searching/test_files/6wrong.hmm
+# target sequence database:        E_HMMER_searching/test_files/fasta_files/combined.fasta
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+Query:       test_hmm  [M=19]
+Scores for complete sequences (score includes all domains):
+   --- full sequence ---   --- best 1 domain ---    -#dom-
+    E-value  score  bias    E-value  score  bias    exp  N  Sequence                Description
+    ------- ------ -----    ------- ------ -----   ---- --  --------                -----------
+  ------ inclusion threshold ------
+      0.061   14.9   0.0      0.095   14.2   0.0    1.3  1  EMD-10078|6S12_3|Chain   C|50S ribosomal protein L2|Staphyloc
+      0.061   14.9   0.0      0.095   14.2   0.0    1.3  1  EMD-10079|6S13_3|Chain   C|50S ribosomal protein L2|Staphyloc
+      0.061   14.9   0.0      0.095   14.2   0.0    1.3  1  EMD-38876|8Y39_3|Chain   C|Large ribosomal subunit protein uL
+      0.061   14.9   0.0      0.095   14.2   0.0    1.3  1  EMD-8402|5TCU_25|Chain   Y[auth L2]|50S ribosomal protein L2|
+      0.061   14.9   0.0      0.095   14.2   0.0    1.3  1  EMD-4050|5LI0_23|Chain   W[auth D]|50S ribosomal protein L2|S
+      0.061   14.9   0.0      0.095   14.2   0.0    1.3  1  EMD-8369|5T7V_17|Chain   Q[auth L2]|50S ribosomal protein L2|
+      0.061   14.9   0.0      0.096   14.2   0.0    1.3  1  EMD-7867|6DDD_2|Chain    B|50S ribosomal protein L2|Staphyloc
+      0.061   14.9   0.0      0.096   14.2   0.0    1.3  1  EMD-7870|6DDG_2|Chain    B|50S ribosomal protein L2|Staphyloc
+      0.062   14.8   0.0      0.096   14.2   0.0    1.3  1  EMD-10212|6SJ6_3|Chain   C[auth D]|50S ribosomal protein L2|S
+      0.062   14.8   0.0      0.096   14.2   0.0    1.3  1  EMD-10791|6YEF_24|Chain  X[auth D]|50S ribosomal protein L2|S
+      0.062   14.8   0.0      0.096   14.2   0.0    1.3  1  EMD-12332|7NHL_8|Chain   H[auth G]|50S ribosomal protein L2|S
+      0.062   14.8   0.0      0.096   14.2   0.0    1.3  1  EMD-12333|7NHM_6|Chain   F[auth G]|50S ribosomal protein L2|S
+      0.062   14.8   0.0      0.096   14.2   0.0    1.3  1  EMD-21873|6WQQ_2|Chain   B|50S ribosomal protein L2|Staphyloc
+      0.062   14.8   0.0      0.096   14.2   0.0    1.3  1  EMD-21887|6WRS_2|Chain   B|50S ribosomal protein L2|Staphyloc
+      0.062   14.8   0.0      0.096   14.2   0.0    1.3  1  EMD-21888|6WRU_2|Chain   B|50S ribosomal protein L2|Staphyloc
+      0.062   14.8   0.0      0.096   14.2   0.0    1.3  1  EMD-26124|7TTU_2|Chain   B|50S ribosomal protein L2|Staphyloc
+      0.062   14.8   0.0      0.096   14.2   0.0    1.3  1  EMD-3624|5ND8_25|Chain   Y[auth D]|50S ribosomal protein L2|S
+      0.062   14.8   0.0      0.096   14.2   0.0    1.3  1  EMD-3625|5ND9_25|Chain   Y[auth D]|50S ribosomal protein L2|S
+
+
+Domain annotation for each sequence (and alignments):
+>> EMD-10078|6S12_3|Chain  C|50S ribosomal protein L2|Staphylococcus aureus (1280)
+   #    score  bias  c-Evalue  i-Evalue hmmfrom  hmm to    alifrom  ali to    envfrom  env to     acc
+ ---   ------ ----- --------- --------- ------- -------    ------- -------    ------- -------    ----
+   1 ?   14.2   0.0   3.8e-05     0.095       1      19 []     189     207 ..     189     207 .. 0.95
+
+  Alignments for each domain:
+  == domain 1  score: 14.2 bits;  conditional E-value: 3.8e-05
+                test_hmm   1 atagqvanlaheavavaka 19 
+                             at gqv nl he v v ka
+  EMD-10078|6S12_3|Chain 189 ATIGQVGNLQHELVNVGKA 207
+                             899*************998 PP
+
+>> EMD-10079|6S13_3|Chain  C|50S ribosomal protein L2|Staphylococcus aureus (1280)
+   #    score  bias  c-Evalue  i-Evalue hmmfrom  hmm to    alifrom  ali to    envfrom  env to     acc
+ ---   ------ ----- --------- --------- ------- -------    ------- -------    ------- -------    ----
+   1 ?   14.2   0.0   3.8e-05     0.095       1      19 []     189     207 ..     189     207 .. 0.95
+
+  Alignments for each domain:
+  == domain 1  score: 14.2 bits;  conditional E-value: 3.8e-05
+                test_hmm   1 atagqvanlaheavavaka 19 
+                             at gqv nl he v v ka
+  EMD-10079|6S13_3|Chain 189 ATIGQVGNLQHELVNVGKA 207
+                             899*************998 PP
+
+>> EMD-38876|8Y39_3|Chain  C|Large ribosomal subunit protein uL2|Staphylococcus aureus (1280)
+   #    score  bias  c-Evalue  i-Evalue hmmfrom  hmm to    alifrom  ali to    envfrom  env to     acc
+ ---   ------ ----- --------- --------- ------- -------    ------- -------    ------- -------    ----
+   1 ?   14.2   0.0   3.8e-05     0.095       1      19 []     189     207 ..     189     207 .. 0.95
+
+  Alignments for each domain:
+  == domain 1  score: 14.2 bits;  conditional E-value: 3.8e-05
+                test_hmm   1 atagqvanlaheavavaka 19 
+                             at gqv nl he v v ka
+  EMD-38876|8Y39_3|Chain 189 ATIGQVGNLQHELVNVGKA 207
+                             899*************998 PP
+
+>> EMD-8402|5TCU_25|Chain  Y[auth L2]|50S ribosomal protein L2|Staphylococcus aureus (strain NCTC 8325) (93061)
+   #    score  bias  c-Evalue  i-Evalue hmmfrom  hmm to    alifrom  ali to    envfrom  env to     acc
+ ---   ------ ----- --------- --------- ------- -------    ------- -------    ------- -------    ----
+   1 ?   14.2   0.0   3.8e-05     0.095       1      19 []     189     207 ..     189     207 .. 0.95
+
+  Alignments for each domain:
+  == domain 1  score: 14.2 bits;  conditional E-value: 3.8e-05
+                test_hmm   1 atagqvanlaheavavaka 19 
+                             at gqv nl he v v ka
+  EMD-8402|5TCU_25|Chain 189 ATIGQVGNLQHELVNVGKA 207
+                             899*************998 PP
+
+>> EMD-4050|5LI0_23|Chain  W[auth D]|50S ribosomal protein L2|Staphylococcus aureus (strain NCTC 8325) (93061)
+   #    score  bias  c-Evalue  i-Evalue hmmfrom  hmm to    alifrom  ali to    envfrom  env to     acc
+ ---   ------ ----- --------- --------- ------- -------    ------- -------    ------- -------    ----
+   1 ?   14.2   0.0   3.9e-05     0.095       1      19 []     189     207 ..     189     207 .. 0.95
+
+  Alignments for each domain:
+  == domain 1  score: 14.2 bits;  conditional E-value: 3.9e-05
+                test_hmm   1 atagqvanlaheavavaka 19 
+                             at gqv nl he v v ka
+  EMD-4050|5LI0_23|Chain 189 ATIGQVGNLQHELVNVGKA 207
+                             899*************998 PP
+
+>> EMD-8369|5T7V_17|Chain  Q[auth L2]|50S ribosomal protein L2|Staphylococcus aureus (1280)
+   #    score  bias  c-Evalue  i-Evalue hmmfrom  hmm to    alifrom  ali to    envfrom  env to     acc
+ ---   ------ ----- --------- --------- ------- -------    ------- -------    ------- -------    ----
+   1 ?   14.2   0.0   3.9e-05     0.095       1      19 []     189     207 ..     189     207 .. 0.95
+
+  Alignments for each domain:
+  == domain 1  score: 14.2 bits;  conditional E-value: 3.9e-05
+                test_hmm   1 atagqvanlaheavavaka 19 
+                             at gqv nl he v v ka
+  EMD-8369|5T7V_17|Chain 189 ATIGQVGNLQHELVNVGKA 207
+                             899*************998 PP
+
+>> EMD-7867|6DDD_2|Chain  B|50S ribosomal protein L2|Staphylococcus aureus (1280)
+   #    score  bias  c-Evalue  i-Evalue hmmfrom  hmm to    alifrom  ali to    envfrom  env to     acc
+ ---   ------ ----- --------- --------- ------- -------    ------- -------    ------- -------    ----
+   1 ?   14.2   0.0   3.9e-05     0.096       1      19 []     190     208 ..     190     208 .. 0.95
+
+  Alignments for each domain:
+  == domain 1  score: 14.2 bits;  conditional E-value: 3.9e-05
+               test_hmm   1 atagqvanlaheavavaka 19 
+                            at gqv nl he v v ka
+  EMD-7867|6DDD_2|Chain 190 ATIGQVGNLQHELVNVGKA 208
+                            899*************998 PP
+
+>> EMD-7870|6DDG_2|Chain  B|50S ribosomal protein L2|Staphylococcus aureus (1280)
+   #    score  bias  c-Evalue  i-Evalue hmmfrom  hmm to    alifrom  ali to    envfrom  env to     acc
+ ---   ------ ----- --------- --------- ------- -------    ------- -------    ------- -------    ----
+   1 ?   14.2   0.0   3.9e-05     0.096       1      19 []     190     208 ..     190     208 .. 0.95
+
+  Alignments for each domain:
+  == domain 1  score: 14.2 bits;  conditional E-value: 3.9e-05
+               test_hmm   1 atagqvanlaheavavaka 19 
+                            at gqv nl he v v ka
+  EMD-7870|6DDG_2|Chain 190 ATIGQVGNLQHELVNVGKA 208
+                            899*************998 PP
+
+>> EMD-10212|6SJ6_3|Chain  C[auth D]|50S ribosomal protein L2|Staphylococcus aureus (strain NCTC 8325) (93061)
+   #    score  bias  c-Evalue  i-Evalue hmmfrom  hmm to    alifrom  ali to    envfrom  env to     acc
+ ---   ------ ----- --------- --------- ------- -------    ------- -------    ------- -------    ----
+   1 ?   14.2   0.0   3.9e-05     0.096       1      19 []     190     208 ..     190     208 .. 0.95
+
+  Alignments for each domain:
+  == domain 1  score: 14.2 bits;  conditional E-value: 3.9e-05
+                test_hmm   1 atagqvanlaheavavaka 19 
+                             at gqv nl he v v ka
+  EMD-10212|6SJ6_3|Chain 190 ATIGQVGNLQHELVNVGKA 208
+                             899*************998 PP
+
+>> EMD-10791|6YEF_24|Chain  X[auth D]|50S ribosomal protein L2|Staphylococcus aureus (strain NCTC 8325) (93061)
+   #    score  bias  c-Evalue  i-Evalue hmmfrom  hmm to    alifrom  ali to    envfrom  env to     acc
+ ---   ------ ----- --------- --------- ------- -------    ------- -------    ------- -------    ----
+   1 ?   14.2   0.0   3.9e-05     0.096       1      19 []     190     208 ..     190     208 .. 0.95
+
+  Alignments for each domain:
+  == domain 1  score: 14.2 bits;  conditional E-value: 3.9e-05
+                 test_hmm   1 atagqvanlaheavavaka 19 
+                              at gqv nl he v v ka
+  EMD-10791|6YEF_24|Chain 190 ATIGQVGNLQHELVNVGKA 208
+                              899*************998 PP
+
+>> EMD-12332|7NHL_8|Chain  H[auth G]|50S ribosomal protein L2|Staphylococcus aureus subsp. aureus NCTC 8325 (93061)
+   #    score  bias  c-Evalue  i-Evalue hmmfrom  hmm to    alifrom  ali to    envfrom  env to     acc
+ ---   ------ ----- --------- --------- ------- -------    ------- -------    ------- -------    ----
+   1 ?   14.2   0.0   3.9e-05     0.096       1      19 []     190     208 ..     190     208 .. 0.95
+
+  Alignments for each domain:
+  == domain 1  score: 14.2 bits;  conditional E-value: 3.9e-05
+                test_hmm   1 atagqvanlaheavavaka 19 
+                             at gqv nl he v v ka
+  EMD-12332|7NHL_8|Chain 190 ATIGQVGNLQHELVNVGKA 208
+                             899*************998 PP
+
+>> EMD-12333|7NHM_6|Chain  F[auth G]|50S ribosomal protein L2|Staphylococcus aureus subsp. aureus NCTC 8325 (93061)
+   #    score  bias  c-Evalue  i-Evalue hmmfrom  hmm to    alifrom  ali to    envfrom  env to     acc
+ ---   ------ ----- --------- --------- ------- -------    ------- -------    ------- -------    ----
+   1 ?   14.2   0.0   3.9e-05     0.096       1      19 []     190     208 ..     190     208 .. 0.95
+
+  Alignments for each domain:
+  == domain 1  score: 14.2 bits;  conditional E-value: 3.9e-05
+                test_hmm   1 atagqvanlaheavavaka 19 
+                             at gqv nl he v v ka
+  EMD-12333|7NHM_6|Chain 190 ATIGQVGNLQHELVNVGKA 208
+                             899*************998 PP
+
+>> EMD-21873|6WQQ_2|Chain  B|50S ribosomal protein L2|Staphylococcus aureus (1280)
+   #    score  bias  c-Evalue  i-Evalue hmmfrom  hmm to    alifrom  ali to    envfrom  env to     acc
+ ---   ------ ----- --------- --------- ------- -------    ------- -------    ------- -------    ----
+   1 ?   14.2   0.0   3.9e-05     0.096       1      19 []     190     208 ..     190     208 .. 0.95
+
+  Alignments for each domain:
+  == domain 1  score: 14.2 bits;  conditional E-value: 3.9e-05
+                test_hmm   1 atagqvanlaheavavaka 19 
+                             at gqv nl he v v ka
+  EMD-21873|6WQQ_2|Chain 190 ATIGQVGNLQHELVNVGKA 208
+                             899*************998 PP
+
+>> EMD-21887|6WRS_2|Chain  B|50S ribosomal protein L2|Staphylococcus aureus (1280)
+   #    score  bias  c-Evalue  i-Evalue hmmfrom  hmm to    alifrom  ali to    envfrom  env to     acc
+ ---   ------ ----- --------- --------- ------- -------    ------- -------    ------- -------    ----
+   1 ?   14.2   0.0   3.9e-05     0.096       1      19 []     190     208 ..     190     208 .. 0.95
+
+  Alignments for each domain:
+  == domain 1  score: 14.2 bits;  conditional E-value: 3.9e-05
+                test_hmm   1 atagqvanlaheavavaka 19 
+                             at gqv nl he v v ka
+  EMD-21887|6WRS_2|Chain 190 ATIGQVGNLQHELVNVGKA 208
+                             899*************998 PP
+
+>> EMD-21888|6WRU_2|Chain  B|50S ribosomal protein L2|Staphylococcus aureus (1280)
+   #    score  bias  c-Evalue  i-Evalue hmmfrom  hmm to    alifrom  ali to    envfrom  env to     acc
+ ---   ------ ----- --------- --------- ------- -------    ------- -------    ------- -------    ----
+   1 ?   14.2   0.0   3.9e-05     0.096       1      19 []     190     208 ..     190     208 .. 0.95
+
+  Alignments for each domain:
+  == domain 1  score: 14.2 bits;  conditional E-value: 3.9e-05
+                test_hmm   1 atagqvanlaheavavaka 19 
+                             at gqv nl he v v ka
+  EMD-21888|6WRU_2|Chain 190 ATIGQVGNLQHELVNVGKA 208
+                             899*************998 PP
+
+>> EMD-26124|7TTU_2|Chain  B|50S ribosomal protein L2|Staphylococcus aureus (1280)
+   #    score  bias  c-Evalue  i-Evalue hmmfrom  hmm to    alifrom  ali to    envfrom  env to     acc
+ ---   ------ ----- --------- --------- ------- -------    ------- -------    ------- -------    ----
+   1 ?   14.2   0.0   3.9e-05     0.096       1      19 []     190     208 ..     190     208 .. 0.95
+
+  Alignments for each domain:
+  == domain 1  score: 14.2 bits;  conditional E-value: 3.9e-05
+                test_hmm   1 atagqvanlaheavavaka 19 
+                             at gqv nl he v v ka
+  EMD-26124|7TTU_2|Chain 190 ATIGQVGNLQHELVNVGKA 208
+                             899*************998 PP
+
+>> EMD-3624|5ND8_25|Chain  Y[auth D]|50S ribosomal protein L2|Staphylococcus aureus (strain NCTC 8325) (93061)
+   #    score  bias  c-Evalue  i-Evalue hmmfrom  hmm to    alifrom  ali to    envfrom  env to     acc
+ ---   ------ ----- --------- --------- ------- -------    ------- -------    ------- -------    ----
+   1 ?   14.2   0.0   3.9e-05     0.096       1      19 []     190     208 ..     190     208 .. 0.95
+
+  Alignments for each domain:
+  == domain 1  score: 14.2 bits;  conditional E-value: 3.9e-05
+                test_hmm   1 atagqvanlaheavavaka 19 
+                             at gqv nl he v v ka
+  EMD-3624|5ND8_25|Chain 190 ATIGQVGNLQHELVNVGKA 208
+                             899*************998 PP
+
+>> EMD-3625|5ND9_25|Chain  Y[auth D]|50S ribosomal protein L2|Staphylococcus aureus (strain NCTC 8325) (93061)
+   #    score  bias  c-Evalue  i-Evalue hmmfrom  hmm to    alifrom  ali to    envfrom  env to     acc
+ ---   ------ ----- --------- --------- ------- -------    ------- -------    ------- -------    ----
+   1 ?   14.2   0.0   3.9e-05     0.096       1      19 []     190     208 ..     190     208 .. 0.95
+
+  Alignments for each domain:
+  == domain 1  score: 14.2 bits;  conditional E-value: 3.9e-05
+                test_hmm   1 atagqvanlaheavavaka 19 
+                             at gqv nl he v v ka
+  EMD-3625|5ND9_25|Chain 190 ATIGQVGNLQHELVNVGKA 208
+                             899*************998 PP
+
+
+
+Internal pipeline statistics summary:
+-------------------------------------
+Query model(s):                            1  (19 nodes)
+Target sequences:                      44425  (11150316 residues searched)
+Passed MSV filter:                      4409  (0.0992459); expected 888.5 (0.02)
+Passed bias filter:                     4307  (0.0969499); expected 888.5 (0.02)
+Passed Vit filter:                       279  (0.00628025); expected 44.4 (0.001)
+Passed Fwd filter:                        22  (0.000495217); expected 0.4 (1e-05)
+Initial search space (Z):              44425  [actual number of targets]
+Domain search space  (domZ):              18  [number of targets reported over threshold]
+# CPU time: 0.10u 0.03s 00:00:00.13 Elapsed: 00:00:00.07
+# Mc/sec: 2815.48
+//
+[ok]

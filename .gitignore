@@ -6,5 +6,6 @@
 /ZZZZZZZZZZ
 /T_AttnPacker/AttnPackerPlusRotPTM
 __pycache__/
-test_files/
 .vscode/
+E_HMMER_searching/test_files/fasta_files
+D_BLAST_searching/test_files/fasta/gprot_ribo/raw

@@ -1,0 +1,38 @@
+Starting job search_pool -od D_BLAST_searching/test_files/results/cryoid_v2/ -q D_BLAST_searching/test_files/fasta/prediction.fasta -p D_BLAST_searching/test_files/fasta/gprot_ribo_p.fasta (2025-09-29 21:29:06):
+QUERY SEQUENCE SUMMARY
+	Number of query sequences used:  1
+	Number of identifiable residues per query:  41
+	Number of unidentifiable residues per query:  0
+
+Error: D_BLAST_searching/test_files/fasta/prediction_1_blast.txt wrong format! Exiting
+NoneType: None
+Starting job search_pool -od D_BLAST_searching/test_files/results/cryoid_v2/ -q D_BLAST_searching/test_files/fasta/prediction.fasta -p D_BLAST_searching/test_files/fasta/gprot_ribo_p.fasta (2025-09-29 21:29:24):
+Unrecognized amino acid 'X' in line XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX of D_BLAST_searching/test_files/fasta/gprot_ribo_p.fasta
+Traceback (most recent call last):
+  File "/home/grayson_feng/cryoID_v2/D_BLAST_searching/cryoID_v2/search_support.py", line 314, in SeqMap
+    seq = ''.join(aaMapping[e] for e in seq[:-1])
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/grayson_feng/cryoID_v2/D_BLAST_searching/cryoID_v2/search_support.py", line 314, in <genexpr>
+    seq = ''.join(aaMapping[e] for e in seq[:-1])
+                  ~~~~~~~~~^^^
+KeyError: 'X'
+Starting job search_pool -od D_BLAST_searching/test_files/results/cryoid_v2/ -q D_BLAST_searching/test_files/fasta/prediction.fasta -p D_BLAST_searching/test_files/fasta/gprot_ribo_p.fasta (2025-09-29 21:34:34):
+Unrecognized amino acid 'U' in line UAUCUGGUUGAUCCUGCCAGUAGUCAUAUGCUUGUCUCAAAGAUUAAGCCAUGCAUGUCUAAGUAUAAGCAAUUUAUACAGUGAAACUGCGAAUGGCUCAUUAAAUCAGUUAUCGUUUAUUUGAUAGUUCCUUUACUACAUGGUAUAACUGUGGUAAUUCUAGAGCUAAUACAUGCUUAAAAUCUCGACCCUUUGGAAGAGAUGUAUUUAUUAGAUAAAAAAUCAAUGUCUUCGGACUCUUUGAUGAUUCAUAAUAACUUUUCGAAUCGCAUGGCCUUGUGCUGGCGAUGGUUCAUUCAAAUUUCUGCCCUAUCAACUUUCGAUGGUAGGAUAGUGGCCUACCAUGGUUUCAACGGGUAACGGGGAAUAAGGGUUCGAUUCCGGAGAGGGAGCCUGAGAAACGGCUACCACAUCCAAGGAAGGCAGCAGGCGCGCAAAUUACCCAAUCCUAAUUCAGGGAGGUAGUGACAAUAAAUAACGAUACAGGGCCCAUUCGGGUCUUGUAAUUGGAAUGAGUACAAUGUAAAUACCUUAACGAGGAACAAUUGGAGGGCAAGUCUGGUGCCAGCAGCCGCGGUAAUUCCAGCUCCAAUAGCGUAUAUUAAAGUUGUUGCAGUUAAAAAGCUCGUAGUUGAACUUUGGGCCCGGUUGGCCGGUCGGAUUUCCAACGGGGCCUUUCCUUCUGGCUAACCUUGAGUCCUUGUGGCUCUUGGCGAACCAGGACUUUUACUUUGAAAAAAUUAGAGUGUUCAAAGCAGGCGUAUUGCUCGAAUAUAUUAGCAUGGAAUAAUAGAAUAGGACGUUUGGUUCUAUUUUGUUGGUUUCUAGGACCAUCGUAAUGAUUAAUAGGGACGGUCGGGGGCAUCAGUAUUCAAUUGUCAGAGGUGAAAUUCUUGGAUUUAUUGAAGACUAACUACUGCGAAAGCAUUUGCCAAGGACGUUUUCAUUAAUCAAGAACGAAAGUUAGGGGAUCGAAGAUGAUCAGAUACCGUCGUAGUCUUAACCAUAAACUAUGCCGACUAGGGAUCGGGUGGUGUUUUUUUAAUGACCCACUCGGCACCUUACGAGAAAUCAAAGUCUUUGGGUUCUGGGGGGAGUAUGGUCGCAAGGCUGAAACUUAAAGGAAUUGACGGAAGGGCACCACCAGGAGUGGAGCCUGCGGCUUAAUUUGACXCAACACGGGGAAACUCACCAGGUCCAGACACAAUAAGGAUUGACAGAUUGAGAGCUCUUUCUUGAUUUUGUGGGUGGUGGUGCAUGGCNGUUCUUAGUUGGUGGAGUGAUUUGUCUGCUUAAUUGCGAUAACGAACGAGACCUUAACCUACUAAAUAGUGGUGCUAGCAUUUGCUGGUUAUCCACUUCUUAGAGGGACUAUCGGUUUCAAGCCGAUGGAAGUUUGAGGCAAUAACAGGUCUGUGAUGCCCUUAGACGUUCUGGGCCGCACGCGCGCUACACUGACGGAGCCAGCGAGUCUAACCUUGGCCGAGAGGUCUUGGUAAUCUUGUGAAACUCCGUCGUGCUGGGGAUAGAGCAUUGUAAUUAUUGCUCUUCAACGAGGAAUUCCUAGUAAGCGCAAGUCAUCAGCUUGCGUUGAUUACGUCCCUGCCCUUUGUACACACCGCCCGUCGCUAGUACCGAUUGAAUGGCUUAGUGAGGCCUCAGGAUCUGCUUAGAGAAGGGGGCAACUCCAUCUCAGAGCGGAGAAUUUGGACAAACUUGGUCAUUUAGAGGAACUAAAAGUCGUAACAAGGUUUCNGUAGGUGAACCUGCGGAAGGAUCAU of D_BLAST_searching/test_files/fasta/gprot_ribo_p.fasta
+Traceback (most recent call last):
+  File "/home/grayson_feng/cryoID_v2/D_BLAST_searching/cryoID_v2/search_support.py", line 342, in SeqMap
+    seq = ''.join(aaMapping[e] for e in seq[:-1])
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/grayson_feng/cryoID_v2/D_BLAST_searching/cryoID_v2/search_support.py", line 342, in <genexpr>
+    seq = ''.join(aaMapping[e] for e in seq[:-1])
+                  ~~~~~~~~~^^^
+KeyError: 'U'
+Starting job search_pool -od D_BLAST_searching/test_files/results/cryoid_v2/ -q D_BLAST_searching/test_files/fasta/prediction.fasta -p D_BLAST_searching/test_files/fasta/gprot_ribo_p.fasta (2025-09-29 23:55:59):
+Unrecognized amino acid 'U' in line GCAUCCGUAGCUCAGCUGGAUAGAGUACUCGGCUICGAACCGAGCGGXCGGAGGUUCGAAUCCUCCCGGAUGCACCA of D_BLAST_searching/test_files/fasta/gprot_ribo_p.fasta
+Traceback (most recent call last):
+  File "/home/grayson_feng/cryoID_v2/D_BLAST_searching/cryoID_v2/search_support.py", line 342, in SeqMap
+    seq = ''.join(aaMapping[e] for e in seq[:-1])
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/grayson_feng/cryoID_v2/D_BLAST_searching/cryoID_v2/search_support.py", line 342, in <genexpr>
+    seq = ''.join(aaMapping[e] for e in seq[:-1])
+                  ~~~~~~~~~^^^
+KeyError: 'U'
