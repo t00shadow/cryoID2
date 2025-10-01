@@ -584,7 +584,7 @@ def QueryMap(params):
     if ave_aa_num < cutoff:
         print('Warning: query length is short! You may consider extending your queries, or the final results may be not reliable!')
         sys.stdout.flush()
-        logging.warn('Warning: query length is short! You may consider extending your queries, or the final results may be not reliable!')
+        logging.warning('Warning: query length is short! You may consider extending your queries, or the final results may be not reliable!')
         
     print('')
     sys.stdout.flush()

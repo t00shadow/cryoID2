@@ -17,7 +17,7 @@ class fasta_downloader:
                  save_path: str,
                  name: str = None,
                  sleep_between_requests: float = 0.1,
-                 retry_attempts: int = 10,
+                 retry_attempts: int = 3,
                  ):
         if name is not None:
             self.name = name
@@ -33,7 +33,7 @@ class fasta_downloader:
     async def _download_fastas(self):
         """Download FASTA files sequentially, pausing between requests to avoid rate limits."""
         with tqdm(total=len(self.pdb_ids), desc=f"Downloading FASTA for {self.name} set") as pbar:
-            retry_options = ExponentialRetry(attempts=self.retry_attempts, start_timeout=0.1)
+            retry_options = ExponentialRetry(attempts=self.retry_attempts)
             async with aiohttp.ClientSession() as base_session:
                 retry_client = RetryClient(base_session, retry_options=retry_options)
                 # Run downloads sequentially so we can sleep between requests
@@ -45,32 +45,35 @@ class fasta_downloader:
     async def _download_fasta(self, pdb_id: str, emdb_id: str, session: aiohttp.ClientSession, pbar: tqdm) -> None:
         link = f'https://www.rcsb.org/fasta/entry/{pdb_id.split(",")[0]}'
         async with session.get(link) as response:
-            if response.status == 200:
-                fasta_data = await response.text()
-                # # Modify lines starting with '>'
-                # fasta_lines = []
-                # for line in fasta_data.splitlines():
-                #     if line.startswith('>'):
-                #         line = f">{emdb_id}|{line[1:]}"
-                #     fasta_lines.append(line)
-                # modified_fasta_data = '\n'.join(fasta_lines)
-                # # sanitize filenames to avoid invalid path characters
-                # def _sanitize(s: str) -> str:
-                #     # replace any character that's not alphanumeric, dot, underscore or hyphen with underscore
-                #     return re.sub(r'[^A-Za-z0-9._-]', '_', s)
+            try:
+                if response.status == 200:
+                    fasta_data = await response.text()
+                    # # Modify lines starting with '>'
+                    # fasta_lines = []
+                    # for line in fasta_data.splitlines():
+                    #     if line.startswith('>'):
+                    #         line = f">{emdb_id}|{line[1:]}"
+                    #     fasta_lines.append(line)
+                    # modified_fasta_data = '\n'.join(fasta_lines)
+                    # # sanitize filenames to avoid invalid path characters
+                    # def _sanitize(s: str) -> str:
+                    #     # replace any character that's not alphanumeric, dot, underscore or hyphen with underscore
+                    #     return re.sub(r'[^A-Za-z0-9._-]', '_', s)
 
-                # safe_emdb = _sanitize(str(emdb_id))
-                # safe_pdb = _sanitize(str(pdb_id))
-                # out_path = os.path.join(self.save_path, self.name, f"{safe_emdb}_{safe_pdb}.fasta")
+                    # safe_emdb = _sanitize(str(emdb_id))
+                    # safe_pdb = _sanitize(str(pdb_id))
+                    # out_path = os.path.join(self.save_path, self.name, f"{safe_emdb}_{safe_pdb}.fasta")
 
-                # os.makedirs(os.path.dirname(out_path), exist_ok=True)
+                    # os.makedirs(os.path.dirname(out_path), exist_ok=True)
 
-                # with open(out_path, 'w') as fasta_file:
-                #     fasta_file.write(modified_fasta_data)
-                with open(os.path.join(self.raw_fasta_path, f"{emdb_id}_{pdb_id}.fasta"), 'w') as fasta_file:
-                    fasta_file.write(fasta_data)
-            else:
-                tqdm.write(f"Failed to download {pdb_id}. Status code: {response.status}")
+                    # with open(out_path, 'w') as fasta_file:
+                    #     fasta_file.write(modified_fasta_data)
+                    with open(os.path.join(self.raw_fasta_path, f"{emdb_id}_{pdb_id}.fasta"), 'w') as fasta_file:
+                        fasta_file.write(fasta_data)
+                else:
+                    tqdm.write(f"Failed to download {pdb_id}. Status code: {response.status}")
+            except Exception as e:
+                tqdm.write(f"Error downloading {pdb_id}: {e}")
         pbar.update(1)
 
     async def _sort_fasta(self):
@@ -79,14 +82,55 @@ class fasta_downloader:
         # remove existing files if they exist
         os.remove(fasta_p_path) if os.path.exists(fasta_p_path) else None
         os.remove(fasta_n_path) if os.path.exists(fasta_n_path) else None
+
         link = 'https://data.rcsb.org/rest/v1/core/polymer_entity/{pdb_id}/{chain_id}'
+        failed = []
         for fastas in tqdm(glob.glob(os.path.join(self.raw_fasta_path, '*.fasta')), desc="Classifying chains"):
             for record in SeqIO.parse(fastas, 'fasta-pearson'):
                 pdb_id = record.description.split('|')[0].split('_')[0]
                 chain_id = record.description.split('|')[0].split('_')[1]
-                retry_options = ExponentialRetry(attempts=self.retry_attempts, start_timeout=0.1)
+                # Increase timeouts to allow slow SSL handshakes / slow servers to respond.
+                # Use a per-request timeout that sets generous connect/read timeouts.
+                retry_options = ExponentialRetry(attempts=self.retry_attempts)
+                # aiohttp.ClientTimeout accepts sock_connect and sock_read which help
+                # cover SSL handshake and socket read timeouts (default sock_connect is 60s).
+                # timeout = aiohttp.ClientTimeout(total=600, sock_connect=300, sock_read=300)
                 async with aiohttp.ClientSession() as base_session:
                     retry_client = RetryClient(base_session, retry_options=retry_options)
+                    try:
+                        async with retry_client.get(link.format(pdb_id=pdb_id, chain_id=chain_id)) as response:
+                            if response.status == 200:
+                                data = await response.json()
+                                identity = data.get('entity_poly', {}).get('rcsb_entity_polymer_type', '')
+                                if identity == 'Protein':
+                                    with open(fasta_p_path, 'a') as fasta_p:
+                                        SeqIO.write(record, fasta_p, 'fasta')
+                                elif identity == 'DNA' or identity == 'RNA':
+                                    with open(fasta_n_path, 'a') as fasta_n:
+                                        SeqIO.write(record, fasta_n, 'fasta')
+                            else:
+                                tqdm.write(f"Failed to fetch data for {pdb_id} chain {chain_id}. Status code: {response.status}")
+                    except Exception as e:
+                        # Log but don't crash the whole sorting process for a slow/failed request
+                        tqdm.write(f"Error fetching data for {pdb_id} chain {chain_id}: {e}")
+                        failed.append(record)
+                await asyncio.sleep(self.sleep_between_requests)
+        if failed:
+            await self._retry_failed(failed)
+    
+    async def _retry_failed(self, failed: list):
+        fasta_p_path = os.path.join(self.save_path, self.name, f'{self.name}_p.fasta')
+        fasta_n_path = os.path.join(self.save_path, self.name, f'{self.name}_n.fasta')
+
+        link = 'https://data.rcsb.org/rest/v1/core/polymer_entity/{pdb_id}/{chain_id}'
+        retry_options = ExponentialRetry(attempts=self.retry_attempts)
+        #timeout = aiohttp.ClientTimeout(total=600, sock_connect=300, sock_read=300)
+        for record in tqdm(failed, desc="Retrying failed requests"):
+            async with aiohttp.ClientSession() as base_session:
+                retry_client = RetryClient(base_session, retry_options=retry_options)
+                pdb_id = record.description.split('|')[0].split('_')[0]
+                chain_id = record.description.split('|')[0].split('_')[1]
+                try:
                     async with retry_client.get(link.format(pdb_id=pdb_id, chain_id=chain_id)) as response:
                         if response.status == 200:
                             data = await response.json()
@@ -97,10 +141,16 @@ class fasta_downloader:
                             elif identity == 'DNA' or identity == 'RNA':
                                 with open(fasta_n_path, 'a') as fasta_n:
                                     SeqIO.write(record, fasta_n, 'fasta')
+                            failed.remove(record)
                         else:
                             tqdm.write(f"Failed to fetch data for {pdb_id} chain {chain_id}. Status code: {response.status}")
-                await asyncio.sleep(self.sleep_between_requests)
-    
+                except Exception as e:
+                    # Log but don't crash the whole sorting process for a slow/failed request
+                    tqdm.write(f"Error fetching data for {pdb_id} chain {chain_id}: {e}")
+            await asyncio.sleep(self.sleep_between_requests)
+        if failed:
+            await self._retry_failed(failed)
+
     def run(self):
         os.makedirs(self.save_path, exist_ok=True)
         os.makedirs(self.raw_fasta_path, exist_ok=True)
