@@ -1,0 +1,139 @@
+import numpy as np
+import math
+
+def load_ca_coordinates(pdb_file):
+    """Load only C-alpha atoms from a PDB."""
+    coords = []
+    with open(pdb_file, 'r') as f:
+        for line in f:
+            if line.startswith("HETATM") and line[13:15].strip() == "C":
+                x = float(line[30:38])
+                y = float(line[38:46])
+                z = float(line[46:54])
+                coords.append([x, y, z])
+    return np.array(coords)
+
+def distance(a, b):
+    """Euclidean distance."""
+    return np.linalg.norm(a - b)
+
+def bond_angle(a, b, c):
+    """Return the angle (in degrees) between vectors AB and BC."""
+    v1 = a - b
+    v2 = c - b
+    dot = np.dot(v1, v2)
+    denom = np.linalg.norm(v1) * np.linalg.norm(v2)
+    if denom == 0:
+        return 180.0
+    cos_theta = np.clip(dot / denom, -1.0, 1.0)
+    return np.degrees(np.arccos(cos_theta))
+
+def is_too_close(coords, path, candidate_idx, cutoff=3.0):
+    """
+    Check if the candidate coordinate is too close to any non-adjacent atom.
+    Prevents circular self-intersection.
+    """
+    cand = coords[candidate_idx]
+    for i in path[:-2]:  # ignore immediate neighbors
+        if distance(coords[i], cand) < cutoff:
+            return True
+    return False
+
+def helical_backbone_tracer(coords, min_bond=3.0, max_bond=4.5,
+                            min_angle=80.0, max_angle=160.0,
+                            self_clash_cutoff=3.0, beam_width=10):
+    """
+    Trace a continuous backbone using beam search, considering bond length,
+    bond angle, and self-intersection avoidance.
+    """
+    if len(coords) == 0:
+        raise ValueError("No coordinates provided.")
+
+    N = len(coords)
+    # Precompute neighbors within bond range
+    neighbors = [set() for _ in range(N)]
+    for i in range(N):
+        for j in range(N):
+            if i != j:
+                d = distance(coords[i], coords[j])
+                if min_bond <= d <= max_bond:
+                    neighbors[i].add(j)
+
+    beams = [([start], {start}) for start in range(N)]
+    final_paths = []
+
+    while beams:
+        new_beams = []
+        for path, used in beams:
+            last = path[-1]
+            available_neighbors = neighbors[last] - used
+            if not available_neighbors:
+                if len(path) >= min(20, round(N * 0.95)):
+                    final_paths.append(path)
+                continue
+
+            for n in available_neighbors:
+                # Skip self-intersecting or near-looping paths
+                if is_too_close(coords, path, n, cutoff=self_clash_cutoff):
+                    continue
+
+                # Apply bond-angle constraint
+                if len(path) >= 2:
+                    prev = path[-2]
+                    angle = bond_angle(coords[prev], coords[last], coords[n])
+                    if not (min_angle <= angle <= max_angle):
+                        continue
+
+                    # Prevent near-180° reversals (too flat helix or circle)
+                    v1 = coords[last] - coords[prev]
+                    v2 = coords[n] - coords[last]
+                    dot = np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
+                    if dot < -0.8:  # ~144° or sharper reversal
+                        continue
+
+                new_path = path + [n]
+                new_used = used | {n}
+                new_beams.append((new_path, new_used))
+
+        beams = sorted(new_beams, key=lambda x: len(x[0]), reverse=True)[:beam_width]
+
+    if not final_paths:
+        raise RuntimeError("No valid continuous backbone found (constraints too strict).")
+
+    best_path = max(final_paths, key=lambda x: len(x))
+    if len(best_path) != N:
+        print(f"Warning: only traced {len(best_path)}/{N} points")
+
+    return best_path
+
+def save_path_as_pdb(coords, route, output_file="traced_backbone.pdb"):
+    """Save traced backbone as PDB using CA atoms only."""
+    with open(output_file, "w") as f:
+        f.write("REMARK Traced backbone\n")
+        for idx, i in enumerate(route, start=1):
+            x, y, z = coords[i]
+            f.write(
+                f"ATOM  {idx:5d}  CA  ALA A{idx:4d}    "
+                f"{x:8.3f}{y:8.3f}{z:8.3f}  1.00  0.00           C\n"
+            )
+        f.write("TER\nEND\n")
+    print(f"Saved traced backbone to {output_file}")
+
+
+
+if __name__ == "__main__":
+    input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering_v2\emd_34843_agglomerative_cd_4.0_combined_largestCC_20251004_015012.pdb"
+    output_file = r"traced_backbone3.pdb"
+
+    coords = load_ca_coordinates(input_file)
+    print(f"Loaded {len(coords)} C-alpha atoms from {input_file}")
+
+    # route = helical_backbone_tracer(coords, min_bond=3.0, max_bond=4.5, beam_width=20)
+    route = helical_backbone_tracer(coords,
+                                    min_bond=3.0, max_bond=4.5,
+                                    min_angle=80.0, max_angle=160.0,
+                                    self_clash_cutoff=3.0,
+                                    beam_width=20)
+    print("Traced route:", route)
+
+    save_path_as_pdb(coords, route, output_file=output_file)
