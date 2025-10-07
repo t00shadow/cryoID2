@@ -36,3 +36,383 @@ Traceback (most recent call last):
     seq = ''.join(aaMapping[e] for e in seq[:-1])
                   ~~~~~~~~~^^^
 KeyError: 'U'
+Starting job search_pool -od D_BLAST_searching/test_files/results/cryoid_v2/ -q D_BLAST_searching/test_files/fasta/prediction.fasta -p D_BLAST_searching/test_files/fasta/gprot_ribo/G_R_Reduce_Redundancy_p.fasta (2025-10-02 08:46:31):
+QUERY SEQUENCE SUMMARY
+	Number of query sequences used:  1
+	Number of identifiable residues per query:  41
+	Number of unidentifiable residues per query:  0
+
+Warning: No high identity (> 70%) protein candidates identified! You may want to optimize your query sequences first, otherwise the results may not be reliable.
+
+Most likely candidate:	6PB0_4|Chain
+Query set identity:	56%
+Sequence length:	-1
+Composite E-value:	1.2e-13
+
+The candidates have been ranked by composite E-value, and the top candidates are shown in the graph in the pop-up window. Presence of a statistically significant "gap" in composite E-values between the top candidate and all other candidates indicates a high confidence identification. The aligned segments can be used for further verification/model building.
+Starting job search_pool -od D_BLAST_searching/test_files/results/cryoid_v2/ -q D_BLAST_searching/test_files/fasta/prediction.fasta -p D_BLAST_searching/test_files/fasta/gprot_ribo/G_R_Reduce_Redundancy_p.fasta (2025-10-02 08:51:25):
+QUERY SEQUENCE SUMMARY
+	Number of query sequences used:  1
+	Number of identifiable residues per query:  41
+	Number of unidentifiable residues per query:  0
+
+Warning: No high identity (> 70%) protein candidates identified! You may want to optimize your query sequences first, otherwise the results may not be reliable.
+
+Most likely candidate:	6PB0_4|Chain
+Query set identity:	56%
+Sequence length:	-1
+Composite E-value:	1.2e-13
+
+The candidates have been ranked by composite E-value, and the top candidates are shown in the graph in the pop-up window. Presence of a statistically significant "gap" in composite E-values between the top candidate and all other candidates indicates a high confidence identification. The aligned segments can be used for further verification/model building.
+
+For a brief summary of candidates' information and their alignment details, please refer to D_BLAST_searching/test_files/results/cryoid_v2/prediction_summary.txt and D_BLAST_searching/test_files/results/cryoid_v2/prediction_alignment.txt, respectively.
+Job complete in 2.2 seconds!
+Starting job search_pool -od D_BLAST_searching/test_files/results/cryoid_v2/ -q D_BLAST_searching/test_files/fasta/prediction.fasta -p D_BLAST_searching/test_files/fasta/gprot_ribo/G_R_Reduce_Redundancy_p.fasta -r (2025-10-02 08:53:24):
+QUERY SEQUENCE SUMMARY
+	Number of query sequences used:  1
+	Number of identifiable residues per query:  41
+	Number of unidentifiable residues per query:  0
+
+Warning: No high identity (> 70%) protein candidates identified! You may want to optimize your query sequences first, otherwise the results may not be reliable.
+
+Most likely candidate:	6PB0_4|Chain
+Query set identity:	56%
+Sequence length:	-1
+Composite E-value:	1.2e-13
+
+The candidates have been ranked by composite E-value, and the top candidates are shown in the graph in the pop-up window. Presence of a statistically significant "gap" in composite E-values between the top candidate and all other candidates indicates a high confidence identification. The aligned segments can be used for further verification/model building.
+
+For a brief summary of candidates' information and their alignment details, please refer to D_BLAST_searching/test_files/results/cryoid_v2/prediction_summary.txt and D_BLAST_searching/test_files/results/cryoid_v2/prediction_alignment.txt, respectively.
+Job complete in 2.8 seconds!
+Starting job search_pool -od D_BLAST_searching/test_files/results/cryoid_v2/ -q D_BLAST_searching/test_files/fasta/prediction.fasta -p D_BLAST_searching/test_files/fasta/gprot_ribo/G_R_Reduce_Redundancy_p.fasta -r (2025-10-02 09:01:41):
+QUERY SEQUENCE SUMMARY
+	Number of query sequences used:  1
+	Number of identifiable residues per query:  41
+	Number of unidentifiable residues per query:  0
+
+Warning: No high identity (> 70%) protein candidates identified! You may want to optimize your query sequences first, otherwise the results may not be reliable.
+
+Most likely candidate:	6PB0_4|Chain
+Query set identity:	56%
+Sequence length:	-1
+Composite E-value:	1.2e-13
+
+The candidates have been ranked by composite E-value, and the top candidates are shown in the graph in the pop-up window. Presence of a statistically significant "gap" in composite E-values between the top candidate and all other candidates indicates a high confidence identification. The aligned segments can be used for further verification/model building.
+
+For a brief summary of candidates' information and their alignment details, please refer to D_BLAST_searching/test_files/results/cryoid_v2/prediction_summary.txt and D_BLAST_searching/test_files/results/cryoid_v2/prediction_alignment.txt, respectively.
+Job complete in 4.7 seconds!
+Starting job search_pool -od D_BLAST_searching/test_files/results/cryoid_v2/ -q D_BLAST_searching/test_files/fasta/prediction.fasta -p D_BLAST_searching/test_files/fasta/gprot_ribo/G_R_Reduce_Redundancy_p.fasta -r (2025-10-02 09:21:53):
+QUERY SEQUENCE SUMMARY
+	Number of query sequences used:  1
+	Number of identifiable residues per query:  41
+	Number of unidentifiable residues per query:  0
+
+Error: D_BLAST_searching/test_files/fasta/prediction_1_blast.txt wrong format! Exiting
+NoneType: None
+Starting job search_pool -od D_BLAST_searching/test_files/results/cryoid_v2/ -q D_BLAST_searching/test_files/fasta/prediction.fasta -p D_BLAST_searching/test_files/fasta/gprot_ribo/G_R_Reduce_Redundancy_p.fasta -r (2025-10-02 09:22:14):
+QUERY SEQUENCE SUMMARY
+	Number of query sequences used:  1
+	Number of identifiable residues per query:  41
+	Number of unidentifiable residues per query:  0
+
+Warning: No high identity (> 70%) protein candidates identified! You may want to optimize your query sequences first, otherwise the results may not be reliable.
+
+Most likely candidate:	6PB0_4|Chain
+Query set identity:	66%
+Sequence length:	-1
+Composite E-value:	3.1e-14
+
+The candidates have been ranked by composite E-value, and the top candidates are shown in the graph in the pop-up window. Presence of a statistically significant "gap" in composite E-values between the top candidate and all other candidates indicates a high confidence identification. The aligned segments can be used for further verification/model building.
+
+For a brief summary of candidates' information and their alignment details, please refer to D_BLAST_searching/test_files/results/cryoid_v2/prediction_summary.txt and D_BLAST_searching/test_files/results/cryoid_v2/prediction_alignment.txt, respectively.
+Job complete in 3.7 seconds!
+Starting job search_pool -od D_BLAST_searching/test_files/results/cryoid_v2/ -q D_BLAST_searching/test_files/fasta/prediction.fasta -p D_BLAST_searching/test_files/fasta/gprot_ribo/G_R_Reduce_Redundancy_p.fasta -r (2025-10-02 09:29:14):
+QUERY SEQUENCE SUMMARY
+	Number of query sequences used:  1
+	Number of identifiable residues per query:  41
+	Number of unidentifiable residues per query:  0
+
+Warning: No high identity (> 70%) protein candidates identified! You may want to optimize your query sequences first, otherwise the results may not be reliable.
+
+Most likely candidate:	6PB0_4|Chain
+Query set identity:	66%
+Sequence length:	-1
+Composite E-value:	3.1e-14
+
+The candidates have been ranked by composite E-value, and the top candidates are shown in the graph in the pop-up window. Presence of a statistically significant "gap" in composite E-values between the top candidate and all other candidates indicates a high confidence identification. The aligned segments can be used for further verification/model building.
+
+For a brief summary of candidates' information and their alignment details, please refer to D_BLAST_searching/test_files/results/cryoid_v2/prediction_summary.txt and D_BLAST_searching/test_files/results/cryoid_v2/prediction_alignment.txt, respectively.
+Job complete in 1.7 seconds!
+Starting job search_pool -od D_BLAST_searching/test_files/results/cryoid_v2/ -q D_BLAST_searching/test_files/fasta/prediction.fasta -p D_BLAST_searching/test_files/fasta/gprot_ribo/G_R_Reduce_Redundancy_p.fasta -r (2025-10-02 10:06:31):
+QUERY SEQUENCE SUMMARY
+	Number of query sequences used:  1
+	Number of identifiable residues per query:  41
+	Number of unidentifiable residues per query:  0
+
+Warning: No high identity (> 70%) protein candidates identified! You may want to optimize your query sequences first, otherwise the results may not be reliable.
+
+Most likely candidate:	6PB0_4|Chain
+Query set identity:	66%
+Sequence length:	-1
+Composite E-value:	3.1e-14
+
+The candidates have been ranked by composite E-value, and the top candidates are shown in the graph in the pop-up window. Presence of a statistically significant "gap" in composite E-values between the top candidate and all other candidates indicates a high confidence identification. The aligned segments can be used for further verification/model building.
+
+For a brief summary of candidates' information and their alignment details, please refer to D_BLAST_searching/test_files/results/cryoid_v2/prediction_summary.txt and D_BLAST_searching/test_files/results/cryoid_v2/prediction_alignment.txt, respectively.
+Job complete in 1.9 seconds!
+Starting job search_pool -od D_BLAST_searching/test_files/results/cryoid_v2/ -q D_BLAST_searching/test_files/fasta/prediction.fasta -p D_BLAST_searching/test_files/fasta/gprot_ribo/G_R_Reduce_Redundancy_p.fasta -r (2025-10-02 10:06:49):
+QUERY SEQUENCE SUMMARY
+	Number of query sequences used:  1
+	Number of identifiable residues per query:  41
+	Number of unidentifiable residues per query:  0
+
+Warning: No high identity (> 70%) protein candidates identified! You may want to optimize your query sequences first, otherwise the results may not be reliable.
+
+Most likely candidate:	6PB0_4|Chain
+Query set identity:	66%
+Sequence length:	-1
+Composite E-value:	3.1e-14
+
+The candidates have been ranked by composite E-value, and the top candidates are shown in the graph in the pop-up window. Presence of a statistically significant "gap" in composite E-values between the top candidate and all other candidates indicates a high confidence identification. The aligned segments can be used for further verification/model building.
+
+For a brief summary of candidates' information and their alignment details, please refer to D_BLAST_searching/test_files/results/cryoid_v2/prediction_summary.txt and D_BLAST_searching/test_files/results/cryoid_v2/prediction_alignment.txt, respectively.
+Job complete in 1.7 seconds!
+Starting job search_pool -od D_BLAST_searching/test_files/results/cryoid_v2/ -q D_BLAST_searching/test_files/fasta/prediction.fasta -p D_BLAST_searching/test_files/fasta/gprot_ribo/G_R_Reduce_Redundancy_p.fasta -r (2025-10-02 10:17:12):
+QUERY SEQUENCE SUMMARY
+	Number of query sequences used:  1
+	Number of identifiable residues per query:  41
+	Number of unidentifiable residues per query:  0
+
+Warning: No high identity (> 70%) protein candidates identified! You may want to optimize your query sequences first, otherwise the results may not be reliable.
+
+Most likely candidate:	6PB0_4|Chain
+Query set identity:	66%
+Sequence length:	-1
+Composite E-value:	3.1e-14
+
+The candidates have been ranked by composite E-value, and the top candidates are shown in the graph in the pop-up window. Presence of a statistically significant "gap" in composite E-values between the top candidate and all other candidates indicates a high confidence identification. The aligned segments can be used for further verification/model building.
+
+For a brief summary of candidates' information and their alignment details, please refer to D_BLAST_searching/test_files/results/cryoid_v2/prediction_summary.txt and D_BLAST_searching/test_files/results/cryoid_v2/prediction_alignment.txt, respectively.
+Job complete in 2.0 seconds!
+Starting job search_pool -od D_BLAST_searching/test_files/results/cryoid_v2/ -q D_BLAST_searching/test_files/fasta/prediction.fasta -p D_BLAST_searching/test_files/fasta/gprot_ribo/G_R_Reduce_Redundancy_p.fasta -r (2025-10-02 10:19:02):
+QUERY SEQUENCE SUMMARY
+	Number of query sequences used:  1
+	Number of identifiable residues per query:  41
+	Number of unidentifiable residues per query:  0
+
+Warning: No high identity (> 70%) protein candidates identified! You may want to optimize your query sequences first, otherwise the results may not be reliable.
+
+Most likely candidate:	6PB0_4|Chain
+Query set identity:	66%
+Sequence length:	-1
+Composite E-value:	3.1e-14
+
+The candidates have been ranked by composite E-value, and the top candidates are shown in the graph in the pop-up window. Presence of a statistically significant "gap" in composite E-values between the top candidate and all other candidates indicates a high confidence identification. The aligned segments can be used for further verification/model building.
+
+For a brief summary of candidates' information and their alignment details, please refer to D_BLAST_searching/test_files/results/cryoid_v2/prediction_summary.txt and D_BLAST_searching/test_files/results/cryoid_v2/prediction_alignment.txt, respectively.
+Job complete in 1.8 seconds!
+Starting job search_pool -od D_BLAST_searching/test_files/results/cryoid_v2/ -q D_BLAST_searching/test_files/fasta/prediction.fasta -p D_BLAST_searching/test_files/fasta/gprot_ribo/G_R_Reduce_Redundancy_p.fasta -r (2025-10-02 10:21:30):
+QUERY SEQUENCE SUMMARY
+	Number of query sequences used:  1
+	Number of identifiable residues per query:  41
+	Number of unidentifiable residues per query:  0
+
+Warning: No high identity (> 70%) protein candidates identified! You may want to optimize your query sequences first, otherwise the results may not be reliable.
+
+Most likely candidate:	6PB0_4|Chain
+Query set identity:	66%
+Sequence length:	-1
+Composite E-value:	3.1e-14
+
+The candidates have been ranked by composite E-value, and the top candidates are shown in the graph in the pop-up window. Presence of a statistically significant "gap" in composite E-values between the top candidate and all other candidates indicates a high confidence identification. The aligned segments can be used for further verification/model building.
+
+For a brief summary of candidates' information and their alignment details, please refer to D_BLAST_searching/test_files/results/cryoid_v2/prediction_summary.txt and D_BLAST_searching/test_files/results/cryoid_v2/prediction_alignment.txt, respectively.
+Job complete in 3.8 seconds!
+Starting job search_pool -od D_BLAST_searching/test_files/results/cryoid_v2/ -q D_BLAST_searching/test_files/fasta/prediction.fasta -p D_BLAST_searching/test_files/fasta/gprot_ribo/G_R_Reduce_Redundancy_p.fasta -r (2025-10-02 10:25:08):
+QUERY SEQUENCE SUMMARY
+	Number of query sequences used:  1
+	Number of identifiable residues per query:  41
+	Number of unidentifiable residues per query:  0
+
+Warning: No high identity (> 70%) protein candidates identified! You may want to optimize your query sequences first, otherwise the results may not be reliable.
+
+Most likely candidate:	7Y24_2|Chain
+Query set identity:	66%
+Sequence length:	338
+Composite E-value:	1.1e-14
+
+The candidates have been ranked by composite E-value, and the top candidates are shown in the graph in the pop-up window. Presence of a statistically significant "gap" in composite E-values between the top candidate and all other candidates indicates a high confidence identification. The aligned segments can be used for further verification/model building.
+
+For a brief summary of candidates' information and their alignment details, please refer to D_BLAST_searching/test_files/results/cryoid_v2/prediction_summary.txt and D_BLAST_searching/test_files/results/cryoid_v2/prediction_alignment.txt, respectively.
+Job complete in 1.8 seconds!
+Starting job search_pool -od D_BLAST_searching/test_files/results/cryoid_v2/ -q D_BLAST_searching/test_files/fasta/prediction.fasta -p D_BLAST_searching/test_files/fasta/gprot_ribo/G_R_Reduce_Redundancy_p.fasta -r (2025-10-02 10:27:54):
+QUERY SEQUENCE SUMMARY
+	Number of query sequences used:  1
+	Number of identifiable residues per query:  41
+	Number of unidentifiable residues per query:  0
+
+Warning: No high identity (> 70%) protein candidates identified! You may want to optimize your query sequences first, otherwise the results may not be reliable.
+
+Most likely candidate:	7Y24_2|Chain
+Query set identity:	66%
+Sequence length:	338
+Composite E-value:	1.1e-14
+
+The candidates have been ranked by composite E-value, and the top candidates are shown in the graph in the pop-up window. Presence of a statistically significant "gap" in composite E-values between the top candidate and all other candidates indicates a high confidence identification. The aligned segments can be used for further verification/model building.
+
+For a brief summary of candidates' information and their alignment details, please refer to D_BLAST_searching/test_files/results/cryoid_v2/prediction_summary.txt and D_BLAST_searching/test_files/results/cryoid_v2/prediction_alignment.txt, respectively.
+Job complete in 1.7 seconds!
+Starting job search_pool -od D_BLAST_searching/test_files/results/cryoid_v2/ -q D_BLAST_searching/test_files/fasta/prediction.fasta -p D_BLAST_searching/test_files/fasta/cryoid_v2/G_R_Reduce_Redundancy_p.fasta -r (2025-10-05 11:37:21):
+QUERY SEQUENCE SUMMARY
+	Number of query sequences used:  3
+	Number of identifiable residues per query:  34
+	Number of unidentifiable residues per query:  0
+
+Warning: No high identity (> 70%) protein candidates identified! You may want to optimize your query sequences first, otherwise the results may not be reliable.
+
+Most likely candidate:	8I9W_51|Chain
+Query set identity:	50%
+Sequence length:	217
+Composite E-value:	1.0e-02
+
+The candidates have been ranked by composite E-value, and the top candidates are shown in the graph in the pop-up window. Presence of a statistically significant "gap" in composite E-values between the top candidate and all other candidates indicates a high confidence identification. The aligned segments can be used for further verification/model building.
+
+For a brief summary of candidates' information and their alignment details, please refer to D_BLAST_searching/test_files/results/cryoid_v2/prediction_summary.txt and D_BLAST_searching/test_files/results/cryoid_v2/prediction_alignment.txt, respectively.
+Job complete in 2.9 seconds!
+Starting job search_pool -od D_BLAST_searching/test_files/results/cryoid_v2/ -q D_BLAST_searching/test_files/fasta/prediction.fasta -p D_BLAST_searching/test_files/fasta/cryoid_v2/G_R_Reduce_Redundancy_p.fasta -r (2025-10-05 11:38:42):
+QUERY SEQUENCE SUMMARY
+	Number of query sequences used:  3
+	Number of identifiable residues per query:  34
+	Number of unidentifiable residues per query:  0
+
+Warning: No high identity (> 70%) protein candidates identified! You may want to optimize your query sequences first, otherwise the results may not be reliable.
+
+Most likely candidate:	7Y24_2|Chain
+Query set identity:	53%
+Sequence length:	338
+Composite E-value:	6.3e-19
+
+The candidates have been ranked by composite E-value, and the top candidates are shown in the graph in the pop-up window. Presence of a statistically significant "gap" in composite E-values between the top candidate and all other candidates indicates a high confidence identification. The aligned segments can be used for further verification/model building.
+
+For a brief summary of candidates' information and their alignment details, please refer to D_BLAST_searching/test_files/results/cryoid_v2/prediction_summary.txt and D_BLAST_searching/test_files/results/cryoid_v2/prediction_alignment.txt, respectively.
+Job complete in 2.8 seconds!
+Starting job search_pool -od D_BLAST_searching/test_files/results/cryoid_v2/ -q D_BLAST_searching/test_files/fasta/prediction.fasta -p D_BLAST_searching/test_files/fasta/cryoid_v2/G_R_Reduce_Redundancy_p.fasta -r -v (2025-10-05 11:41:52):
+QUERY SEQUENCE SUMMARY
+	Number of query sequences used:  3
+	Number of identifiable residues per query:  34
+	Number of unidentifiable residues per query:  0
+
+Warning: No high identity (> 70%) protein candidates identified! You may want to optimize your query sequences first, otherwise the results may not be reliable.
+
+Most likely candidate:	7Y24_2|Chain
+Query set identity:	53%
+Sequence length:	338
+Composite E-value:	6.3e-19
+
+The candidates have been ranked by composite E-value, and the top candidates are shown in the graph in the pop-up window. Presence of a statistically significant "gap" in composite E-values between the top candidate and all other candidates indicates a high confidence identification. The aligned segments can be used for further verification/model building.
+
+For a brief summary of candidates' information and their alignment details, please refer to D_BLAST_searching/test_files/results/cryoid_v2/prediction_summary.txt and D_BLAST_searching/test_files/results/cryoid_v2/prediction_alignment.txt, respectively.
+Job complete in 3.0 seconds!
+Starting job search_pool -od D_BLAST_searching/test_files/results/cryoid_v2/ -q D_BLAST_searching/test_files/fasta/prediction.fasta -p D_BLAST_searching/test_files/fasta/cryoid_v2/G_R_Reduce_Redundancy_p.fasta -r -n 100 (2025-10-05 12:14:11):
+QUERY SEQUENCE SUMMARY
+	Number of query sequences used:  3
+	Number of identifiable residues per query:  34
+	Number of unidentifiable residues per query:  0
+
+Warning: No high identity (> 70%) protein candidates identified! You may want to optimize your query sequences first, otherwise the results may not be reliable.
+
+Most likely candidate:	7Y24_2|Chain
+Query set identity:	53%
+Sequence length:	338
+Composite E-value:	6.3e-19
+
+The candidates have been ranked by composite E-value, and the top candidates are shown in the graph in the pop-up window. Presence of a statistically significant "gap" in composite E-values between the top candidate and all other candidates indicates a high confidence identification. The aligned segments can be used for further verification/model building.
+
+For a brief summary of candidates' information and their alignment details, please refer to D_BLAST_searching/test_files/results/cryoid_v2/prediction_summary.txt and D_BLAST_searching/test_files/results/cryoid_v2/prediction_alignment.txt, respectively.
+Job complete in 3.1 seconds!
+Starting job search_pool -od D_BLAST_searching/test_files/results/cryoid_v2/ -q D_BLAST_searching/test_files/fasta/prediction.fasta -p D_BLAST_searching/test_files/fasta/cryoid_v2/G_R_Reduce_Redundancy_p.fasta -r -n 100 (2025-10-05 14:53:24):
+Starting job search_pool -od D_BLAST_searching/test_files/results/cryoid_v2/ -q D_BLAST_searching/test_files/fasta/prediction.fasta -p D_BLAST_searching/test_files/fasta/cryoid_v2/G_R_Reduce_Redundancy_p.fasta -r -n 100 (2025-10-05 14:53:49):
+QUERY SEQUENCE SUMMARY
+	Number of query sequences used:  3
+	Number of identifiable residues per query:  34
+	Number of unidentifiable residues per query:  0
+
+Warning: No high identity (> 70%) protein candidates identified! You may want to optimize your query sequences first, otherwise the results may not be reliable.
+
+Most likely candidate:	7Y24_2|Chain
+Query set identity:	53%
+Sequence length:	338
+Composite E-value:	6.3e-19
+
+The candidates have been ranked by composite E-value, and the top candidates are shown in the graph in the pop-up window. Presence of a statistically significant "gap" in composite E-values between the top candidate and all other candidates indicates a high confidence identification. The aligned segments can be used for further verification/model building.
+
+For a brief summary of candidates' information and their alignment details, please refer to D_BLAST_searching/test_files/results/cryoid_v2/prediction_summary.txt and D_BLAST_searching/test_files/results/cryoid_v2/prediction_alignment.txt, respectively.
+Job complete in 5.4 seconds!
+Starting job search_pool -od D_BLAST_searching/test_files/results/cryoid_v2/ -q D_BLAST_searching/test_files/fasta/prediction.fasta -p D_BLAST_searching/test_files/fasta/cryoid_v2/G_R_Reduce_Redundancy_p.fasta -r -n 100 (2025-10-05 14:54:44):
+QUERY SEQUENCE SUMMARY
+	Number of query sequences used:  3
+	Number of identifiable residues per query:  34
+	Number of unidentifiable residues per query:  0
+
+Warning: No high identity (> 70%) protein candidates identified! You may want to optimize your query sequences first, otherwise the results may not be reliable.
+
+Most likely candidate:	7Y24_2|Chain
+Query set identity:	53%
+Sequence length:	338
+Composite E-value:	6.3e-19
+
+The candidates have been ranked by composite E-value, and the top candidates are shown in the graph in the pop-up window. Presence of a statistically significant "gap" in composite E-values between the top candidate and all other candidates indicates a high confidence identification. The aligned segments can be used for further verification/model building.
+
+For a brief summary of candidates' information and their alignment details, please refer to D_BLAST_searching/test_files/results/cryoid_v2/prediction_summary.txt and D_BLAST_searching/test_files/results/cryoid_v2/prediction_alignment.txt, respectively.
+Job complete in 6.0 seconds!
+Starting job search_pool -od D_BLAST_searching/test_files/results/cryoid_v2/ -q D_BLAST_searching/test_files/fasta/prediction.fasta -p D_BLAST_searching/test_files/fasta/cryoid_v2/G_R_Reduce_Redundancy_p.fasta -r -n 100 (2025-10-05 14:55:17):
+QUERY SEQUENCE SUMMARY
+	Number of query sequences used:  3
+	Number of identifiable residues per query:  34
+	Number of unidentifiable residues per query:  0
+
+Warning: No high identity (> 70%) protein candidates identified! You may want to optimize your query sequences first, otherwise the results may not be reliable.
+
+Most likely candidate:	7Y24_2|Chain
+Query set identity:	53%
+Sequence length:	338
+Composite E-value:	6.3e-19
+
+The candidates have been ranked by composite E-value, and the top candidates are shown in the graph in the pop-up window. Presence of a statistically significant "gap" in composite E-values between the top candidate and all other candidates indicates a high confidence identification. The aligned segments can be used for further verification/model building.
+
+For a brief summary of candidates' information and their alignment details, please refer to D_BLAST_searching/test_files/results/cryoid_v2/prediction_summary.txt and D_BLAST_searching/test_files/results/cryoid_v2/prediction_alignment.txt, respectively.
+Job complete in 6.6 seconds!
+Starting job search_pool -od D_BLAST_searching/test_files/results/cryoid_v2/ -q D_BLAST_searching/test_files/fasta/prediction.fasta -p D_BLAST_searching/test_files/fasta/cryoid_v2/G_R_Reduce_Redundancy_p.fasta -r -n 100 (2025-10-05 20:35:58):
+QUERY SEQUENCE SUMMARY
+	Number of query sequences used:  8
+	Number of identifiable residues per query:  32
+	Number of unidentifiable residues per query:  0
+
+Warning: No high identity (> 70%) protein candidates identified! You may want to optimize your query sequences first, otherwise the results may not be reliable.
+
+Most likely candidate:	7Y24_2|Chain
+Query set identity:	60%
+Sequence length:	338
+Composite E-value:	3.5e-55
+
+The candidates have been ranked by composite E-value, and the top candidates are shown in the graph in the pop-up window. Presence of a statistically significant "gap" in composite E-values between the top candidate and all other candidates indicates a high confidence identification. The aligned segments can be used for further verification/model building.
+
+For a brief summary of candidates' information and their alignment details, please refer to D_BLAST_searching/test_files/results/cryoid_v2/prediction_summary.txt and D_BLAST_searching/test_files/results/cryoid_v2/prediction_alignment.txt, respectively.
+Job complete in 15.8 seconds!
+Starting job search_pool -od D_BLAST_searching/test_files/results/cryoid_v2/ -q D_BLAST_searching/test_files/fasta/prediction.fasta -p D_BLAST_searching/test_files/fasta/cryoid_v2/G_R_Reduce_Redundancy_p.fasta -r -n 100 (2025-10-05 20:45:33):
+QUERY SEQUENCE SUMMARY
+	Number of query sequences used:  8
+	Number of identifiable residues per query:  32
+	Number of unidentifiable residues per query:  0
+
+Warning: No high identity (> 70%) protein candidates identified! You may want to optimize your query sequences first, otherwise the results may not be reliable.
+
+Most likely candidate:	7Y24_2|Chain
+Query set identity:	60%
+Sequence length:	338
+Composite E-value:	3.5e-55
+
+The candidates have been ranked by composite E-value, and the top candidates are shown in the graph in the pop-up window. Presence of a statistically significant "gap" in composite E-values between the top candidate and all other candidates indicates a high confidence identification. The aligned segments can be used for further verification/model building.
+
+For a brief summary of candidates' information and their alignment details, please refer to D_BLAST_searching/test_files/results/cryoid_v2/prediction_summary.txt and D_BLAST_searching/test_files/results/cryoid_v2/prediction_alignment.txt, respectively.
+Job complete in 15.2 seconds!

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python8HK3_2
 # -*- coding: utf-8 -*-
 
 """
@@ -173,59 +173,58 @@ def RetrievSeq(params):
 
 # Amino acid grouping and mapping table for blastp search. Representive codes are optimised based on PAM30 scorig matrix.
 # degenerate codes:
-# Suggested number of groups: 13
-# Group 0: R, Q, K
-# Group 1: I, L, V
-# Group 2: A, G
-# Group 3: Y
-# Group 4: F
-# Group 5: S, T
-# Group 6: P
-# Group 7: H
-# Group 8: W
-# Group 9: N
-# Group 10: C
-# Group 11: M
-# Group 12: D, E
+# Group 0 (K): R, Q, K
+# Group 1 (L): I, L, V
+# Group 2 (G): A, G
+# Group 3 (Y): Y
+# Group 4 (F): F
+# Group 5 (S): S, T
+# Group 6 (P): P
+# Group 7 (H): H
+# Group 8 (W): W
+# Group 9 (N): N
+# Group 10 (C): C
+# Group 11 (M): M
+# Group 12 (E): D, E
 aaMapping = {
-    'R': 'A', 'Q': 'A', 'K': 'A', # Group 0
-    'r': 'A', 'q': 'A', 'k': 'A', # Group 0 (lower case)
+    'R': 'K', 'Q': 'K', 'K': 'K', # Group 0 (K)
+    'r': 'K', 'q': 'K', 'k': 'K', 
 
-    'I': 'B', 'L': 'B', 'V': 'B', # Group 1
-    'i': 'B', 'l': 'B', 'v': 'B', # Group 1 (lower case)
+    'I': 'L', 'L': 'L', 'V': 'L', # Group 1 (L)
+    'i': 'L', 'l': 'L', 'v': 'L', 
 
-    'A': 'C', 'G': 'C',           # Group 2
-    'a': 'C', 'g': 'C',           # Group 2 (lower case)
+    'A': 'G', 'G': 'G',           # Group 2 (G)
+    'a': 'G', 'g': 'G',           
 
-    'Y': 'D',                     # Group 3
-    'y': 'D',                     # Group 3 (lower case)
+    'Y': 'Y',                     # Group 3 (Y)
+    'y': 'Y',                     
 
-    'F': 'E',                     # Group 4
-    'f': 'E',                     # Group 4 (lower case)
+    'F': 'F',                     # Group 4 (F)
+    'f': 'F',                     
 
-    'S': 'F', 'T': 'F',           # Group 5
-    's': 'F', 't': 'F',           # Group 5 (lower case)
+    'S': 'S', 'T': 'S',           # Group 5 (S)
+    's': 'S', 't': 'S',           
 
-    'P': 'G',                     # Group 6
-    'p': 'G',                     # Group 6 (lower case)
+    'P': 'P',                     # Group 6 (P)
+    'p': 'P',                     
 
-    'H': 'H',                     # Group 7
-    'h': 'H',                     # Group 7 (lower case)
+    'H': 'H',                     # Group 7 (H)
+    'h': 'H',                     
 
-    'W': 'I',                     # Group 8
-    'w': 'I',                     # Group 8 (lower case)
+    'W': 'W',                     # Group 8 (W)
+    'w': 'W',                    
 
-    'N': 'J',                     # Group 9
-    'n': 'J',                     # Group 9 (lower case)
+    'N': 'N',                     # Group 9 (N)
+    'n': 'N',                     
 
-    'C': 'K',                     # Group 10
-    'c': 'K',                     # Group 10 (lower case)
+    'C': 'C',                     # Group 10 (C)
+    'c': 'C',                     
 
-    'M': 'L',                     # Group 11
-    'm': 'L',                     # Group 11 (lower case)
+    'M': 'M',                     # Group 11 (M)
+    'm': 'M',                     
     
-    'D': 'M', 'E': 'M',            # Group 12
-    'd': 'M', 'e': 'M',            # Group 12 (lower case)
+    'D': 'E', 'E': 'E',           # Group 12 (E)
+    'd': 'E', 'e': 'E',            
 
     # Rare amino acid
     'X':'X', 'x':'X',           # All other amino acids -> X
@@ -250,9 +249,10 @@ def DBGenerate(params):             # params.seqfile = seqfile (sequence pool fi
     
     # get database name
     file_dir = os.path.dirname(params.seqfile)
-    file_name = os.path.basename(params.seqfile)
+    file_name = os.path.basename(params.seqfile).split('.')[0]
     if params.seqfile.endswith('.fasta'):
-        dbname = file_dir + '/database/' + file_name[:-6] + '_db'
+        # dbname = file_dir + '/database/' + file_name[:-6] + '_db'
+        dbname = os.path.join(file_dir, file_name + '_db', file_name + '_db')
     else:
         logging.exception('Seqfile '+ params.seqfile +' is not of .fasta format! Exiting')
         raise TypeError('Seqfile '+ params.seqfile +' is not of .fasta format! Exiting')

@@ -933,7 +933,7 @@ EMD-3099,Cryo-EM structure of a human translation termination complex,3.8,5a8l,,
 EMD-3040,"Cryo-EM structure of a mammalian ribosomal termination complex with ABCE1, eRF1(AAQ) and the UGA stop codon",3.83,3jai,"P61221,P62495","P61221,P62495",0.403,0.811,0.07
 EMD-3038,"Cryo-EM structure of a mammalian ribosomal termination complex with ABCE1, eRF1(AAQ) and the UAA stop codon",3.65,3jag,"P61221,P62495","P61221,P62495",0.407,0.815,0.07
 EMD-3037,Density map of the engaged state of the mammalian SRP-ribosome complex,3.75,3jaj,,,0.355,0.841,0.05
-EMD-3045,Density map of the scanning state of the mammalian SRP-ribosome complex,3.9,3-Jan,,,0.31,0.781,0.05
+EMD-3045,Density map of the scanning state of the mammalian SRP-ribosome complex,3.9,3jan,,,0.31,0.781,0.05
 EMD-3039,"Cryo-EM structure of a mammalian ribosomal termination complex with ABCE1, eRF1(AAQ) and the UAG stop codon",3.45,3jah,"P61221,P62495","P61221,P62495",0.422,0.788,0.07
 EMD-3047,40S-eIF1A-eIF1 complex,3.46,3jam,"P38912,P32911","P38912,P32911",0.418,0.765,0.1
 EMD-3019,Structure of HCV IRES bound to the human ribosome,3.9,5a2q,,,0.375,0.857,0.05

@@ -26,8 +26,7 @@ from argparse import Namespace
 import math, time, datetime
 from matplotlib import pyplot as plt
 from Bio import SeqIO
-import search_support as search_sup
-#import subprocess 
+import search_support as search_sup 
 
 # default blast format
 blastformat7 = '# Fields: query acc.ver, subject acc.ver, identical, alignment length, query length, mismatches, gap opens, gaps, q. start, q. end, s. start, s. end, query seq, subject seq, evalue'
@@ -71,17 +70,18 @@ class BlastSeq:
 def Parser():
 
     parser = argparse.ArgumentParser(
-        description='%(prog)s translates both the segment sequences and all the candidate protein sequences of the pool into the simplified “6-letter” code \
+        prog = 'CryoID2',
+        description = '%(prog)s translates both the segment sequences and all the candidate protein sequences of the pool into the simplified “6-letter” code \
                                      and performs a modified blast search of the entire pool using the segment sequences as queries.', 
-        epilog='Example: %(prog)s -q queries.pdb -p candidate_pool.fasta'
+        epilog = 'Example: %(prog)s -q queries.pdb -p candidate_pool.fasta',
     )
     parser.add_argument('-q', '--queryfile', type=argparse.FileType('r'), required=True, 
                         help='Queries (.fasta/.pdb file) to be searched')                 #python 3.10
     parser.add_argument('-p', '--candidate_pool', type=argparse.FileType('r'), required=True, 
                         help='Candidate protein sequence pool file in fasta format)')     #python 3.10   # , or standard mass spetrum results (.xlsx format))')
-    parser.add_argument('-o', '--outfile', default='', 
+    parser.add_argument('-o', '--outfile', default=None, 
                         help='Output file basename. Default value is the same as query file basename')
-    parser.add_argument('-od', '--outdir', default='', 
+    parser.add_argument('-od', '--outdir', default=None, 
                         help='Output file directory. Default value is the same as query file directory')
     parser.add_argument('-r', '--reverse', action='store_true', default=False, 
                         help='If N/C terminal polarity of query sesquences are unknown, add -r flag')
@@ -91,7 +91,7 @@ def Parser():
                         help='Expectation value (E) threshold for saving hits in blast search for each query. Default 1.0')
     parser.add_argument('-g', '--gapscore', type=int, nargs=2, default=[32767, 32767], 
                         help='Penalty score pairs for gapopen and gapextend. Note that this argument takes two parameters seperated by a space. Default value is 32767 32767 for ungapped searching. You may change it to 15 3 for gapped searching')
-    parser.add_argument('-n', '--num_candidate', type=int, default=20, 
+    parser.add_argument('-n', '--num_candidate', type=int, default=100, 
                         help='Maximum number of candidates to keep in the final result lists. Default 20')
     parser.add_argument('-v', '--verbose', action='store_true', default=False, 
                         help='Keep simplified query sequences files and all the significant blastp alignments')
@@ -117,12 +117,12 @@ def Parser():
     if params.num_candidate <= 0:
         raise ValueError('The number of candidates must be a positive integer.')
 
-    if params.outfile == '':
+    if params.outfile is None:
         out_base = os.path.splitext(os.path.basename(params.queryfile.name))[0]
         params.outfile = out_base
 
-    if params.outdir == '':
-        params.outdir = os.path.dirname(params.queryfile.name)+"/"
+    if params.outdir is None:
+        params.outdir = os.path.dirname(params.queryfile.name)
 
     return params
 
@@ -285,8 +285,8 @@ def Readfile(params):
                 field = BlastSeq(line[:-1])
                 
                 # add length to class BlastSeq
-                if field.candidate in params.protlen:
-                    field.set_prot_len(params.protlen[field.candidate])
+                if field.candidate.split('|')[0] in params.protlen:
+                    field.set_prot_len(params.protlen[field.candidate.split('|')[0]])
                 else:
                     field.set_prot_len('-1')
                 
@@ -424,8 +424,10 @@ def Writefile(fields, params):
 
 
     # create the output file    
-    out_align = f"{params.outdir}{params.outfile}_alignment.txt"
-    out_result = f"{params.outdir}{params.outfile}_summary.txt"
+    # out_align = f"{params.outdir}{params.outfile}_alignment.txt"
+    # out_result = f"{params.outdir}{params.outfile}_summary.txt"
+    out_align = os.path.join(params.outdir, params.outfile + '_alignment.txt')
+    out_result = os.path.join(params.outdir, params.outfile + '_summary.txt')
 
 # ???????????STOP?????????????======================================================
    
@@ -492,9 +494,9 @@ top candidate and all other candidates indicates a high confidence identificatio
         
         #if not (field.candidate == last_candidate and field.query == last.query):
         # revser mapping of aligned sequences from blast codes to degenerate groups. More readable for the users
-        for k, v in search_sup.aaRevMapping.items():
-                field.sseq = field.sseq.replace(k, v)
-                field.qseq = field.qseq.replace(k, v)
+        # for k, v in search_sup.aaRevMapping.items():
+        #         field.sseq = field.sseq.replace(k, v)
+        #         field.qseq = field.qseq.replace(k, v)
         
         # write detailed alignments info to files
         if params.gapscore == [32767, 32767]:
@@ -532,7 +534,7 @@ def Plot(fields, params):
     # Show results of the first 20 candiates at most
     max_candidates = min(20, len(fields))
 
-    for i, field in enumerate(fields[:max_candidates]):
+    for _, field in enumerate(fields[:max_candidates]):
         identity_list.append(field.ave_identity * 100.0)
         logE_list.append(math.log(field.composite_evalue, 10))
 
@@ -541,7 +543,7 @@ def Plot(fields, params):
     m = len(identity_list)
     xaxis = range(1, m+1)
             
-    plt.figure(1)
+    plt.figure(1, figsize=(8, 6))
     
     ax1 = plt.subplot(211)
     ax1.scatter(xaxis, logE_list, s=25)
@@ -591,18 +593,11 @@ def Plot(fields, params):
     plt.subplots_adjust(hspace=0.3)
 
 
-    # set figure name
-    if params.outfile == '':
-        fig_name = os.path.basename(params.queryfile)
-        fig_name = os.path.splitext(fig_name)[0]
-        fig_name = fig_name
-    else:
-        fig_name = params.outfile
-        
-    fig_name += '_results.png'
+    # set figure name        
+    fig_name = params.outfile + '_results.png'
 
-    plt.savefig(params.outdir + fig_name, dpi=300)
-    plt.show()
+    plt.savefig(os.path.join(params.outdir, fig_name), dpi=300)
+    #plt.show()
 
 
     '''
@@ -634,7 +629,8 @@ def Process(params):
 #================================================================================================================================================================================================
 def Search(params):
     # Set up logging
-    logfile = f"{params.outdir}{params.outfile}.log"                                    #   logfile = params.outdir + params.outfile + '.log'
+    # logfile = f"{params.outdir}{params.outfile}.log"
+    logfile = os.path.join(params.outdir, f"{params.outfile}.log")
     logging.basicConfig(filename=logfile, level=logging.INFO, format="%(message)s")
 
     # Log the start time and command
@@ -657,8 +653,7 @@ def Search(params):
     # Get the length of each sequence
     protlen = {}
     for record in SeqIO.parse(seqfile_name, "fasta"):
-        if len(record.id.split("|")) > 1:
-            protlen[record.id.split("|")[1]] = len(record.seq)              # eg. record.id = "tr|Q8IKL5|Q8IKL5_PLAF7", record.seq = "MNIRLIKKIGINY...ESKWYSFWEENA"
+        protlen[record.description.split("|")[0]] = len(record.seq)              # eg. record.id = "tr|Q8IKL5|Q8IKL5_PLAF7", record.seq = "MNIRLIKKIGINY...ESKWYSFWEENA"
  
     # Generate a local blastp database from the (degenerate) candidate sequences
     DB_params = Namespace(seqfile=seqfile_name, logfile=logfile)
@@ -687,7 +682,7 @@ def Search(params):
         # Plot the figure
         # if params.verbose:
         try:
-            plot_params = Namespace(queryfile=params.queryfile.name, outfile=params.outfile, outdir=params.outdir)
+            plot_params = Namespace(outfile=params.outfile, outdir=params.outdir)
             Plot(results, plot_params)
         except Exception:
             logging.exception("Failed to plot final figure.")
@@ -710,7 +705,7 @@ if __name__ == "__main__":
     best_candidate = Search(params)
 
     # open best candidate from alphafold in ChimeraX
-    cmd = f"ChimeraX --cmd 'open alphafold:{best_candidate}' &"
+    # cmd = f"ChimeraX --cmd 'open alphafold:{best_candidate}' &"
     # subprocess.run(cmd, shell=True)
 
 
