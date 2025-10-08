@@ -8,8 +8,17 @@
 .idea/
 *.pyc
 
-/zzz_local_files
+# output files
 /H_Backbone_tracing/outputs
+traced_backbone*.pdb
+*residue_prob_matrix.csv
+residue_sequence*.txt
+z_segmentation.mrc
+sphere_mesh.obj
+Large_Error_PDBOUT.pdb
+
+# local files
+/zzz_local_files
 /H_Backbone_tracing/archived/local_only
 /H_Backbone_tracing/test_files
 /H_Backbone_tracing/SMALL_MISC_EXPERIMENTS
