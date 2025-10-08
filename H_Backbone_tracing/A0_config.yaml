@@ -1,4 +1,4 @@
-sample_toggle: emd_34843   # choose from [emd_15905, emd_20256, emd_21887, emd_27018, emd_34843]
+sample_toggle: emd_34843   # choose from [emd_15905, emd_20256, emd_21887, emd_27018, emd_34843]      # EDIT: it gets toggled in the python file not here, maybe rename this to default_sample_toggle and have this be the default if NOT specified in python
 
 samples:
   emd_15905:
@@ -12,9 +12,17 @@ samples:
   # smaller files (Gproteins)
   emd_34843:
     base_dir: "D:/NEW_TEST_DATA/UnetPrediction/EMD-34843_re_3.2"
+  emd_38402:
+    base_dir: "D:/NEW_TEST_DATA/UnetPrediction/EMD-38402_re_3.06"
+  emd_42791:
+    base_dir: "D:/NEW_TEST_DATA/UnetPrediction/EMD-42791_re_3.2"
+  real_malaria/1:    # this name can be anything (cryosparc_P164_J166_006_volume_map)
+    base_dir: "D:/NEW_TEST_DATA/UnetPrediction/real_malaria/1"
+  real_malaria/2:    # this name can be anything (cryosparc_P164_J166_006_volume_map_sharp)
+    base_dir: "D:/NEW_TEST_DATA/UnetPrediction/real_malaria/2"
 
 clustering:
-  output_dir: "H_Backbone_tracing/outputs/clustering_v2"   # intermediate results
+  output_dir: "H_Backbone_tracing/outputs/clustering_v2/10_7_25"   # intermediate results
   threshold: 0.9
   method: "agglomerative"   # chose from ["agglomerative", "meanshift"]
   connect_dist: 4.0   # for agglomerative only
