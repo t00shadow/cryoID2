@@ -1,0 +1,51 @@
+Starting job search_pool -od D_BLAST_searching/test_files/results/cryoid_v2/ -q D_BLAST_searching/test_files/fasta/malaria_predictions_new.fasta -p D_BLAST_searching/test_files/fasta/cryoid_v2/malaria_pool.fasta -r (2025-10-18 15:07:53):
+QUERY SEQUENCE SUMMARY
+	Number of query sequences used:  8
+	Number of identifiable residues per query:  19
+	Number of unidentifiable residues per query:  0
+
+Warning: No high identity (> 70%) protein candidates identified! You may want to optimize your query sequences first, otherwise the results may not be reliable.
+
+Most likely candidate:	PF3D7_1475300.1_len228
+Query set identity:	50%
+Sequence length:	228
+Composite E-value:	7.3e-06
+
+The candidates have been ranked by composite E-value, and the top candidates are shown in the graph in the pop-up window. Presence of a statistically significant "gap" in composite E-values between the top candidate and all other candidates indicates a high confidence identification. The aligned segments can be used for further verification/model building.
+
+For a brief summary of candidates' information and their alignment details, please refer to D_BLAST_searching/test_files/results/cryoid_v2/malaria_predictions_new_summary.txt and D_BLAST_searching/test_files/results/cryoid_v2/malaria_predictions_new_alignment.txt, respectively.
+Job complete in 10.6 seconds!
+Starting job search_pool -od D_BLAST_searching/test_files/results/cryoid_v2/ -q D_BLAST_searching/test_files/fasta/malaria_predictions_new.fasta -p D_BLAST_searching/test_files/fasta/cryoid_v2/malaria_pool.fasta -r (2025-10-18 15:12:18):
+QUERY SEQUENCE SUMMARY
+	Number of query sequences used:  8
+	Number of identifiable residues per query:  19
+	Number of unidentifiable residues per query:  0
+
+Warning: No high identity (> 70%) protein candidates identified! You may want to optimize your query sequences first, otherwise the results may not be reliable.
+
+Most likely candidate:	PF3D7_0608500.1_len235
+Query set identity:	51%
+Sequence length:	235
+Composite E-value:	5.6e-08
+
+The candidates have been ranked by composite E-value, and the top candidates are shown in the graph in the pop-up window. Presence of a statistically significant "gap" in composite E-values between the top candidate and all other candidates indicates a high confidence identification. The aligned segments can be used for further verification/model building.
+
+For a brief summary of candidates' information and their alignment details, please refer to D_BLAST_searching/test_files/results/cryoid_v2/malaria_predictions_new_summary.txt and D_BLAST_searching/test_files/results/cryoid_v2/malaria_predictions_new_alignment.txt, respectively.
+Job complete in 28.8 seconds!
+Starting job search_pool -od D_BLAST_searching/test_files/results/cryoid_v2/ -q D_BLAST_searching/test_files/fasta/malaria_predictions_new.fasta -p D_BLAST_searching/test_files/fasta/cryoid_v2/malaria_pool.fasta -r (2025-10-18 15:16:39):
+QUERY SEQUENCE SUMMARY
+	Number of query sequences used:  8
+	Number of identifiable residues per query:  19
+	Number of unidentifiable residues per query:  0
+
+Warning: No high identity (> 70%) protein candidates identified! You may want to optimize your query sequences first, otherwise the results may not be reliable.
+
+Most likely candidate:	PF3D7_0608500.1_len235
+Query set identity:	51%
+Sequence length:	235
+Composite E-value:	5.6e-08
+
+The candidates have been ranked by composite E-value, and the top candidates are shown in the graph in the pop-up window. Presence of a statistically significant "gap" in composite E-values between the top candidate and all other candidates indicates a high confidence identification. The aligned segments can be used for further verification/model building.
+
+For a brief summary of candidates' information and their alignment details, please refer to D_BLAST_searching/test_files/results/cryoid_v2/malaria_predictions_new_summary.txt and D_BLAST_searching/test_files/results/cryoid_v2/malaria_predictions_new_alignment.txt, respectively.
+Job complete in 11.8 seconds!

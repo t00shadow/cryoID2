@@ -20,13 +20,20 @@ University of Science and Technology of China (USTC)
 Version 1.0, released in 9/1/2019
 """
 
-import os, operator, sys
-import argparse, logging
+import argparse
+import datetime
+import logging
+import math
+import operator
+import os
+import shutil
+import sys
+import time
 from argparse import Namespace
-import math, time, datetime
-from matplotlib import pyplot as plt
+
+import search_support as search_sup
 from Bio import SeqIO
-import search_support as search_sup 
+from matplotlib import pyplot as plt
 
 # default blast format
 blastformat7 = '# Fields: query acc.ver, subject acc.ver, identical, alignment length, query length, mismatches, gap opens, gaps, q. start, q. end, s. start, s. end, query seq, subject seq, evalue'
@@ -79,6 +86,8 @@ def Parser():
                         help='Queries (.fasta/.pdb file) to be searched')                 #python 3.10
     parser.add_argument('-p', '--candidate_pool', type=argparse.FileType('r'), required=True, 
                         help='Candidate protein sequence pool file in fasta format)')     #python 3.10   # , or standard mass spetrum results (.xlsx format))')
+    parser.add_argument('-b', '--base', action='store_true', default=False,
+                        help='Use Blastn instead of Blastp to search nucleotide sequences')
     parser.add_argument('-o', '--outfile', default=None, 
                         help='Output file basename. Default value is the same as query file basename')
     parser.add_argument('-od', '--outdir', default=None, 
@@ -159,7 +168,7 @@ def Blast(params):
         # Run blastp search
         blastp_params = Namespace(dbsize=params.dbsize, qsize=query_len, query=query_file, 
                                   outfile=blast_file, database=params.dbname, evalue=params.evalue, 
-                                  gapscore=params.gapscore, logfile=params.logfile)
+                                  gapscore=params.gapscore, logfile=params.logfile, base=params.base)
         search_sup.SeqBlast(blastp_params)
 
         # Keep the blast result files
@@ -656,15 +665,15 @@ def Search(params):
         protlen[record.description.split("|")[0]] = len(record.seq)              # eg. record.id = "tr|Q8IKL5|Q8IKL5_PLAF7", record.seq = "MNIRLIKKIGINY...ESKWYSFWEENA"
  
     # Generate a local blastp database from the (degenerate) candidate sequences
-    DB_params = Namespace(seqfile=seqfile_name, logfile=logfile)
+    DB_params = Namespace(seqfile=seqfile_name, logfile=logfile, base=params.base)
     dbsize, dbname = search_sup.DBGenerate(DB_params)
     
     # Map the query sequences to files for blastp search
-    query_params = Namespace(queryfile=params.queryfile.name, reverse=params.reverse, verbose=params.verbose, logfile=logfile)
+    query_params = Namespace(queryfile=params.queryfile.name, reverse=params.reverse, verbose=params.verbose, logfile=logfile, base=params.base)
     query_info = search_sup.QueryMap(query_params)
 
     # Blast query sequences against local database
-    Blast_params = Namespace(query_info=query_info, dbsize=dbsize, dbname=dbname, evalue=params.evalue, gapscore=params.gapscore, logfile=logfile)
+    Blast_params = Namespace(query_info=query_info, dbsize=dbsize, dbname=dbname, evalue=params.evalue, gapscore=params.gapscore, logfile=logfile, base=params.base)
     blast_files = Blast(Blast_params)
 
     # Interpret the blast results        
@@ -691,6 +700,10 @@ def Search(params):
     else:
         logging.error('No blast results found. Please check your input.')        
         raise OSError('No blast results found. Exiting.')
+    
+    if not params.verbose:
+        query_dir = os.path.join(os.path.dirname(params.queryfile.name), 'query_files')
+        shutil.rmtree(query_dir)
 
     return results[0].candidate
 

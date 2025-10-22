@@ -17,11 +17,13 @@ University of Science and Technology of China (USTC)
 Version 1.0, released in 9/1/2019
 """
 
-import os, sys, subprocess, logging
+import logging
+import os
+import subprocess
+import sys
+import urllib  # , ssl
 from argparse import Namespace
 from collections import deque
-import urllib #, ssl
-
 
 #================================================================================================================================================================================================
 # RetrevingMapping module
@@ -242,25 +244,9 @@ query_set = {1: 30, 2: 20, 3: 16, 4: 15, 5: 13, 6: 12, 0: 12}
 # generate local blastp database with (degenerate) sequences and get database size
 #================================================================================================================================================================================================
 
-def DBGenerate(params):             # params.seqfile = seqfile (sequence pool file name, fasta format)
+def DBGenerate(params):             
     
-    # logging setup
-    logging.basicConfig(filename=params.logfile, level=logging.INFO, format='%(message)s')
-    
-    # get database name
-    file_dir = os.path.dirname(params.seqfile)
-    file_name = os.path.basename(params.seqfile).split('.')[0]
-    if params.seqfile.endswith('.fasta'):
-        # dbname = file_dir + '/database/' + file_name[:-6] + '_db'
-        dbname = os.path.join(file_dir, file_name + '_db', file_name + '_db')
-    else:
-        logging.exception('Seqfile '+ params.seqfile +' is not of .fasta format! Exiting')
-        raise TypeError('Seqfile '+ params.seqfile +' is not of .fasta format! Exiting')
-        
-    # by default the database subfolder is located in the same directory as the .fasta file
-    if os.path.exists(dbname + '.pin'):
-        # print('Database found. Use the previous one for the current searching.', flush=True)
-
+    def read_dbsize(dbname, seqfile):
         # check txt file to get database size or count the database size (= amino acids' number) from seqfile
         if os.path.exists(dbname + '.txt'):
             with open(dbname + '.txt', 'r') as f1:
@@ -272,43 +258,64 @@ def DBGenerate(params):             # params.seqfile = seqfile (sequence pool fi
                     raise TypeError('Error when getting database size from' + dbname + '.txt. Check the file!')
         else:    
             dbsize = 0
-            with open(params.seqfile,'r') as f2:
+            with open(seqfile,'r') as f2:
                 for seq in f2:
                     if seq[0][0] != '>':
                         dbsize += len(seq) - 1
-                
-    else:
-        # print('********************************************************************', flush=True)
-        # print('Generating blastp local database...', flush=True)
+        return dbsize
 
-
-        # map the sequences and get database size
-        map_params = Namespace(seqfile=params.seqfile, reverse=False, logfile=params.logfile)
-        dbsize, mapped_seqfile = SeqMap(map_params)
-	
-        # run makeblastdb to build the local database
-        mkdb_arg = ['makeblastdb', '-in', mapped_seqfile, '-out', dbname, '-dbtype', dbtype, '-parse_seqids']
-
-# makeblastdb -in mapped_seqfile -out dbname -dbtype dbtype -parse_seqids
-
-
-
+    def makeblastdb(mkdb_arg, dbname, mapped_seqfile):
         try:
             proc = subprocess.Popen(mkdb_arg, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
             out, error = proc.communicate()
-            os.remove(mapped_seqfile)
+            if not params.base:
+                os.remove(mapped_seqfile)
         except OSError:
             logging.exception('Could not find makeblastdb. Make sure you include it in PATH!')
             raise OSError('Could not find makeblastdb. Make sure you include it in PATH!')
-        if error:
-            logging.exception('Error when calling makeblastdb to generate local database.\n' + error)
-            raise OSError('Error when calling makeblastdb to generate local database.\n' + error)       
+        # if error:
+        #     logging.exception('Error when calling makeblastdb to generate local database.\n' + error)
+        #     raise OSError('Error when calling makeblastdb to generate local database.\n' + error)       
 
         # save the database size in txt file
         with open(dbname + '.txt','w') as f1:
             f1.write('database size:'+'\t'+str(dbsize))
+
+    # logging setup
+    logging.basicConfig(filename=params.logfile, level=logging.INFO, format='%(message)s')
+    
+    # get database name
+    file_dir = os.path.dirname(params.seqfile)
+    file_name = os.path.splitext(os.path.basename(params.seqfile))[0]
+    if params.seqfile.endswith('.fasta'):
+        # dbname = file_dir + '/database/' + file_name[:-6] + '_db'
+        dbname = os.path.join(file_dir, file_name + '_db', file_name + '_db')
+    else:
+        logging.exception('Seqfile '+ params.seqfile +' is not of .fasta format! Exiting')
+        raise TypeError('Seqfile '+ params.seqfile +' is not of .fasta format! Exiting')
         
-    #print 'Size of database is: ' + str(dbsize)
+    # by default the database subfolder is located in the same directory as the .fasta file
+    if not params.base: 
+        # blastp
+        if os.path.exists(dbname + '.pin'):
+            dbsize = read_dbsize(dbname, params.seqfile)   
+        else:
+            # map the sequences and get database size
+            map_params = Namespace(seqfile=params.seqfile, reverse=False, logfile=params.logfile, base=params.base)
+            dbsize, mapped_seqfile = SeqMap(map_params)
+        
+            # run makeblastdb to build the local database
+            mkdb_arg = ['makeblastdb', '-in', mapped_seqfile, '-out', dbname, '-dbtype', dbtype, '-parse_seqids']
+            makeblastdb(mkdb_arg, dbname, mapped_seqfile)
+    else: 
+        # blastn
+        if os.path.exists(dbname + '.pin'):
+            dbsize = read_dbsize(dbname, params.seqfile)
+        else:
+            # run makeblastdb to build the local database
+            mkdb_arg = ['makeblastdb', '-in', params.seqfile, '-out', dbname, '-dbtype', 'nucl', '-parse_seqids']
+            dbsize = read_dbsize(dbname, params.seqfile)
+            makeblastdb(mkdb_arg, dbname, mapped_seqfile)
     
     return [dbsize, dbname]
 
@@ -321,10 +328,9 @@ def SeqMap(params):             # params.seqfile = queryfile (query file name), 
 
     # logging and outfile setup
     logging.basicConfig(filename=params.logfile, level=logging.INFO, format='%(message)s')
-    outfile = params.seqfile[:-6] + '_mapped.fasta'
 
     f1 = open(params.seqfile, 'r')
-    outfile = params.seqfile[:-6] + '_mapped.fasta'
+    outfile = os.path.splitext(params.seqfile)[0] + '_mapped.fasta'
     o1 = open(outfile, 'w')
             
     # count total number of amino acid in input sequence
@@ -338,11 +344,12 @@ def SeqMap(params):             # params.seqfile = queryfile (query file name), 
             #for k, v in aaMapping.iteritems():
                 #seq = seq.replace(k, v)
             # replace the codes accroding to the table
-            try:
-                seq = ''.join(aaMapping[e] for e in seq[:-1])
-            except KeyError as error:
-                logging.exception('Unrecognized amino acid ' + str(error) + ' in line ' + seq[:-1] + ' of ' + params.seqfile)
-                raise KeyError('Unrecognized amino acid ' + str(error) + ' in line ' + seq[:-1] + ' of ' + params.seqfile)
+            if not params.base:
+                try:
+                    seq = ''.join(aaMapping[e] for e in seq[:-1])
+                except KeyError as error:
+                    logging.exception('Unrecognized amino acid ' + str(error) + ' in line ' + seq[:-1] + ' of ' + params.seqfile)
+                    raise KeyError('Unrecognized amino acid ' + str(error) + ' in line ' + seq[:-1] + ' of ' + params.seqfile)
                 
             seq += '\n'
                 
@@ -378,7 +385,7 @@ def SeqGroup(params):       # params.seqfile = queryfile (query file name)
 
     # logging and outfile setup
     logging.basicConfig(filename=params.logfile, level=logging.INFO, format='%(message)s')
-    outfile = params.seqfile[:-6] + '_simplified.fasta'
+    outfile = os.path.join(params.query_dir, os.path.splitext(params.seqfile)[0] + '_simplified.fasta')
 
     # count the sequence number/length
     seq_num = 0
@@ -449,12 +456,15 @@ def QueryMap(params):
     elif params.queryfile.endswith('.fasta'):
         queryfile = params.queryfile
     
+    # make query directory
+    query_dir = os.path.join(os.path.dirname(queryfile), 'query_files')
+    os.makedirs(query_dir, exist_ok=True)
+
     # generate the degenerate query sequence file for the user    
-    if params.verbose:
-        group_params = Namespace(seqfile=queryfile, logfile=params.logfile)
-        #query_num, query_len, query_grouped = SeqGroup(group_params)
-        SeqGroup(group_params)
-    
+    # if params.verbose:
+    #     group_params = Namespace(seqfile=queryfile, query_dir=query_dir, logfile=params.logfile)
+    #     #query_num, query_len, query_grouped = SeqGroup(group_params)
+    #     SeqGroup(group_params)
     
     # split queries. One query, one file.
     with open(queryfile, 'r') as f1:
@@ -506,7 +516,7 @@ def QueryMap(params):
             # Assign each query a number in case they share a same name. remove any separate parameters
             query_name = line1[1:].strip("\n") + '_' + str(iquery)
             # query_name = ''.join(line1[1:].split()) + '_' + str(iquery)
-            query_split = queryfile[:-6] + '_' + str(iquery) + '.fasta'
+            query_split = os.path.join(query_dir, os.path.splitext(os.path.basename(queryfile))[0] + '_' + str(iquery) + '.fasta')
             
             # write the current query to file
             with open(query_split, 'w') as o1:
@@ -518,7 +528,7 @@ def QueryMap(params):
             # o1.close()
             
             # tranform query and return length
-            map_params = Namespace(seqfile=query_split, reverse=params.reverse, logfile=params.logfile)
+            map_params = Namespace(seqfile=query_split, reverse=params.reverse, base=params.base, logfile=params.logfile)
             query_len, query_file = SeqMap(map_params)
             
             # add current query length
@@ -532,7 +542,8 @@ def QueryMap(params):
             x_num += x_num_curr
             
             # remove the intermediate file
-            os.remove(query_split)
+            # if not params.verbose:
+            #     os.remove(query_split)
             
             # add the mapped query name, length, file name and number of X to the query_info list
             query_info.append([query_name, query_len, query_file, x_num_curr])
@@ -589,7 +600,7 @@ def QueryMap(params):
     print('')
     sys.stdout.flush()
     logging.info('')
-    
+        
     return query_info
 
 
@@ -645,9 +656,13 @@ def SeqBlast(params):
         output = params.outfile
     
     # run blast search according to the provided parameters
-    blast_arg = ['blastp', '-task', task, '-matrix', matrix, '-db', params.database, '-query', params.query, '-out', output, '-evalue', str(params.evalue), '-comp_based_stats', comp_based_stats, 
-'-dbsize', str(params.dbsize), '-searchsp', searchsp, '-word_size', word_size,'-gapopen', str(params.gapscore[0]), '-gapextend', str(params.gapscore[1]),  '-outfmt', outfmt, '-max_target_seqs', str(max_seq)]
-
+    if not params.base:
+        blast_arg = ['blastp', '-task', task, '-matrix', matrix, '-db', params.database, '-query', params.query, '-out', output, '-evalue', str(params.evalue), '-comp_based_stats', comp_based_stats, 
+    '-dbsize', str(params.dbsize), '-searchsp', searchsp, '-word_size', word_size,'-gapopen', str(params.gapscore[0]), '-gapextend', str(params.gapscore[1]),  '-outfmt', outfmt, '-max_target_seqs', str(max_seq)]
+    else:
+        blast_arg = ['blastn', '-task', 'blastn-short', '-db', params.database, '-query', params.query, '-out', output, '-evalue', str(params.evalue), 
+    '-dbsize', str(params.dbsize), '-searchsp', searchsp, '-outfmt', outfmt, '-max_target_seqs', str(max_seq)]
+    
     try:
         proc = subprocess.Popen(blast_arg)
         out, error = proc.communicate()
