@@ -252,7 +252,7 @@ def main():
             evl_folder_path,
         ) = initial_setting(model_index, data_path, map_dirs, DEVICE)
 
-        model = UNET(in_channels, out_channels).to(DEVICE)
+        model = UNET(in_channels=in_channels, out_channels).to(DEVICE)
         loss_fn = nn.CrossEntropyLoss(weight=class_weights)
         optimizer = optim.Adam(model.parameters(), lr=learning_rate)
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
