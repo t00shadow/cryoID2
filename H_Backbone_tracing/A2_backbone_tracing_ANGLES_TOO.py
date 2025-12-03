@@ -121,8 +121,41 @@ def save_path_as_pdb(coords, route, output_file="traced_backbone.pdb"):
 
 
 
-if __name__ == "__main__":
+def main(input_file_path = None):
+    # input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering_v2\emd_21887_agglomerative_cd_4.0_combined_largestCC_20250908_190055.pdb"
+    # input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering_v2\emd_34843_agglomerative_cd_4.0_combined_largestCC_20250916_202639.pdb"
+    # emd_34843 helix
+    input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering_v2\emd_34843_agglomerative_cd_4.0_combined_largestCC_20250923_200759.pdb"
+    input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering_v2\emd_34843_agglomerative_cd_4.0_combined_largestCC_20250923_200917.pdb"
+    # emd_34843 sheet
+    input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing/outputs/clustering_v2/emd_34843_agglomerative_cd_4.0_combined_largestCC_20250923_204446.pdb"
+    input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing/outputs/clustering_v2/emd_34843_agglomerative_cd_4.0_combined_largestCC_20250923_204749.pdb"
+    # actually using SS (helix)
+    input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering_v2\emd_34843_agglomerative_cd_4.0_combined_largestCC_20250923_212018.pdb"
+    # full structure (way more coords)
+    # input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing/outputs/clustering_v2\emd_34843_agglomerative_cd_4.0_data_alone_20250925_184041.pdb"
+    
+    # 10/3/25 sending more results to grayson, can delete these lines later, ALSO AUTOMATE this part already jeez
+    # z: (0, 999), y: (0, 999), x: (0, 104)
+    input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering_v2\emd_34843_agglomerative_cd_4.0_combined_largestCC_20251004_010559.pdb"
+    # z: (0, 999), y: (0, 999), x: (104, 999)
     input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering_v2\emd_34843_agglomerative_cd_4.0_combined_largestCC_20251004_015012.pdb"
+    
+    # 10/4/25 about 5 more samples for 8hk3 #1/B for grayson
+    # input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering_v2\emd_34843_agglomerative_cd_4.0_component_008_label34_size30_20251005_001334.pdb"
+    # 1)
+    input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering_v2\emd_34843_agglomerative_cd_4.0_component_001_label13_size43_20251005_001334.pdb"
+    # 2)
+    input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering_v2\emd_34843_agglomerative_cd_4.0_component_005_label26_size21_20251005_001334.pdb"
+    # 3)
+    input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering_v2\emd_34843_agglomerative_cd_4.0_component_006_label29_size32_20251005_001334.pdb"
+    # 4)   #! fall back to old script for this one, better result
+    # input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering_v2\emd_34843_agglomerative_cd_4.0_component_007_label31_size56_20251005_001334.pdb"
+    # 5)
+    input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering_v2\emd_34843_agglomerative_cd_4.0_component_009_label35_size20_20251005_001334.pdb"
+
+    if input_file_path:
+        input_file = input_file_path
     output_file = r"traced_backbone3.pdb"
 
     coords = load_ca_coordinates(input_file)
@@ -137,3 +170,9 @@ if __name__ == "__main__":
     print("Traced route:", route)
 
     save_path_as_pdb(coords, route, output_file=output_file)
+
+    return output_file
+
+
+if __name__ == "__main__":
+    main()

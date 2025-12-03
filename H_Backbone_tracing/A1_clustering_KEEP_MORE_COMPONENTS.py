@@ -7,6 +7,8 @@ from datetime import datetime
 from sklearn.neighbors import NearestNeighbors
 from scipy.sparse.csgraph import connected_components
 
+from A0_utils import load_coords_from_pdb
+
 # ----------------------------- Configuration -----------------------------
 from A0_config_loader import load_sample_paths, load_config_section
 
@@ -15,6 +17,7 @@ config_file = "H_Backbone_tracing/A0_config.yaml"
 FILE_TOGGLE = "emd_34843"
 FILE_TOGGLE = "emd_38402"
 FILE_TOGGLE = "real_malaria_1"
+# FILE_TOGGLE = "emd_42791"
 
 paths_cfg = load_sample_paths(config_file, FILE_TOGGLE)
 INPUT_MRC = paths_cfg["CA_mrc"]
@@ -58,7 +61,7 @@ x_slice = (0, 999)
 # x_slice = (0, 104)    # 10/3/25 sending more results to Grayson, just undo these changes after
 # x_slice = (104, 999)    # 10/3/25 sending more results to Grayson, just undo these changes after
 
-x_slice = (0, 100)    # 10/8/25 just use like half cuz holy shit are there too many voxels for the malaria samples
+# x_slice = (0, 100)    # 10/8/25 just use like half cuz holy shit are there too many voxels for the malaria samples
 
 # ----------------------------- Helper functions -----------------------------
 
@@ -192,13 +195,21 @@ def main():
 
     # 1) Data alone (no mask)
     print("\nClustering data alone...")
-    data_centroids = cluster_and_get_centroids(volume_coords, "data_alone")
+    # data_centroids = cluster_and_get_centroids(volume_coords, "data_alone")    # toggle off if only using SS masks below
+    # # TODO loading from preclustered file still needs some work, results look kinda off for some reason, tho i did also toggle off the loop SS mask, but it shoudlnt make much of a difference since the all coords is a superset of loop coords so there'll only be a few differences. EDIT: just turned it on and yeah makes only a tiny dif so not the reason. The real reason is prob differnce in how the coords are originally stored vs read back by my sloppily written fxn
+    # # first clustering run
+    # pdb_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering_v2\10_7_25\real_malaria_1_agglomerative_cd_4.0_data_alone_20251008_173308.pdb"
+    # # second clustering run
+    # pdb_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering_v2\10_7_25\real_malaria_1_agglomerative_cd_4.0_data_alone_20251008_175558.pdb"
+    # data_centroids = load_coords_from_pdb(pdb_file)
+
+    # print(f"Loaded {len(data_centroids)} centroids from {pdb_file}")
 
     # Masks
     ss_masks = {
-        # 'helix': MASK_HELIX_MRC,
+        'helix': MASK_HELIX_MRC,
         # 'sheet': MASK_SHEET_MRC,
-        'loop': MASK_RING_MRC,  # assuming loop = ring mask
+        # 'loop': MASK_RING_MRC,  # assuming loop = ring mask
     }
 
     mask_centroids_list = []
@@ -226,9 +237,9 @@ def main():
         mask_centroids_list.append(centroids)
 
     # Combine all centroids: data alone + each mask centroids
-    all_centroids = [data_centroids] + mask_centroids_list      # effectively uses all coords rn, since LHS has all coords, and RHS is just a subset* of LHS (*well maybe not perfectly aligned since I threshold first then cluster)
+    # all_centroids = [data_centroids] + mask_centroids_list      # effectively uses all coords rn, since LHS has all coords, and RHS is just a subset* of LHS (*well maybe not perfectly aligned since I threshold first then cluster)
     # all_centroids = [data_centroids]    #! right now its equivalent to this
-    # all_centroids = mask_centroids_list    #! use this if want ONLY the masked stuff
+    all_centroids = mask_centroids_list    #! use this if want ONLY the masked stuff
     combined_centroids = np.vstack([c for c in all_centroids if c.size > 0])
 
     print(f"\nTotal combined centroids before connected components: {len(combined_centroids)}")
@@ -269,6 +280,9 @@ def main():
     # Filter components by size
     valid_labels = [label for label, size in enumerate(component_sizes) if size >= MIN_CC_SIZE]
     print(f"Keeping {len(valid_labels)} connected components with size >= {MIN_CC_SIZE}")
+    # print("type(valid_labels)", type(valid_labels))
+    # print(valid_labels)
+    # assert(False)
 
     # Build adjacency edges
     adjacency = adjacency.tocoo()

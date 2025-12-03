@@ -22,7 +22,9 @@ def read_pdb_coords(pdb_file):
     coords = []
     with open(pdb_file, "r") as f:
         for line in f:
-            if line.startswith("ATOM") and line[13:15].strip() == "CA":
+            # if line.startswith("ATOM") and line[13:15].strip() == "CA":
+            if ( line.startswith("ATOM") and line[13:15].strip() == "CA" ) or \
+                ( line.startswith("HETATM") and line[13:15].strip() == "C" ):    # A1_clustering.py does this (this is if you skip A2_....py), need to modify A1_clustering.py later
                 x = float(line[30:38])
                 y = float(line[38:46])
                 z = float(line[46:54])
@@ -48,6 +50,7 @@ def coords_to_voxels(coords, voxel_size, radius=1):
         voxel_dict[atom_id] = neighborhood
     return voxel_dict
 
+# TODO: this part is fine, but could also rewrite with Pathlib glob and my util fxns i just maed today (10/9/25). But wtv, gonna do a full refactor this weekend anyways.
 def sample_residue_maps(voxel_dict, residue_dir, shape):    # TODO: maybe rename this fxn
     """
     For each atom (from voxel_dict), sample values from all residue_type .mrc maps.
@@ -144,7 +147,8 @@ def map_residue_file_to_code(res_file):
     Convert a residue_type filename to actual residue code.
     Assumes files are numbered like ..._1_, ..._2_, etc.
     """
-    match = re.search(r"_([0-9]+)_", res_file)
+    # match = re.search(r"_([0-9]+)_", res_file)
+    match = re.search(r"_([0-9]+)_possibility\.mrc$", res_file)    # more robust regex (keeping $ anchor since all res possibilities as of now end like this, also enforces a more consistent naming convention. All naming conventions should be controlled by a config file once all backend is integrated together), cuz new file names have ints (from 1-20, ex. 006) surrounded by underscores too. Alternatively, can consider tokenization instead of regex (like how I do in extract_number_from_file_name() of A0_utils_pdbtofasta.py)
     if not match:
         raise ValueError(f"Cannot extract index from filename: {res_file}")
     idx = int(match.group(1)) - 1  # convert to 0-based
@@ -226,7 +230,9 @@ def update_pdb_residues(input_pdb, output_pdb, residue_sequence):
 
     with open(input_pdb, 'r') as f:
         for line in f:
-            if line.startswith("ATOM") and line[13:15].strip() == "CA":
+            # if line.startswith("ATOM") and line[13:15].strip() == "CA":
+            if ( line.startswith("ATOM") and line[13:15].strip() == "CA" ) or \
+                ( line.startswith("HETATM") and line[13:15].strip() == "C" ):    # A1_clustering.py does this (this is if you skip A2_....py), need to modify A1_clustering.py later
                 if ca_index >= len(residue_sequence):
                     raise ValueError("Number of CA atoms does not match the residue sequence")
 
@@ -244,17 +250,29 @@ def update_pdb_residues(input_pdb, output_pdb, residue_sequence):
 
 
 
-if __name__ == "__main__":
+def main(input_file_path = None, main_map_path = None, residue_dir_path = None):
     # main_map = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-21887_re_3.2\possibility\emd_21887.map_key_atoms_1_possibility.mrc"
+    # TODO: rename main_map to smth else because it is NOT a map. Also just fyi, this file is only for getting the dimensions (assumes all unet possiblity mrcs have same dimensions, for the same sample).
     main_map = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-34843_re_3.2\possibility\emd_34843.map_key_atoms_1_possibility.mrc"
     pdb_file = "traced_backbone3.pdb"
+    # 10/1/25 one off files for michael
+    # pdb_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering_v2\emd_34843_agglomerative_cd_4.2_combined_fullGraph_20250927_235412.pdb"
+    if input_file_path:
+        pdb_file = input_file_path
+    if main_map_path:
+        main_map = main_map_path
     coords = read_pdb_coords(pdb_file)
     print("Read", len(coords), "CA coordinates:")
     for i, (x, y, z) in enumerate(coords, start=1):
         print(f"{i:3d}: {x:.3f}, {y:.3f}, {z:.3f}")
     # assert(False)
     # residue_dir = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-21887_re_3.2\possibility"
+    # BUG: bruh
+    # TODO: fix this so can pass in residue_dir, should just build it from config file, it's based on base_dir, literally just Path(base_dir) / possibility
+    # TODO: minor consideration, rename to residue_possibility_dir? longer tho so maybe no. tho regardless itll get autofilled eventually based on the config file. user should NOT have to set this variable manually
     residue_dir = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-34843_re_3.2\possibility"
+    if residue_dir_path:
+        residue_dir = residue_dir_path
 
     voxel_size, shape = get_voxel_size(main_map)
     voxel_dict = coords_to_voxels(coords, voxel_size, radius=1)
@@ -293,4 +311,14 @@ if __name__ == "__main__":
 
     ###^ Update the input pdb file to the correct residues (only need to change residue column)
     output_pdb = "traced_backbone3_updated_residues.pdb"
-    update_pdb_residues("traced_backbone3.pdb", output_pdb, residue_sequence)
+    # 10/1/25 one off files for michael
+    # base, ext = os.path.splitext(os.path.basename(pdb_file))
+    # output_pdb = f"{base}_WITH_RESIDUES{ext}"
+    # output_pdb = os.path.join("H_Backbone_tracing/outputs/one_off_files_for_michael", output_pdb)
+    update_pdb_residues(pdb_file, output_pdb, residue_sequence)
+
+    return output_pdb
+
+
+if __name__ == "__main__":
+    main()

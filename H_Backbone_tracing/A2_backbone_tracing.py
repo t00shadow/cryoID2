@@ -6,7 +6,8 @@ def load_ca_coordinates(pdb_file):
     coords = []
     with open(pdb_file, 'r') as f:
         for line in f:
-            if line.startswith("HETATM") and line[13:15].strip() == "C":
+            # if line.startswith("HETATM") and line[13:15].strip() == "C":
+            if line.startswith(("HETATM", "ATOM")) and line[13:15].strip() in ("CA", "C"):
                 x = float(line[30:38])
                 y = float(line[38:46])
                 z = float(line[46:54])
@@ -88,7 +89,7 @@ def save_path_as_pdb(coords, route, output_file="traced_backbone.pdb"):
         f.write("TER\nEND\n")
     print(f"Saved traced backbone to {output_file}")
 
-if __name__ == "__main__":
+def main(input_file_path = None):
     # input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering_v2\emd_21887_agglomerative_cd_4.0_combined_largestCC_20250908_190055.pdb"
     # input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering_v2\emd_34843_agglomerative_cd_4.0_combined_largestCC_20250916_202639.pdb"
     # emd_34843 helix
@@ -100,7 +101,25 @@ if __name__ == "__main__":
     # actually using SS (helix)
     input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering_v2\emd_34843_agglomerative_cd_4.0_combined_largestCC_20250923_212018.pdb"
     # full structure (way more coords)
-    input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing/outputs/clustering_v2\emd_34843_agglomerative_cd_4.0_data_alone_20250925_184041.pdb"
+    # input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing/outputs/clustering_v2\emd_34843_agglomerative_cd_4.0_data_alone_20250925_184041.pdb"
+    
+    # 10/3/25 sending more results to grayson, can delete these lines later, ALSO AUTOMATE this part already jeez
+    # z: (0, 999), y: (0, 999), x: (0, 104)
+    input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering_v2\emd_34843_agglomerative_cd_4.0_combined_largestCC_20251004_010559.pdb"
+    # z: (0, 999), y: (0, 999), x: (104, 999)
+    input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering_v2\emd_34843_agglomerative_cd_4.0_combined_largestCC_20251004_015012.pdb"
+    
+    # 10/4/25 ONE SPECIFIC prediction for 8hk3 #1/B that the newer code is too strict for. LOWKEY fall back to this version if other one is too strict and cant find anything
+    #! EDIT: nvm dont use, the result is so ass
+    # input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering_v2\emd_34843_agglomerative_cd_4.0_component_008_label34_size30_20251005_001334.pdb"
+    #! new EDIT: worked for this other prediction tho
+    input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering_v2\emd_34843_agglomerative_cd_4.0_component_007_label31_size56_20251005_001334.pdb"
+    
+    # malaria 1:
+    input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering_v2\10_7_25\real_malaria_1_agglomerative_cd_4.0_component_013_label89_size26_20251010_012557.pdb"
+    
+    if input_file_path:
+        input_file = input_file_path
     output_file = r"traced_backbone3.pdb"
 
     coords = load_ca_coordinates(input_file)
@@ -110,3 +129,8 @@ if __name__ == "__main__":
     print("Traced route:", route)
 
     save_path_as_pdb(coords, route, output_file=output_file)
+
+    return output_file
+
+if __name__ == "__main__":
+    main()

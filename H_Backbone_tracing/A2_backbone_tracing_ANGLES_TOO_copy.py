@@ -12,7 +12,8 @@ def load_ca_coordinates(pdb_file):
     coords = []
     with open(pdb_file, 'r') as f:
         for line in f:
-            if line.startswith("HETATM") and line[13:15].strip() == "C":
+            # if line.startswith("HETATM") and line[13:15].strip() == "C":
+            if line.startswith(("HETATM", "ATOM")) and line[13:15].strip() in ("CA", "C"):
                 x = float(line[30:38])
                 y = float(line[38:46])
                 z = float(line[46:54])
@@ -79,7 +80,7 @@ def helical_backbone_tracer_per_start(coords,
                 last = path[-1]
                 available_neighbors = neighbors[last] - used
                 if not available_neighbors:
-                    if len(path) >= min(20, round(N * 0.95)):
+                    if len(path) >= min(16, round(N * 0.95)):
                         final_paths.append(path)
                     continue
 
@@ -169,6 +170,9 @@ def main(input_file_path = None):
     # input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering_v2\emd_34843_agglomerative_cd_4.0_component_007_label31_size56_20251005_001334.pdb"
     # 5)
     input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering_v2\emd_34843_agglomerative_cd_4.0_component_009_label35_size20_20251005_001334.pdb"
+
+    # malaria 1:
+    input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering_v2\10_7_25\real_malaria_1_agglomerative_cd_4.0_component_013_label89_size26_20251010_012557.pdb"
 
     if input_file_path:
         input_file = input_file_path

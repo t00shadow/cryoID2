@@ -16,9 +16,9 @@ samples:
     base_dir: "D:/NEW_TEST_DATA/UnetPrediction/EMD-38402_re_3.06"
   emd_42791:
     base_dir: "D:/NEW_TEST_DATA/UnetPrediction/EMD-42791_re_3.2"
-  real_malaria/1:    # this name can be anything (cryosparc_P164_J166_006_volume_map)
+  real_malaria_1:    # this name can be anything (cryosparc_P164_J166_006_volume_map)
     base_dir: "D:/NEW_TEST_DATA/UnetPrediction/real_malaria/1"
-  real_malaria/2:    # this name can be anything (cryosparc_P164_J166_006_volume_map_sharp)
+  real_malaria_2:    # this name can be anything (cryosparc_P164_J166_006_volume_map_sharp)
     base_dir: "D:/NEW_TEST_DATA/UnetPrediction/real_malaria/2"
 
 clustering:
@@ -28,3 +28,4 @@ clustering:
   connect_dist: 4.0   # for agglomerative only
   bandwidth: 1.9      # for meanshift only
   min_cluster_size: 5
+  min_cc_size: 20    # min connected component size (essentially minimum atom sequence length)

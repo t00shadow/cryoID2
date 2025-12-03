@@ -7,19 +7,25 @@ from datetime import datetime
 from sklearn.neighbors import NearestNeighbors
 from scipy.sparse.csgraph import connected_components
 
+from A0_utils import load_coords_from_pdb
+
 # ----------------------------- Configuration -----------------------------
 from A0_config_loader import load_sample_paths, load_config_section
 
 config_file = "H_Backbone_tracing/A0_config.yaml"
 
 FILE_TOGGLE = "emd_34843"
+FILE_TOGGLE = "emd_38402"
+FILE_TOGGLE = "real_malaria_1"
+FILE_TOGGLE = "emd_42791"
 
 paths_cfg = load_sample_paths(config_file, FILE_TOGGLE)
 INPUT_MRC = paths_cfg["CA_mrc"]
 MASK_HELIX_MRC = paths_cfg["mask_helix_mrc"]
 MASK_SHEET_MRC = paths_cfg["mask_sheet_mrc"]
 MASK_RING_MRC = paths_cfg["mask_ring_mrc"]
-ORIGINAL_MAP_PATH = paths_cfg["original_map"]
+ORIGINAL_MAP_PATH = paths_cfg["original_map"]    # bruh ts isnt even used
+print("\n", INPUT_MRC, "\n", MASK_HELIX_MRC, "\n", MASK_SHEET_MRC, "\n", MASK_RING_MRC, "\n", ORIGINAL_MAP_PATH)
 
 clustering_cfg = load_config_section(config_file, "clustering")
 OUTPUT_DIR = clustering_cfg["output_dir"]
@@ -53,6 +59,8 @@ x_slice = (50, 150)
 z_slice = (0, 999)    # max size is 208 but going over is fine since the code will fix it
 y_slice = (0, 999)
 x_slice = (0, 999)
+# x_slice = (0, 104)    # 10/3/25 sending more results to Grayson, just undo these changes after
+# x_slice = (104, 999)    # 10/3/25 sending more results to Grayson, just undo these changes after
 
 # ----------------------------- Helper functions -----------------------------
 
@@ -185,6 +193,14 @@ def main():
     # 1) Data alone (no mask)
     print("\nClustering data alone...")
     data_centroids = cluster_and_get_centroids(volume_coords, "data_alone")
+    # # TODO loading from preclustered file still needs some work, results look kinda off for some reason, tho i did also toggle off the loop SS mask, but it shoudlnt make much of a difference since the all coords is a superset of loop coords so there'll only be a few differences. EDIT: just turned it on and yeah makes only a tiny dif so not the reason. The real reason is prob differnce in how the coords are originally stored vs read back by my sloppily written fxn
+    # # first clustering run
+    # pdb_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering_v2\10_7_25\real_malaria_1_agglomerative_cd_4.0_data_alone_20251008_173308.pdb"
+    # # second clustering run (doesnt work for this version)
+    # # pdb_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering_v2\10_7_25\real_malaria_1_agglomerative_cd_4.0_data_alone_20251008_175558.pdb"
+    # data_centroids = load_coords_from_pdb(pdb_file)
+
+    # print(f"Loaded {len(data_centroids)} centroids from {pdb_file}")
 
     # Masks
     ss_masks = {
