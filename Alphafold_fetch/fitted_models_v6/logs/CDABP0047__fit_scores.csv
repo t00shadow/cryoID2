@@ -1,3 +1,3 @@
-label,type,id,map_resolution_A,model_resolution_A,vof,qscore,fitted_path,source_model,kept
-CDABP0047__AF_P04406,AF,P04406,2.603996663517821,,0.34093241337454644,0.46648994913768965,Alphafold_fetch\fitted_models_v6\CDABP0047__AF_P04406_fitted_v5.pdb,Alphafold_fetch\fetched_structures_v3\P04406.pdb,True
-CDABP0047__PDB_8G17,PDB,8G17,2.603996663517821,1.98,0.941823490028999,0.923155551598382,Alphafold_fetch\fitted_models_v6\CDABP0047__PDB_8G17_fitted_v5.pdb,Alphafold_fetch\fetched_structures_v3\8G17.cif,True
+label,type,id,map_resolution_A,model_resolution_A,vof,fitted_path,source_model,kept
+CDABP0047__AF_P04406,AF,P04406,2.603996663517821,,0.22794385550948176,Alphafold_fetch\fitted_models_v6\CDABP0047__AF_P04406_fitted_v5.pdb,Alphafold_fetch\fetched_structures_v3\P04406.pdb,True
+CDABP0047__PDB_8G17,PDB,8G17,2.603996663517821,1.98,0.818260979702986,Alphafold_fetch\fitted_models_v6\CDABP0047__PDB_8G17_fitted_v5.pdb,Alphafold_fetch\fetched_structures_v3\8G17.cif,True

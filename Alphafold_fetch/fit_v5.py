@@ -3,16 +3,15 @@
 # =============================
 #!/usr/bin/env python3
 """
-Rigid-body fit MODEL→MAP, then evaluate with:
-  • VOF (Volume Overlap Fraction) from six 2D projections (3 axes + 3 diagonals)
-    using IoU (drop the max IoU, average the rest).
-  • Q-score–like metric from per-atom radial profiles vs a Gaussian reference.
+Rigid-body fit MODEL+MAP, then evaluate with:
+  - VOF (Volume Overlap Fraction) from a 3D voxel IoU between a thresholded map and
+    a fixed-radius model occupancy (no resolution scaling).
 
 New:
-  • Fast single-map resolution estimator (estimate_resolution_single_map)
-  • Resolution-aware parameters use MAP resolution with precedence, then model res.
+  - Fast single-map resolution estimator (estimate_resolution_single_map)
+  - Resolution-aware parameters use MAP resolution with precedence, then model res.
 
-Returns (VOF, Q, fitted_path).
+Returns (VOF, fitted_path).
 
 Deps: gemmi, numpy, scipy, mrcfile
   pip install gemmi numpy scipy mrcfile
@@ -23,7 +22,7 @@ import math, itertools, os
 from typing import Tuple, Optional
 import numpy as np
 import mrcfile, gemmi
-from scipy.ndimage import gaussian_filter, map_coordinates, rotate as ndrotate, binary_dilation, binary_erosion
+from scipy.ndimage import gaussian_filter, map_coordinates, binary_dilation, binary_erosion
 from scipy.spatial.transform import Rotation as R
 
 # -------------------- MRC helpers --------------------
@@ -278,15 +277,12 @@ def greedy_refine(mapinfo: MapInfo, model_pts_scoring: np.ndarray,
                 if not improved: break
     return R_best, t_best, s_best
 
-# -------------------- VOF (six projections) --------------------
+# -------------------- VOF (3D IoU) --------------------
 def _downsample_to_maxdim(vol: np.ndarray, max_dim: int) -> np.ndarray:
     z, y, x = vol.shape
     scale = max(1, int(np.ceil(max([z,y,x]) / max_dim)))
     if scale == 1: return vol
     return vol[::scale, ::scale, ::scale]
-
-def _bin2d(arr2d: np.ndarray, thr: float) -> np.ndarray:
-    return (arr2d >= float(thr)).astype(np.uint8)
 
 def _model_occupancy_from_points(shape: tuple[int,int,int], pts_zyx: np.ndarray, rad_vox: float) -> np.ndarray:
     occ = np.zeros(shape, dtype=np.uint8)
@@ -308,28 +304,13 @@ def _model_occupancy_from_points(shape: tuple[int,int,int], pts_zyx: np.ndarray,
         occ[zz,yy,xx] = 1
     return occ
 
-def _vol_projections_6(vol: np.ndarray) -> list[np.ndarray]:
-    proj_xy = vol.sum(axis=0)   # Z→XY
-    proj_xz = vol.sum(axis=1)   # Y→XZ
-    proj_yz = vol.sum(axis=2)   # X→YZ
-    v_z45 = ndrotate(vol, angle=45.0, axes=(1,2), reshape=False, order=1, mode='nearest')
-    v_y45 = ndrotate(vol, angle=45.0, axes=(0,2), reshape=False, order=1, mode='nearest')
-    v_x45 = ndrotate(vol, angle=45.0, axes=(0,1), reshape=False, order=1, mode='nearest')
-    p_z45 = v_z45.sum(axis=0)
-    p_y45 = v_y45.sum(axis=1)
-    p_x45 = v_x45.sum(axis=2)
-    return [proj_xy, proj_xz, proj_yz, p_z45, p_y45, p_x45]
-
-def _iou(a_bin: np.ndarray, b_bin: np.ndarray) -> float:
-    inter = np.logical_and(a_bin, b_bin).sum()
-    union = np.logical_or(a_bin, b_bin).sum()
-    return float(inter) / float(union) if union > 0 else 0.0
-
 def compute_vof(mapinfo: MapInfo, model_pts_world: np.ndarray,
                 sphere_radius_vox: float,
                 max_dim: int = 128) -> float:
     mZ = (mapinfo.fit_map - mapinfo.mu) / mapinfo.sd
     mZ_ds = _downsample_to_maxdim(mZ, max_dim)
+
+    map_mask = mZ_ds >= 1.0
 
     fz, fy, fx = mapinfo.world_to_array_frac_many(model_pts_world)
     scale_z = mZ.shape[0] / mZ_ds.shape[0]
@@ -337,65 +318,13 @@ def compute_vof(mapinfo: MapInfo, model_pts_world: np.ndarray,
     scale_x = mZ.shape[2] / mZ_ds.shape[2]
     pts_zyx_ds = np.column_stack([fz/scale_z, fy/scale_y, fx/scale_x])
 
-    model_occ = _model_occupancy_from_points(mZ_ds.shape, pts_zyx_ds, sphere_radius_vox)
+    scale_mean = float(np.mean([scale_z, scale_y, scale_x]))
+    rad_ds = sphere_radius_vox / max(scale_mean, 1e-6)
+    model_occ = _model_occupancy_from_points(mZ_ds.shape, pts_zyx_ds, rad_ds)
 
-    map_projs = _vol_projections_6(mZ_ds)
-    mdl_projs = _vol_projections_6(model_occ.astype(np.float32))
-
-    map_bins = [_bin2d(p, 1.0) for p in map_projs]
-    mdl_bins = [_bin2d(p, 1.0) for p in mdl_projs]
-
-    ious = [_iou(a, b) for a, b in zip(map_bins, mdl_bins)]
-    if not ious: return 0.0
-    ious_sorted = sorted(ious, reverse=True)
-    to_avg = ious_sorted[1:] if len(ious_sorted) >= 2 else ious_sorted
-    return float(np.mean(to_avg))
-
-# -------------------- Q-score (approx) --------------------
-def _fibonacci_sphere(n: int) -> np.ndarray:
-    i = np.arange(n, dtype=np.float64) + 0.5
-    phi = np.arccos(1 - 2*i/n)
-    theta = (math.pi * (1 + 5**0.5)) * i
-    x = np.cos(theta)*np.sin(phi)
-    y = np.sin(theta)*np.sin(phi)
-    z = np.cos(phi)
-    return np.column_stack([x,y,z])
-
-def compute_qscore(mapinfo: MapInfo, model_pts_world: np.ndarray,
-                   r_max_ang: float,
-                   gauss_sigma_ang: float,
-                   atoms_max: int = 600) -> float:
-    if model_pts_world.shape[0] == 0:
-        return 0.0
-    # Subset atoms (deterministic)
-    if model_pts_world.shape[0] > atoms_max:
-        idx = np.linspace(0, model_pts_world.shape[0]-1, atoms_max, dtype=int)
-        pts = model_pts_world[idx]
-    else:
-        pts = model_pts_world
-
-    dirs = _fibonacci_sphere(12)
-    radii = np.linspace(0.0, r_max_ang, 10)
-
-    g = np.exp(-(radii / gauss_sigma_ang)**2)
-    g = (g - g.mean()) / (g.std(ddof=0) + 1e-12)
-
-    z_profiles = []
-    for p in pts:
-        samp = []
-        for r in radii:
-            if r == 0.0:
-                samp.append(float(((mapinfo.interp_many(p.reshape(1,3)) - mapinfo.mu)/mapinfo.sd)[0]))
-            else:
-                shell_pts = p + r * dirs
-                vals = (mapinfo.interp_many(shell_pts) - mapinfo.mu) / mapinfo.sd
-                samp.append(float(np.mean(vals)))
-        s = np.asarray(samp, dtype=np.float64)
-        s = (s - s.mean()) / (s.std(ddof=0) + 1e-12)
-        q = float(np.clip(np.dot(s, g) / len(g), -1.0, 1.0))
-        z_profiles.append(q)
-    qs = 0.5*(np.asarray(z_profiles) + 1.0)
-    return float(np.mean(qs))
+    inter = np.logical_and(map_mask, model_occ > 0).sum()
+    union = np.logical_or(map_mask, model_occ > 0).sum()
+    return float(inter) / float(union) if union > 0 else 0.0
 
 # -------------------- Resolution-aware parameterization --------------------
 def _clamp(x, lo, hi): return float(min(max(x, lo), hi))
@@ -409,22 +338,13 @@ def _derive_params_from_resolution(vox_size_xyz: tuple[float,float,float],
         fwhm_A = 0.5 * effective_resolution_A
         sigma_A = fwhm_A / 2.355
         blur_sigma_vox = _clamp(sigma_A / max(vs_mean, 1e-6), 0.2, 3.0)
-        q_r_max_ang    = _clamp(1.5 * effective_resolution_A, 1.2, 8.0)
-        q_sigma_ang    = _clamp(effective_resolution_A / 3.0, 0.4, 2.5)
-        sphere_radius_vox = _clamp(0.5 * effective_resolution_A / max(vs_mean, 1e-6), 0.6, 4.0)
     else:
         blur_sigma_vox = 0.8
-        q_r_max_ang    = 2.0
-        q_sigma_ang    = 0.6
-        sphere_radius_vox = 1.0
 
     return {
         "blur_sigma_vox": blur_sigma_vox,
-        "q_r_max_ang": q_r_max_ang,
-        "q_sigma_ang": q_sigma_ang,
-        "sphere_radius_vox": sphere_radius_vox,
+        "sphere_radius_vox": 6.0 / max(vs_mean, 1e-6),  # fixed 5.5 Å converted to vox
         "vof_max_dim": 128,
-        "q_atoms_max": 600,
     }
 
 # -------------------- Fast single-map resolution estimate --------------------
@@ -509,10 +429,10 @@ def fit_model_and_score(
     out_pdb_path: Path | str | None = None,
     model_resolution_A: Optional[float] = None,
     map_resolution_A: Optional[float] = None,
-) -> Tuple[Optional[float], Optional[float], Optional[Path]]:
+) -> Tuple[Optional[float], Optional[Path]]:
     """
-    Fit `model_path` into `map_path` (rigid body), evaluate VOF + Q, and write fitted PDB.
-    Returns (VOF, Qscore, out_pdb_path). On any exception, returns (None,None,None) and
+    Fit `model_path` into `map_path` (rigid body), evaluate VOF, and write fitted PDB.
+    Returns (VOF, out_pdb_path). On any exception, returns (None,None) and
     cleans temporary outputs.
 
     Resolution precedence:
@@ -579,10 +499,6 @@ def fit_model_and_score(
         vof = compute_vof(mapinfo, pts_world,
                           sphere_radius_vox=params["sphere_radius_vox"],
                           max_dim=params["vof_max_dim"])
-        qsc = compute_qscore(mapinfo, pts_world,
-                             r_max_ang=params["q_r_max_ang"],
-                             gauss_sigma_ang=params["q_sigma_ang"],
-                             atoms_max=params["q_atoms_max"])
 
         # Write PDB atom coordinates to a temp, then atomically move
         if out_pdb_path is None:
@@ -600,7 +516,7 @@ def fit_model_and_score(
             except Exception: pass
         os.replace(str(out_tmp), str(out_final))
 
-        return float(vof), float(qsc), out_final
+        return float(vof), out_final
 
     except Exception as e:
         print(f"[fit_v5] Error during fit: {e}")
@@ -612,4 +528,4 @@ def fit_model_and_score(
             if out_final and Path(out_final).exists():
                 Path(out_final).unlink(missing_ok=True)
         except Exception: pass
-        return None, None, None
+        return None, None

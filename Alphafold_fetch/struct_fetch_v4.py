@@ -14,9 +14,13 @@ CSV_PATH = pathlib.Path("Alphafold_fetch/identifier/all_hits_v2.csv")
 OUT_DIR  = pathlib.Path("Alphafold_fetch/fetched_structures_v3")
 MAP_PATH = pathlib.Path("Alphafold_fetch/test_files/emd_29659.map")
 
+# ----------- OPTIONAL OVERRIDES -----------
+# If set to a positive float (Angstroms), use this instead of estimating map resolution.
+HARDCODED_MAP_RES_A: Optional[float] = None
+
 # ----------- FIT/EVAL SETTINGS -----------
 FITTED_DIR = pathlib.Path("Alphafold_fetch/fitted_models_v6")
-MAX_EXPERIMENTAL_TRIES = 20              # cap for experimental structures (excludes AF)
+MAX_EXPERIMENTAL_TRIES = 10              # cap for experimental structures (excludes AF)
 EVAL_ALL_MODE = False                     # True → score all, then keep best experimental; AF always kept
 
 # Logging
@@ -26,7 +30,7 @@ LOGS_DIR = FITTED_DIR / "logs"
 retries = Retry(total=4, backoff_factor=0.25, status_forcelist=[500, 502, 503, 504])
 session = requests.Session()
 session.mount("https://", HTTPAdapter(max_retries=retries))
-session.headers.update({"User-Agent": "structure-fetcher/vof-qscore-resaware/2.1"})
+session.headers.update({"User-Agent": "structure-fetcher/vof-only/2.2"})
 
 # ------------------- UniProt / PDB / AF helpers -------------------
 def first_uniprot_accession(query: str, timeout: int = 15) -> Optional[str]:
@@ -173,22 +177,20 @@ def sanitize_name(s: str) -> str:
     import re as _re
     return _re.sub(r"[^A-Za-z0-9._-]+", "_", str(s)).strip("_") or "target"
 
-def thresholds_from_resolution(map_res_A: Optional[float]) -> tuple[float, float]:
+def vof_threshold_from_resolution(map_res_A: Optional[float]) -> float:
     """
-    Dynamic thresholds for threshold-mode early accept.
-    Target behavior:
-      ~3 Å  → VOF≈0.55, Q≈0.50
-      ~6 Å  → VOF≈0.45, Q≈0.40
-      ≥8 Å  → clamp near VOF≈0.38, Q≈0.35
+    Dynamic VOF threshold for threshold-mode early accept.
+    Target behavior (single-metric):
+      ~3 Å  → VOF≈0.55
+      ~6 Å  → VOF≈0.45
+      ≥8 Å  → clamp near VOF≈0.38
     """
     if not map_res_A or map_res_A <= 0:
-        return 0.45, 0.40
+        return 0.45
     slope = -0.033333333333  # per Å
     vof = 0.55 + slope * (map_res_A - 3.0)
-    q   = 0.50 + slope * (map_res_A - 3.0)
     vof = float(min(max(vof, 0.38), 0.62))
-    q   = float(min(max(q,   0.35), 0.57))
-    return vof, q
+    return vof
 
 def evaluate_and_record(label: str,
                         kind: str,
@@ -200,7 +202,7 @@ def evaluate_and_record(label: str,
     """Run resolution-aware fitting+evaluation; return a row dict for logging."""
     FITTED_DIR.mkdir(parents=True, exist_ok=True)
     out_pdb = FITTED_DIR / f"{label}_fitted_v5.pdb"
-    vof, qscore, fitted = fit_model_and_score(
+    vof, fitted = fit_model_and_score(
         map_path, model_path, out_pdb_path=out_pdb,
         model_resolution_A=model_resolution_A,
         map_resolution_A=map_resolution_A,
@@ -212,29 +214,31 @@ def evaluate_and_record(label: str,
         "map_resolution_A": map_resolution_A,
         "model_resolution_A": model_resolution_A,
         "vof": vof if vof is not None else float("nan"),
-        "qscore": qscore if qscore is not None else float("nan"),
         "fitted_path": str(fitted) if fitted else str(out_pdb),
         "source_model": str(model_path),
         "kept": False,
     }
-    # If the fit failed (vof/q NaN), proactively remove any leftover file
-    if vof is None or qscore is None or not fitted:
+    # If the fit failed (VOF NaN), proactively remove any leftover file
+    if vof is None or not fitted:
         try: pathlib.Path(out_pdb).unlink(missing_ok=True)
         except Exception: pass
     return row
 
-def _passes_both(row: Dict[str, Any], vof_thr: float, q_thr: float) -> bool:
-    v = row["vof"]; q = row["qscore"]
-    return (pd.notna(v) and pd.notna(q) and (v >= vof_thr) and (q >= q_thr))
-
-def _combo_score(row: Dict[str, Any]) -> float:
-    # Mean with graceful NaN handling
+def _passes_vof(row: Dict[str, Any], vof_thr: float) -> bool:
     v = row.get("vof", float("nan"))
-    q = row.get("qscore", float("nan"))
-    if pd.notna(v) and pd.notna(q): return 0.5 * (float(v) + float(q))
-    if pd.notna(v): return 0.5 * float(v)
-    if pd.notna(q): return 0.5 * float(q)
-    return float("-inf")
+    try:
+        v = float(v)
+    except Exception:
+        v = float("nan")
+    return pd.notna(v) and (v >= vof_thr)
+
+def _vof_score(row: Dict[str, Any]) -> float:
+    v = row.get("vof", float("nan"))
+    try:
+        v = float(v)
+    except Exception:
+        v = float("nan")
+    return v if pd.notna(v) else float("-inf")
 
 def _write_log(safe_q: str, rows: List[Dict[str, Any]]) -> pathlib.Path:
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
@@ -243,7 +247,7 @@ def _write_log(safe_q: str, rows: List[Dict[str, Any]]) -> pathlib.Path:
     return log_path
 
 def _best_pdb_pid_from_log(safe_q: str) -> Optional[str]:
-    """Read the per-target log and return PDB id with highest combo score (VOF/Q)."""
+    """Read the per-target log and return PDB id with highest VOF."""
     log_path = LOGS_DIR / f"{safe_q}__fit_scores.csv"
     if not log_path.exists():
         return None
@@ -251,37 +255,27 @@ def _best_pdb_pid_from_log(safe_q: str) -> Optional[str]:
         df = pd.read_csv(log_path)
     except Exception:
         return None
-    if "type" not in df.columns or "id" not in df.columns:
+    if "type" not in df.columns or "id" not in df.columns or "vof" not in df.columns:
         return None
     df = df[df["type"] == "PDB"].copy()
     if df.empty:
         return None
 
-    def _row_combo(r):
-        v = r.get("vof", float("nan"))
-        q = r.get("qscore", float("nan"))
+    def _row_vof(r):
         try:
-            v = float(v)
+            return float(r.get("vof", float("nan")))
         except Exception:
-            v = float("nan")
-        try:
-            q = float(q)
-        except Exception:
-            q = float("nan")
-        if pd.notna(v) and pd.notna(q): return 0.5 * (v + q)
-        if pd.notna(v): return 0.5 * v
-        if pd.notna(q): return 0.5 * q
-        return float("-inf")
+            return float("nan")
 
-    df["__combo__"] = df.apply(_row_combo, axis=1)
-    df.sort_values("__combo__", ascending=False, inplace=True)
+    df["__vof__"] = df.apply(_row_vof, axis=1)
+    df.sort_values("__vof__", ascending=False, inplace=True)
     top = df.iloc[0]
-    if top["__combo__"] == float("-inf"):
+    if not pd.notna(top["__vof__"]):
         return None
     return str(top["id"])
 
 # ------------------- main per-target flow -------------------
-def process_target(q: str, map_resolution_A: Optional[float], vof_thr: float, q_thr: float):
+def process_target(q: str, map_resolution_A: Optional[float], vof_thr: float):
     safe_q = sanitize_name(q)
     acc = first_uniprot_accession(q)
     if acc is None:
@@ -300,8 +294,7 @@ def process_target(q: str, map_resolution_A: Optional[float], vof_thr: float, q_
         af_row = evaluate_and_record(label, "AF", acc, MAP_PATH, af_model, map_resolution_A, model_resolution_A=None)
         rows.append(af_row)
         vtxt = f"{af_row['vof']:.4f}" if pd.notna(af_row["vof"]) else "N/A"
-        qtxt = f"{af_row['qscore']:.4f}" if pd.notna(af_row["qscore"]) else "N/A"
-        print(f"AF fit: VOF={vtxt}, Q={qtxt} → {af_row['fitted_path'] if pd.notna(af_row['vof']) and pd.notna(af_row['qscore']) else '—'}")
+        print(f"AF fit: VOF={vtxt} → {af_row['fitted_path'] if pd.notna(af_row['vof']) else '—'}")
     else:
         print(f"{q}: AlphaFold model not available")
 
@@ -323,14 +316,13 @@ def process_target(q: str, map_resolution_A: Optional[float], vof_thr: float, q_
             row = evaluate_and_record(label, "PDB", pid, MAP_PATH, model_path, map_resolution_A, reso)
             rows.append(row)
             vtxt = f"{row['vof']:.4f}" if pd.notna(row["vof"]) else "N/A"
-            qtxt = f"{row['qscore']:.4f}" if pd.notna(row["qscore"]) else "N/A"
             rez  = f", {reso:.2f}Å" if isinstance(reso,(int,float)) else ""
-            print(f"EXP fit [PDB {pid}{rez}]: VOF={vtxt}, Q={qtxt} → {row['fitted_path'] if pd.notna(row['vof']) and pd.notna(row['qscore']) else '—'}")
+            print(f"EXP fit [PDB {pid}{rez}]: VOF={vtxt} → {row['fitted_path'] if pd.notna(row['vof']) else '—'}")
 
-            if _passes_both(row, vof_thr, q_thr):
+            if _passes_vof(row, vof_thr):
                 row["kept"] = True
                 accepted_row = row
-                print(f"✔ Accepted experimental model {pid} (VOF ≥ {vof_thr:.2f} AND Q ≥ {q_thr:.2f}).")
+                print(f"✔ Accepted experimental model {pid} (VOF ≥ {vof_thr:.2f}).")
                 # delete earlier experimental attempts
                 for r in rows:
                     if r is row or r["type"] != "PDB": continue
@@ -368,7 +360,6 @@ def process_target(q: str, map_resolution_A: Optional[float], vof_thr: float, q_
                     if orig:
                         orig.update({
                             "vof": refit_row["vof"],
-                            "qscore": refit_row["qscore"],
                             "fitted_path": refit_row["fitted_path"],
                             "source_model": refit_row["source_model"],
                             "model_resolution_A": refit_row["model_resolution_A"],
@@ -378,8 +369,7 @@ def process_target(q: str, map_resolution_A: Optional[float], vof_thr: float, q_
                         rows.append(refit_row)
 
                     print(f"✔ No experimental met thresholds; refetched best by log score: {best_label} "
-                          f"(VOF={refit_row['vof'] if pd.notna(refit_row['vof']) else 'N/A'}, "
-                          f"Q={refit_row['qscore'] if pd.notna(refit_row['qscore']) else 'N/A'}).")
+                          f"(VOF={refit_row['vof'] if pd.notna(refit_row['vof']) else 'N/A'}).")
                 else:
                     print(f"✔ Best-by-log experimental {best_pid} could not be re-downloaded; AlphaFold retained only.")
             else:
@@ -405,26 +395,24 @@ def process_target(q: str, map_resolution_A: Optional[float], vof_thr: float, q_
             row = evaluate_and_record(label, "PDB", pid, MAP_PATH, model_path, map_resolution_A, reso)
             rows.append(row)
             vtxt = f"{row['vof']:.4f}" if pd.notna(row["vof"]) else "N/A"
-            qtxt = f"{row['qscore']:.4f}" if pd.notna(row["qscore"]) else "N/A"
             rez  = f", {reso:.2f}Å" if isinstance(reso,(int,float)) else ""
-            print(f"EXP fit [PDB {pid}{rez}]: VOF={vtxt}, Q={qtxt} → {row['fitted_path'] if pd.notna(row['vof']) and pd.notna(row['qscore']) else '—'}")
+            print(f"EXP fit [PDB {pid}{rez}]: VOF={vtxt} → {row['fitted_path'] if pd.notna(row['vof']) else '—'}")
 
-        candidates = [r for r in rows if r["type"]=="PDB" and _passes_both(r, vof_thr, q_thr)]
+        candidates = [r for r in rows if r["type"]=="PDB" and _passes_vof(r, vof_thr)]
         keep_exp: Optional[Dict[str, Any]] = None
         if candidates:
-            candidates.sort(key=lambda r: (0.5*(r["vof"]+r["qscore"]), r["vof"]), reverse=True)
+            candidates.sort(key=lambda r: _vof_score(r), reverse=True)
             keep_exp = candidates[0]; keep_exp["kept"] = True
-            print(f"✔ Kept best experimental meeting thresholds: {keep_exp['label']} (VOF={keep_exp['vof']:.4f}, Q={keep_exp['qscore']:.4f}).")
+            print(f"✔ Kept best experimental meeting threshold: {keep_exp['label']} (VOF={keep_exp['vof']:.4f}).")
         else:
-            # None met thresholds → keep best by combined score if any usable fit exists
+            # None met thresholds → keep best by VOF if any usable fit exists
             all_pdb = [r for r in rows if r["type"] == "PDB"]
             if all_pdb:
-                best_any = max(all_pdb, key=_combo_score)
-                if _combo_score(best_any) != float("-inf"):
+                best_any = max(all_pdb, key=_vof_score)
+                if _vof_score(best_any) != float("-inf"):
                     best_any["kept"] = True
                     vtxt = f"{best_any['vof']:.4f}" if pd.notna(best_any["vof"]) else "N/A"
-                    qtxt = f"{best_any['qscore']:.4f}" if pd.notna(best_any["qscore"]) else "N/A"
-                    print(f"✔ No experimental met both thresholds; kept best experimental by score: {best_any['label']} (VOF={vtxt}, Q={qtxt}).")
+                    print(f"✔ No experimental met threshold; kept best experimental by VOF: {best_any['label']} (VOF={vtxt}).")
                 else:
                     print("✔ No experimental met thresholds and no usable experimental fit; AlphaFold retained only.")
             else:
@@ -460,17 +448,21 @@ def main():
     FITTED_DIR.mkdir(parents=True, exist_ok=True)
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
-    # --- NEW: estimate map resolution once ---
-    est_res = estimate_resolution_single_map(MAP_PATH, tau=1.0, max_dim=256)
-    if est_res:
-        print(f"[Map] Estimated resolution: {est_res:.2f} Å (single-map SNR crossing)")
+    # --- Map resolution: use hardcoded override if provided, else estimate once ---
+    if HARDCODED_MAP_RES_A and HARDCODED_MAP_RES_A > 0:
+        est_res = float(HARDCODED_MAP_RES_A)
+        print(f"[Map] Using hardcoded resolution: {est_res:.2f} Å.")
     else:
-        print("[Map] Estimated resolution: not determined (falling back to defaults)")
-    vof_thr, q_thr = thresholds_from_resolution(est_res)
-    print(f"[Thresholds] VOF ≥ {vof_thr:.2f}, Q ≥ {q_thr:.2f} (scaled for map resolution)")
+        est_res = estimate_resolution_single_map(MAP_PATH, tau=1.0, max_dim=256)
+        if est_res:
+            print(f"[Map] Estimated resolution: {est_res:.2f} Å (single-map SNR crossing)")
+        else:
+            print("[Map] Estimated resolution: not determined (falling back to defaults)")
+    vof_thr = vof_threshold_from_resolution(est_res)
+    print(f"[Thresholds] VOF ≥ {vof_thr:.2f} (scaled for map resolution)")
 
     for q in df["target_name"].dropna().unique():
-        process_target(str(q), est_res, vof_thr, q_thr)
+        process_target(str(q), est_res, vof_thr)
 
     print(f"\nFitted PDBs → {FITTED_DIR.resolve().as_posix()}")
     print(f"Logs       → {LOGS_DIR.resolve().as_posix()}")
