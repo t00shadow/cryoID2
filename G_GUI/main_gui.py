@@ -2,13 +2,35 @@ import sys
 from PyQt6 import QtWidgets, QtGui
 from gui_skin import Ui_cryoID
 
+
+def apply_dark_palette(app: QtWidgets.QApplication) -> None:
+    """Force a dark Fusion palette so the UI stays dark regardless of OS theme."""
+    palette = QtGui.QPalette()
+    # Main background: tweak Window/Base colors to change the overall background shade.
+    palette.setColor(QtGui.QPalette.ColorRole.Window, QtGui.QColor("#1e1e1e"))
+    palette.setColor(QtGui.QPalette.ColorRole.WindowText, QtGui.QColor("#e2e8f0"))
+    palette.setColor(QtGui.QPalette.ColorRole.Base, QtGui.QColor("#21252b"))
+    palette.setColor(QtGui.QPalette.ColorRole.AlternateBase, QtGui.QColor("#282c34"))
+    palette.setColor(QtGui.QPalette.ColorRole.ToolTipBase, QtGui.QColor("#1e2127"))
+    palette.setColor(QtGui.QPalette.ColorRole.ToolTipText, QtGui.QColor("#e2e8f0"))
+    palette.setColor(QtGui.QPalette.ColorRole.Text, QtGui.QColor("#e2e8f0"))
+    palette.setColor(QtGui.QPalette.ColorRole.Button, QtGui.QColor("#2f3540"))
+    palette.setColor(QtGui.QPalette.ColorRole.ButtonText, QtGui.QColor("#e2e8f0"))
+    palette.setColor(QtGui.QPalette.ColorRole.BrightText, QtGui.QColor("#ff7676"))
+    palette.setColor(QtGui.QPalette.ColorRole.Link, QtGui.QColor("#5d7bff"))
+    palette.setColor(QtGui.QPalette.ColorRole.Highlight, QtGui.QColor("#347aff"))
+    palette.setColor(QtGui.QPalette.ColorRole.HighlightedText, QtGui.QColor("#f4f6fb"))
+    app.setPalette(palette)
+
+
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
     app.setStyle("Fusion")  # or "Windows"
+    apply_dark_palette(app)  # ensures Fusion stays dark even if OS theme is light
     window = QtWidgets.QMainWindow()
     ui = Ui_cryoID()
     ui.setupUi(window)
-    # Darken the Results dock area while keeping black text inside
+    # Results dock panel colors (overall box and inner background)
     ui.dockWidget.setStyleSheet("QDockWidget#dockWidget { background-color: #22272f; border: none; }")
     ui.dockWidgetContents.setStyleSheet(
         """
@@ -18,6 +40,9 @@ if __name__ == "__main__":
         QWidget#dockWidgetContents QLabel {
             color: #e2e8f0;
             font-weight: 600;
+        }
+        QLabel#label_2 {
+            font-weight: 700;
         }
         QWidget#dockWidgetContents QLineEdit,
         QWidget#dockWidgetContents QListWidget {
@@ -37,26 +62,48 @@ if __name__ == "__main__":
         }
         """
     )
+    # Menu bar colors: adjust the QMenuBar block below (background/color/border-bottom).
+    # Results header row (path box + "Change folder"): tweak QLineEdit / QPushButton rules inside the dock CSS above.
+    # Output box under Status: style QPlainTextEdit (or QWidget#widget) in the window stylesheet below to change its background/border.
     window.setStyleSheet(
         """
-        QMainWindow, QWidget#centralwidget {
-            background-color: #252a31;
-            color: #e2e8f0;
+        QMainWindow, QWidget#centralwidgebel#protein_pool_file_label {
+            font-weight: 600;
         }
         QMenuBar {
-            background-color: #1d2229;
+            background-color: #1f242b;
+            color: #e2e8f0;
             border: none;
-            border-bottom: 1px solid #121418;
-        }
-        QMenuBar::item {
-            padding: 4px 8px;
+            border-bottom: 1px solid #12161d;
         }
         QMenuBar::item:selected {
-            background: #2a3038;
+            background-color: #2a303a;
         }
         QLabel#density_map_label,
-        QLabel#protein_pool_file_label {
-            font-weight: 600;
+        QLabel#protein_pool_file_label,
+        QLabel#status_label {
+            font-weight: 700;
+        }
+        QLineEdit {
+            background-color: #262b33;
+            color: #e2e8f0;
+            border: 1px solid #333944;
+        }
+        QPlainTextEdit {
+            background-color: #262b33;
+            color: #e2e8f0;
+            border: 1px solid #333944;
+            selection-background-color: #347aff;
+            selection-color: #f4f6fb;
+        }
+        QProgressBar {
+            background-color: #262b33;
+            color: #e2e8f0;
+            border: 1px solid #333944;
+            text-align: center;
+        }
+        QProgressBar::chunk {
+            background-color: #347aff;
         }
         QPushButton#run_button,
         QPushButton#abort_button {
