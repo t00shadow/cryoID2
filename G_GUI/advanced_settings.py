@@ -1,38 +1,28 @@
-from PyQt6 import QtWidgets, QtGui
+from PyQt6 import QtGui, QtWidgets
 
 
-class AdvancedSettingsWindow(QtWidgets.QWidget):
-    """Lightweight advanced settings window (spawned from More options -> Advanced Settings)."""
+class AdvancedSettingsWindow(QtWidgets.QDialog):
+    """Standalone window for advanced cryoID settings."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Advanced Settings")
-        self.setMinimumWidth(360)
-        layout = QtWidgets.QFormLayout(self)
-        layout.setContentsMargins(12, 12, 12, 12)
-        self.map_resolution = QtWidgets.QLineEdit()
-        self.raster_radius = QtWidgets.QLineEdit()
-        self.chimerax_path = QtWidgets.QLineEdit()
-        layout.addRow("Map Resolution", self.map_resolution)
-        layout.addRow("Rasterization Radius", self.raster_radius)
-        layout.addRow("ChimeraX Path", self.chimerax_path)
+        self.setModal(False)
+        self.setMinimumWidth(340)
 
-        # Match the dark theme used in main_gui.
-        self.setStyleSheet(
-            """
-            QWidget {
-                background-color: #1f242b;
-                color: #e2e8f0;
-                font-weight: 600;
-            }
-            QLineEdit {
-                background-color: #262b33;
-                color: #e2e8f0;
-                border: 1px solid #333944;
-            }
-            QLabel {
-                color: #e2e8f0;
-                font-weight: 700;
-            }
-            """
-        )
+        main_layout = QtWidgets.QVBoxLayout(self)
+        form_layout = QtWidgets.QFormLayout()
+
+        self.resolution_edit = QtWidgets.QLineEdit(self)
+        self.resolution_edit.setObjectName("resolution_edit")
+        self.resolution_edit.setPlaceholderText("e.g., 3.5 (Å)")
+        self.resolution_edit.setValidator(QtGui.QDoubleValidator(0.0, 999.0, 3))
+        form_layout.addRow("Resolution", self.resolution_edit)
+
+        self.rasterization_radius_edit = QtWidgets.QLineEdit(self)
+        self.rasterization_radius_edit.setObjectName("rasterization_radius_edit")
+        self.rasterization_radius_edit.setPlaceholderText("e.g., 3.0 (Å)")
+        self.rasterization_radius_edit.setValidator(QtGui.QDoubleValidator(0.0, 999.0, 3))
+        form_layout.addRow("Rasterization radius", self.rasterization_radius_edit)
+
+        main_layout.addLayout(form_layout)

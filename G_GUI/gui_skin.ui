@@ -256,6 +256,19 @@ border: 1px solid #3a404c;
               </widget>
              </item>
              <item>
+              <spacer name="horizontalSpacer_3">
+               <property name="orientation">
+                <enum>Qt::Horizontal</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>10</width>
+                 <height>20</height>
+                </size>
+               </property>
+              </spacer>
+             </item>
+             <item>
               <widget class="QPushButton" name="browse_mrc_file_button">
                <property name="font">
                 <font>
@@ -326,6 +339,19 @@ image-position: right; */</string>
                 <string>your_pool_file</string>
                </property>
               </widget>
+             </item>
+             <item>
+              <spacer name="horizontalSpacer_5">
+               <property name="orientation">
+                <enum>Qt::Horizontal</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>10</width>
+                 <height>20</height>
+                </size>
+               </property>
+              </spacer>
              </item>
              <item>
               <widget class="QPushButton" name="browse_pool_fil_button">
@@ -417,6 +443,9 @@ image-position: right; */</string>
   <widget class="QDockWidget" name="dockWidget">
    <property name="styleSheet">
     <string notr="true">background-color: rgb(220, 220, 220);</string>
+   </property>
+   <property name="windowTitle">
+    <string>  </string>
    </property>
    <attribute name="dockWidgetArea">
     <number>1</number>
