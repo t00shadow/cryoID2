@@ -8,6 +8,7 @@ import pandas as pd
 import requests
 from requests.adapters import HTTPAdapter, Retry
 from fit_v5 import fit_model_and_score, estimate_resolution_single_map
+from urllib.parse import urlparse
 
 # ----------- REQUIRED PATHS -----------
 CSV_PATH = pathlib.Path("Alphafold_fetch/identifier/all_hits_v2.csv")
@@ -20,7 +21,7 @@ HARDCODED_MAP_RES_A: Optional[float] = None
 
 # ----------- FIT/EVAL SETTINGS -----------
 FITTED_DIR = pathlib.Path("Alphafold_fetch/fitted_models_v6")
-MAX_EXPERIMENTAL_TRIES = 10              # cap for experimental structures (excludes AF)
+MAX_EXPERIMENTAL_TRIES = 10           # cap for experimental structures (excludes AF)
 EVAL_ALL_MODE = False                     # True → score all, then keep best experimental; AF always kept
 
 # Logging
@@ -43,6 +44,35 @@ def first_uniprot_accession(query: str, timeout: int = 15) -> Optional[str]:
         return results[0]["primaryAccession"] if results else None
     except requests.RequestException:
         return None
+
+def top_uniprot_accessions(query: str, timeout: int = 15, size: int = 5) -> List[str]:
+    """Return all UniProt accessions tied for the top search score."""
+    url = "https://rest.uniprot.org/uniprotkb/search"
+    params = {"query": query, "fields": "accession", "format": "json", "size": size}
+    try:
+        r = session.get(url, params=params, timeout=timeout)
+        r.raise_for_status()
+        results = r.json().get("results", [])
+        if not results:
+            return []
+        # Results come sorted by score desc; gather any tied with the top score.
+        top_score = results[0].get("score", None)
+        accs: List[str] = []
+        for res in results:
+            acc = res.get("primaryAccession")
+            score = res.get("score", None)
+            if acc is None:
+                continue
+            if top_score is None or score is None:
+                accs.append(acc)
+                continue
+            if abs(score - top_score) < 1e-9:
+                accs.append(acc)
+            else:
+                break
+        return accs
+    except requests.RequestException:
+        return []
 
 def pdb_ids_from_pdbe_mapping(uniprot: str, timeout: int = 15) -> List[str]:
     url = f"https://www.ebi.ac.uk/pdbe/api/mappings/uniprot/{uniprot}"
@@ -160,12 +190,15 @@ def download_alphafold_latest(accession: str, out_dir: pathlib.Path, timeout: in
     file_url = best.get("pdbUrl") or best.get("cifUrl")
     ext = ".pdb" if best.get("pdbUrl") else ".cif"
     if not file_url: return None
+    file_name = pathlib.Path(urlparse(file_url).path).name or f"{accession}{ext}"
+    if not pathlib.Path(file_name).suffix:
+        file_name = f"{file_name}{ext}"
     try:
         r = session.get(file_url, timeout=timeout)
         r.raise_for_status()
         txt = r.text.strip() if r.text else ""
         if r.content and not txt.startswith("<!DOCTYPE"):
-            path = out_dir / f"{accession}{ext}"
+            path = out_dir / file_name
             path.write_bytes(r.content)
             return path if path.stat().st_size > 0 else None
     except requests.RequestException:
@@ -274,165 +307,143 @@ def _best_pdb_pid_from_log(safe_q: str) -> Optional[str]:
         return None
     return str(top["id"])
 
+def _select_best(rows: List[Dict[str, Any]],
+                 kind: str,
+                 vof_thr: Optional[float] = None,
+                 allow_negative_inf: bool = False) -> Optional[Dict[str, Any]]:
+    """Pick best row of a given type; prefer threshold-passers when provided."""
+    candidates = [r for r in rows if r.get("type") == kind]
+    if not candidates:
+        return None
+    if kind == "PDB" and vof_thr is not None:
+        passing = [r for r in candidates if _passes_vof(r, vof_thr)]
+        if passing:
+            candidates = passing
+    candidates.sort(key=_vof_score, reverse=True)
+    best = candidates[0]
+    if _vof_score(best) == float("-inf") and not allow_negative_inf:
+        return None
+    return best
+
 # ------------------- main per-target flow -------------------
+
+
 def process_target(q: str, map_resolution_A: Optional[float], vof_thr: float):
     safe_q = sanitize_name(q)
-    acc = first_uniprot_accession(q)
-    if acc is None:
+    acc_candidates = top_uniprot_accessions(q)
+    if not acc_candidates:
         print(f"{q}: no UniProt accession found")
         return
 
-    print(f"\n=== {q} ({acc}) ===")
+    print(f"\n=== {q}: {len(acc_candidates)} UniProt top-hit candidate(s) (tied score) ===")
+    print(f"{q}: candidates -> {', '.join(acc_candidates)}")
 
-    rows: List[Dict[str, Any]] = []
+    all_rows: List[Dict[str, Any]] = []
+    accepted_row: Optional[Dict[str, Any]] = None
 
-    # ----- AlphaFold first -----
-    af_model = download_alphafold_latest(acc, OUT_DIR)
-    af_row: Optional[Dict[str, Any]] = None
-    if af_model:
-        label = f"{safe_q}__AF_{acc}"
-        af_row = evaluate_and_record(label, "AF", acc, MAP_PATH, af_model, map_resolution_A, model_resolution_A=None)
-        rows.append(af_row)
-        vtxt = f"{af_row['vof']:.4f}" if pd.notna(af_row["vof"]) else "N/A"
-        print(f"AF fit: VOF={vtxt} → {af_row['fitted_path'] if pd.notna(af_row['vof']) else '—'}")
-    else:
-        print(f"{q}: AlphaFold model not available")
+    for idx, acc in enumerate(acc_candidates, start=1):
+        print(f"[{q}] Trying UniProt {acc} ({idx}/{len(acc_candidates)})")
 
-    # ----- Experimental candidates -----
-    ids = pdb_ids_from_pdbe_mapping(acc) or pdb_ids_from_rcsb_search(acc)
-    meta = candidate_list_with_meta(ids)[:MAX_EXPERIMENTAL_TRIES] if ids else []
+        rows: List[Dict[str, Any]] = []
+        passing_af_row: Optional[Dict[str, Any]] = None
 
-    if not EVAL_ALL_MODE:
-        # Early-accept mode with early deletion of non-passing attempts
-        accepted_row: Optional[Dict[str, Any]] = None
+        # ----- AlphaFold first -----
+        af_model = download_alphafold_latest(acc, OUT_DIR)
+        if af_model:
+            label = f"{safe_q}__AF_{acc}"
+            af_row = evaluate_and_record(label, "AF", acc, MAP_PATH, af_model, map_resolution_A, model_resolution_A=None)
+            rows.append(af_row)
+            vtxt = f"{af_row['vof']:.4f}" if pd.notna(af_row["vof"]) else "N/A"
+            print(f"[{q}] AF fit ({acc}): VOF={vtxt} -> {af_row['fitted_path'] if pd.notna(af_row['vof']) else 'N/A'}")
+            if _passes_vof(af_row, vof_thr):
+                passing_af_row = af_row
+            else:
+                try: pathlib.Path(af_row["source_model"]).unlink(missing_ok=True)
+                except Exception: pass
+                try: pathlib.Path(af_row["fitted_path"]).unlink(missing_ok=True)
+                except Exception: pass
+        else:
+            print(f"[{q}] AlphaFold model not available for {acc}")
+
+        # ----- Experimental candidates -----
+        ids = pdb_ids_from_pdbe_mapping(acc) or pdb_ids_from_rcsb_search(acc)
+        meta = candidate_list_with_meta(ids)[:MAX_EXPERIMENTAL_TRIES] if ids else []
+        print(f"[{q}] UniProt {acc}: fetched {len(meta)} experimental candidate(s)")
 
         for m in meta:
-            pid = m["id"]; reso = m.get("resolution")
+            pid = m["id"]
+            reso = m.get("resolution")
             model_path = download_rcsb_model_any(pid, OUT_DIR)
             if not model_path:
-                print(f"{q}: could not download PDB {pid}")
+                print(f"[{q}] could not download PDB {pid}")
                 continue
             label = f"{safe_q}__PDB_{pid}"
             row = evaluate_and_record(label, "PDB", pid, MAP_PATH, model_path, map_resolution_A, reso)
             rows.append(row)
             vtxt = f"{row['vof']:.4f}" if pd.notna(row["vof"]) else "N/A"
-            rez  = f", {reso:.2f}Å" if isinstance(reso,(int,float)) else ""
-            print(f"EXP fit [PDB {pid}{rez}]: VOF={vtxt} → {row['fitted_path'] if pd.notna(row['vof']) else '—'}")
-
+            rez = f", {reso:.2f}A." if isinstance(reso, (int, float)) else ""
+            print(f"[{q}] EXP fit [PDB {pid}{rez}]: VOF={vtxt} -> {row['fitted_path'] if pd.notna(row['vof']) else 'N/A'}")
             if _passes_vof(row, vof_thr):
-                row["kept"] = True
                 accepted_row = row
-                print(f"✔ Accepted experimental model {pid} (VOF ≥ {vof_thr:.2f}).")
-                # delete earlier experimental attempts
-                for r in rows:
-                    if r is row or r["type"] != "PDB": continue
-                    try: pathlib.Path(r["source_model"]).unlink(missing_ok=True)
-                    except Exception: pass
-                    try: pathlib.Path(r["fitted_path"]).unlink(missing_ok=True)
-                    except Exception: pass
+                accepted_row["kept"] = True
+                vtxt_keep = f"{accepted_row['vof']:.4f}" if pd.notna(accepted_row["vof"]) else "N/A"
+                rez_keep = f", {accepted_row.get('model_resolution_A'):.2f}A." if isinstance(accepted_row.get("model_resolution_A"), (int, float)) else ""
+                print(f"[{q}] Threshold met; keeping PDB {accepted_row['id']}{rez_keep} (VOF={vtxt_keep}) and stopping further UniProt ties.")
                 break
             else:
-                # EARLY DELETE this experimental attempt (source + fitted)
                 try: pathlib.Path(row["source_model"]).unlink(missing_ok=True)
                 except Exception: pass
                 try: pathlib.Path(row["fitted_path"]).unlink(missing_ok=True)
                 except Exception: pass
 
-        # AF is always kept
-        if af_row: af_row["kept"] = True
+        all_rows.extend(rows)
 
-        if accepted_row is None:
-            # No experimental passed. Write current log, then pick best from log and re-fetch/refit it.
-            _write_log(safe_q, rows)
-            best_pid = _best_pdb_pid_from_log(safe_q)
+        # After evaluating AF + experimental for this UniProt, decide whether to stop
+        if accepted_row:
+            break
+        elif passing_af_row:
+            # AF met threshold but no experimental did; accept AF and stop UniProt ties
+            passing_af_row["kept"] = True
+            accepted_row = passing_af_row
+            vtxt = f"{accepted_row['vof']:.4f}" if pd.notna(accepted_row["vof"]) else "N/A"
+            print(f"[{q}] Threshold met by AlphaFold ({accepted_row['id']}): VOF={vtxt}; stopping further UniProt ties.")
+            break
 
-            if best_pid:
-                # Re-download and re-fit the best-scoring experimental (files were deleted during attempts)
-                model_path = download_rcsb_model_any(best_pid, OUT_DIR)
-                if model_path:
-                    best_label = f"{safe_q}__PDB_{best_pid}"
-                    refit_row = evaluate_and_record(best_label, "PDB", best_pid, MAP_PATH, model_path,
-                                                    map_resolution_A, next((m.get("resolution") for m in meta if m["id"] == best_pid), None))
-                    refit_row["kept"] = True
+    kept_rows: List[Dict[str, Any]] = []
 
-                    # Update the original in-memory row for this PID (so the final log reflects the kept copy)
-                    orig = next((r for r in rows if r["type"]=="PDB" and r["id"]==best_pid), None)
-                    if orig:
-                        orig.update({
-                            "vof": refit_row["vof"],
-                            "fitted_path": refit_row["fitted_path"],
-                            "source_model": refit_row["source_model"],
-                            "model_resolution_A": refit_row["model_resolution_A"],
-                            "kept": True,
-                        })
-                    else:
-                        rows.append(refit_row)
+    if accepted_row:
+        kept_rows.append(accepted_row)
 
-                    print(f"✔ No experimental met thresholds; refetched best by log score: {best_label} "
-                          f"(VOF={refit_row['vof'] if pd.notna(refit_row['vof']) else 'N/A'}).")
-                else:
-                    print(f"✔ Best-by-log experimental {best_pid} could not be re-downloaded; AlphaFold retained only.")
-            else:
-                print("✔ No experimental candidates in log; AlphaFold retained only.")
+    # Always keep the best AF and best PDB if they exist (even if below threshold), unless already kept.
+    best_af_row = _select_best(all_rows, "AF", allow_negative_inf=False)
+    best_pdb_row = _select_best(all_rows, "PDB", allow_negative_inf=False)
 
-        # Final cleanup: ensure only kept experimental files remain
-        for r in rows:
-            if r["type"] == "PDB" and not r.get("kept", False):
-                try: pathlib.Path(r["source_model"]).unlink(missing_ok=True)
-                except Exception: pass
-                try: pathlib.Path(r["fitted_path"]).unlink(missing_ok=True)
-                except Exception: pass
+    if best_af_row and all(id(best_af_row) != id(k) for k in kept_rows):
+        best_af_row["kept"] = True
+        kept_rows.append(best_af_row)
+        vtxt = f"{best_af_row['vof']:.4f}" if pd.notna(best_af_row["vof"]) else "N/A"
+        print(f"[{q}] Keeping best AlphaFold overall ({best_af_row['id']}): VOF={vtxt} -> {best_af_row['fitted_path']}")
 
-    else:
-        # Score up to MAX_EXPERIMENTAL_TRIES, then choose best meeting thresholds (or best overall if none).
-        for m in meta:
-            pid = m["id"]; reso = m.get("resolution")
-            model_path = download_rcsb_model_any(pid, OUT_DIR)
-            if not model_path:
-                print(f"{q}: could not download PDB {pid}")
-                continue
-            label = f"{safe_q}__PDB_{pid}"
-            row = evaluate_and_record(label, "PDB", pid, MAP_PATH, model_path, map_resolution_A, reso)
-            rows.append(row)
-            vtxt = f"{row['vof']:.4f}" if pd.notna(row["vof"]) else "N/A"
-            rez  = f", {reso:.2f}Å" if isinstance(reso,(int,float)) else ""
-            print(f"EXP fit [PDB {pid}{rez}]: VOF={vtxt} → {row['fitted_path'] if pd.notna(row['vof']) else '—'}")
+    if best_pdb_row and all(id(best_pdb_row) != id(k) for k in kept_rows):
+        best_pdb_row["kept"] = True
+        kept_rows.append(best_pdb_row)
+        vtxt = f"{best_pdb_row['vof']:.4f}" if pd.notna(best_pdb_row["vof"]) else "N/A"
+        rez = f", {best_pdb_row['model_resolution_A']:.2f}A." if isinstance(best_pdb_row.get("model_resolution_A"), (int, float)) else ""
+        print(f"[{q}] Keeping best experimental PDB overall {best_pdb_row['id']}{rez}: VOF={vtxt} -> {best_pdb_row['fitted_path']}")
 
-        candidates = [r for r in rows if r["type"]=="PDB" and _passes_vof(r, vof_thr)]
-        keep_exp: Optional[Dict[str, Any]] = None
-        if candidates:
-            candidates.sort(key=lambda r: _vof_score(r), reverse=True)
-            keep_exp = candidates[0]; keep_exp["kept"] = True
-            print(f"✔ Kept best experimental meeting threshold: {keep_exp['label']} (VOF={keep_exp['vof']:.4f}).")
-        else:
-            # None met thresholds → keep best by VOF if any usable fit exists
-            all_pdb = [r for r in rows if r["type"] == "PDB"]
-            if all_pdb:
-                best_any = max(all_pdb, key=_vof_score)
-                if _vof_score(best_any) != float("-inf"):
-                    best_any["kept"] = True
-                    vtxt = f"{best_any['vof']:.4f}" if pd.notna(best_any["vof"]) else "N/A"
-                    print(f"✔ No experimental met threshold; kept best experimental by VOF: {best_any['label']} (VOF={vtxt}).")
-                else:
-                    print("✔ No experimental met thresholds and no usable experimental fit; AlphaFold retained only.")
-            else:
-                print("✔ No experimental structures available; AlphaFold retained only.")
-
-        # AF is always kept
-        if af_row: af_row["kept"] = True
-
-        # Clean unused experimental files
-        for r in rows:
-            if r["type"] == "PDB" and not r.get("kept", False):
-                try: pathlib.Path(r["source_model"]).unlink(missing_ok=True)
-                except Exception: pass
-                try: pathlib.Path(r["fitted_path"]).unlink(missing_ok=True)
-                except Exception: pass
+    # Delete any files not marked kept
+    kept_ids = {id(r) for r in kept_rows}
+    for r in all_rows:
+        if id(r) in kept_ids:
+            continue
+        try: pathlib.Path(r["source_model"]).unlink(missing_ok=True)
+        except Exception: pass
+        try: pathlib.Path(r["fitted_path"]).unlink(missing_ok=True)
+        except Exception: pass
 
     # ----- Per-target log -----
-    _write_log(safe_q, rows)
-    print(f"Log written: {(LOGS_DIR / f'{safe_q}__fit_scores.csv')}")
-
+    _write_log(safe_q, all_rows)
+    print(f"[{q}] Log written: {(LOGS_DIR / f'{safe_q}__fit_scores.csv')}")
 # ------------------- CLI main -------------------
 def main():
     if not MAP_PATH.exists():

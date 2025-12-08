@@ -1,6 +1,7 @@
 import sys
 from PyQt6 import QtWidgets, QtGui
 from gui_skin import Ui_cryoID
+from advanced_settings import AdvancedSettingsWindow
 
 
 def apply_dark_palette(app: QtWidgets.QApplication) -> None:
@@ -30,6 +31,23 @@ if __name__ == "__main__":
     window = QtWidgets.QMainWindow()
     ui = Ui_cryoID()
     ui.setupUi(window)
+    # Allow the Results dock to be closed and re-shown via View -> View Results.
+    ui.actionResults_window.setCheckable(True)
+    ui.actionResults_window.setChecked(True)
+    ui.actionResults_window.triggered.connect(ui.dockWidget.setVisible)
+    ui.dockWidget.visibilityChanged.connect(ui.actionResults_window.setChecked)
+    ui.dockWidget.setWindowTitle("")
+    # Spawn Advanced Settings as a separate window when the menu item is pressed
+    window._advanced_win = None
+
+    def open_advanced_settings():
+        if window._advanced_win is None:
+            window._advanced_win = AdvancedSettingsWindow(window)
+        window._advanced_win.show()
+        window._advanced_win.raise_()
+        window._advanced_win.activateWindow()
+
+    ui.actionAdvanced_Settings.triggered.connect(open_advanced_settings)
     # Results dock panel colors (overall box and inner background)
     ui.dockWidget.setStyleSheet("QDockWidget#dockWidget { background-color: #22272f; border: none; }")
     ui.dockWidgetContents.setStyleSheet(
