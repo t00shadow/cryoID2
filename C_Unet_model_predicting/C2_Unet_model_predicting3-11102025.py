@@ -25,8 +25,9 @@ from B2_UTILS_modeling import refine_mass_centers, write_pdb  # track_5_3,
 # MAIN_PATH = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/TEST_20240520'
 MAIN_PATH = "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/cryoID2_metadata_Final-VOF-filter"
 
+MODEL_TYPES = ["secondary_strctures", "key_atoms", "residue_types_6letter"]
 
-MODEL_TYPES = ['secondary_strctures', 'key_atoms', 'residue_types']
+# MODEL_TYPES = ['secondary_strctures', 'key_atoms', 'residue_types']
 MAP_DIRS_TYPES = [['map_sample'],
                   ['map_sample', 'secondary_strctures_pred_prob'],
                   [
@@ -219,26 +220,26 @@ def read_csv_info(csv_path, raw_dir):
     return csv_info, path_info
 
 if __name__ == "__main__":
-    metadata_path = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/cryoID2_metadata/cryoID2_metadata_random_test.csv'
+    # metadata_path = '/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/cryoID2_metadata/cryoID2_metadata_random_test.csv'
     # metadata_path = '/home/qiboxu/Database/CryoDataBot_Data/Metadata/Gprotein_res_3-4/train_experiment_GPCR_38_entries.csv'
 
-    raw_dir = "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Raw"
+    # raw_dir = "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Raw"
 
-    read_csv_info_with_recl = csv_col_reader('recommended_contour_level')(read_csv_info)
-    csv_info, path_info = read_csv_info_with_recl(metadata_path, raw_dir)
-    _, _, _, recls = csv_info
-    raw_map_paths, model_paths, _ = path_info
-    for MAP_PATH, recl in zip(raw_map_paths, recls):
-        print(f"\nProcessing {MAP_PATH} with recommended contour level: {recl}")
-        main(MAP_PATH, recl)
+    # read_csv_info_with_recl = csv_col_reader('recommended_contour_level')(read_csv_info)
+    # csv_info, path_info = read_csv_info_with_recl(metadata_path, raw_dir)
+    # _, _, _, recls = csv_info
+    # raw_map_paths, model_paths, _ = path_info
+    # for MAP_PATH, recl in zip(raw_map_paths, recls):
+    #     print(f"\nProcessing {MAP_PATH} with recommended contour level: {recl}")
+    #     main(MAP_PATH, recl)
 
 
 # ============ Example of single map prediction =============
-    # raw_map_path = '/mnt/h/.shortcut-targets-by-id/17Waw1mhPX-18joolWDdxszEDKngDgzgV/Projects/CryoID2/WorkFolder/BackboneTracing/UnetPrediction/real_malaria/1/cryosparc_P164_J166_006_volume_map.mrc'
-    # recl = 0.09
+    raw_map_path = '/mnt/h/.shortcut-targets-by-id/17Waw1mhPX-18joolWDdxszEDKngDgzgV/Projects/CryoID2/WorkFolder/BackboneTracing/UnetPrediction/real_malaria/1/cryosparc_P164_J166_006_volume_map.mrc'
+    recl = 0.09
     # raw_map_path = '/mnt/h/.shortcut-targets-by-id/17Waw1mhPX-18joolWDdxszEDKngDgzgV/Projects/CryoID2/WorkFolder/BackboneTracing/UnetPrediction/real_malaria/2/cryosparc_P164_J166_006_volume_map_sharp.mrc'
     # recl = 0.13
-    # main(raw_map_path, recl)
+    main(raw_map_path, recl)
 
     # RAW_DATA_PATH = (
     #     "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Raw"

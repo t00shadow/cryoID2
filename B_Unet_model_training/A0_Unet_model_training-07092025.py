@@ -41,6 +41,7 @@ learning_rate = 1e-4
 MAIN_PATH = "/home/qiboxu/Database/U_NET/EMDB_PDB_for_U_Net/Filtered_Dateset/Training/cryoID2_metadata_Final-VOF-filter"
 
 MODEL_TYPES = ["secondary_strctures", "key_atoms", "residue_types"]
+
 MAP_DIRS_TYPES = [
     ["map_sample"],
     ["map_sample", "secondary_strctures_pred_prob"],
