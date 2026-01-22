@@ -15,7 +15,7 @@ import os
 import shutil
 
 MODE = "single_output"
-MODE = "multi_output"
+# MODE = "multi_output"
 # MODE = "one_off"    # one time use cases, hotfixes, etc
 
 

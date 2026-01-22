@@ -27,8 +27,8 @@ print(clustering_cfg["emd_15905"]["base_dir"])
 
 
 # copied from A1_clustering.py to check
-FILE_TOGGLE = "emd_34843"
-FILE_TOGGLE = "emd_42791"
+# FILE_TOGGLE = "emd_34843"
+# FILE_TOGGLE = "emd_42791"
 FILE_TOGGLE = "real_malaria_1"
 
 paths_cfg = load_sample_paths("H_Backbone_tracing/A0_config.yaml", FILE_TOGGLE)
