@@ -294,8 +294,8 @@ def Readfile(params):
                 field = BlastSeq(line[:-1])
                 
                 # add length to class BlastSeq
-                if field.candidate.split('|')[0] in params.protlen:
-                    field.set_prot_len(params.protlen[field.candidate.split('|')[0]])
+                if field.candidate in params.protlen:
+                    field.set_prot_len(params.protlen[field.candidate])
                 else:
                     field.set_prot_len('-1')
                 
@@ -662,7 +662,7 @@ def Search(params):
     # Get the length of each sequence
     protlen = {}
     for record in SeqIO.parse(seqfile_name, "fasta"):
-        protlen[record.description.split("|")[0]] = len(record.seq)              # eg. record.id = "tr|Q8IKL5|Q8IKL5_PLAF7", record.seq = "MNIRLIKKIGINY...ESKWYSFWEENA"
+        protlen[record.id] = len(record.seq)              # eg. record.id = "tr|Q8IKL5|Q8IKL5_PLAF7", record.seq = "MNIRLIKKIGINY...ESKWYSFWEENA"
  
     # Generate a local blastp database from the (degenerate) candidate sequences
     DB_params = Namespace(seqfile=seqfile_name, logfile=logfile, base=params.base)
