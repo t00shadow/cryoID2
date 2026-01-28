@@ -173,63 +173,124 @@ def RetrievSeq(params):
 # Map sequences for blastp searching or group amino acids to show user the degenerate sequences
 #================================================================================================================================================================================================
 
-# Amino acid grouping and mapping table for blastp search. Representive codes are optimised based on PAM30 scorig matrix.
-# degenerate codes:
-# Group 0 (K): R, Q, K
-# Group 1 (L): I, L, V
-# Group 2 (G): A, G
-# Group 3 (Y): Y
-# Group 4 (F): F
-# Group 5 (S): S, T
-# Group 6 (P): P
-# Group 7 (H): H
-# Group 8 (W): W
-# Group 9 (N): N
-# Group 10 (C): C
-# Group 11 (M): M
-# Group 12 (E): D, E
-aaMapping = {
-    'R': 'K', 'Q': 'K', 'K': 'K', # Group 0 (K)
-    'r': 'K', 'q': 'K', 'k': 'K', 
+# # Amino acid grouping and mapping table for blastp search. Representive codes are optimised based on PAM30 scorig matrix.
+# # degenerate codes:
+# # Group 0 (K): R, Q, K
+# # Group 1 (L): I, L, V
+# # Group 2 (G): A, G
+# # Group 3 (Y): Y
+# # Group 4 (F): F
+# # Group 5 (S): S, T
+# # Group 6 (P): P
+# # Group 7 (H): H
+# # Group 8 (W): W
+# # Group 9 (N): N
+# # Group 10 (C): C
+# # Group 11 (M): M
+# # Group 12 (E): D, E
+# aaMapping = {
+#     'R': 'K', 'Q': 'K', 'K': 'K', # Group 0 (K)
+#     'r': 'K', 'q': 'K', 'k': 'K', 
 
-    'I': 'L', 'L': 'L', 'V': 'L', # Group 1 (L)
-    'i': 'L', 'l': 'L', 'v': 'L', 
+#     'I': 'L', 'L': 'L', 'V': 'L', # Group 1 (L)
+#     'i': 'L', 'l': 'L', 'v': 'L', 
 
-    'A': 'G', 'G': 'G',           # Group 2 (G)
-    'a': 'G', 'g': 'G',           
+#     'A': 'G', 'G': 'G',           # Group 2 (G)
+#     'a': 'G', 'g': 'G',           
 
-    'Y': 'Y',                     # Group 3 (Y)
-    'y': 'Y',                     
+#     'Y': 'Y',                     # Group 3 (Y)
+#     'y': 'Y',                     
 
-    'F': 'F',                     # Group 4 (F)
-    'f': 'F',                     
+#     'F': 'F',                     # Group 4 (F)
+#     'f': 'F',                     
 
-    'S': 'S', 'T': 'S',           # Group 5 (S)
-    's': 'S', 't': 'S',           
+#     'S': 'S', 'T': 'S',           # Group 5 (S)
+#     's': 'S', 't': 'S',           
 
-    'P': 'P',                     # Group 6 (P)
-    'p': 'P',                     
+#     'P': 'P',                     # Group 6 (P)
+#     'p': 'P',                     
 
-    'H': 'H',                     # Group 7 (H)
-    'h': 'H',                     
+#     'H': 'H',                     # Group 7 (H)
+#     'h': 'H',                     
 
-    'W': 'W',                     # Group 8 (W)
-    'w': 'W',                    
+#     'W': 'W',                     # Group 8 (W)
+#     'w': 'W',                    
 
-    'N': 'N',                     # Group 9 (N)
-    'n': 'N',                     
+#     'N': 'N',                     # Group 9 (N)
+#     'n': 'N',                     
 
-    'C': 'C',                     # Group 10 (C)
-    'c': 'C',                     
+#     'C': 'C',                     # Group 10 (C)
+#     'c': 'C',                     
 
-    'M': 'M',                     # Group 11 (M)
-    'm': 'M',                     
+#     'M': 'M',                     # Group 11 (M)
+#     'm': 'M',                     
     
-    'D': 'E', 'E': 'E',           # Group 12 (E)
-    'd': 'E', 'e': 'E',            
+#     'D': 'E', 'E': 'E',           # Group 12 (E)
+#     'd': 'E', 'e': 'E',            
 
-    # Rare amino acid
-    'X':'X', 'x':'X',           # All other amino acids -> X
+#     # Rare amino acid
+#     'X':'X', 'x':'X',           # All other amino acids -> X
+# }
+
+aaMapping = {
+    "G": "G",
+    "A": "G",
+    "S": "G",
+    "C": "G",
+    "V": "G",
+    "T": "G",
+    "I": "G",
+    "g": "G",
+    "a": "G",
+    "s": "G",
+    "c": "G",
+    "v": "G",
+    "t": "G",
+    "i": "G",
+    "P": "P",
+    "p": "P",
+    "L": "Z",
+    "D": "Z",
+    "N": "Z",
+    "E": "Z",
+    "Q": "Z",
+    "M": "Z",
+    "l": "Z",
+    "d": "Z",
+    "n": "Z",
+    "e": "Z",
+    "q": "Z",
+    "m": "Z",
+    "K": "M",
+    "R": "M",
+    "k": "M",
+    "r": "M",
+    # 'K':'Y', 'R':'Y',
+    # 'k':'Y', 'r':'Y',
+    "H": "Y",
+    "F": "Y",
+    "Y": "Y",
+    "h": "Y",
+    "f": "Y",
+    "y": "Y",
+    "W": "W",
+    "w": "W",
+    # All other amino acids -> X
+    "X": "X",
+    "x": "X",
+    # Selenocysteine is a cysteine analogue with a selenium-containing selenol group in
+    # place of the sulfur-containing thiol group.
+    "U": "G",
+    "u": "G",
+    # asparagine/aspartic acid - asx - B,
+    "B": "Z",
+    "b": "Z",
+    # glutamine/glutamic acid - glx - Z
+    "Z": "Z",
+    "z": "Z",
+    # Pyrrolysine pyrroline side-chain is similar to that of lysine
+    # in being basic and positively charged at neutral pH.
+    # 'O':'M', 'o':'M'
 }
 
 # reference query table/dictionary based on the simulation. assume 10% tolerance error.

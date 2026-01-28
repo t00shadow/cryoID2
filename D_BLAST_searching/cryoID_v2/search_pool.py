@@ -94,7 +94,7 @@ def Parser():
                         help='Output file directory. Default value is the same as query file directory')
     parser.add_argument('-r', '--reverse', action='store_true', default=False, 
                         help='If N/C terminal polarity of query sesquences are unknown, add -r flag')
-    parser.add_argument('-l', '--length', type=int, nargs=2, default=[1, 10000], 
+    parser.add_argument('-l', '--length', type=int, nargs=2, default=[1, 100000], 
                         help='Set target sequence length filter for the final results. Note that this argument takes two parameters seperated by a space. Default value is 1 10000 for a sequence length range of 1~10000')
     parser.add_argument('-e', '--evalue', type=float, default=1.0, 
                         help='Expectation value (E) threshold for saving hits in blast search for each query. Default 1.0')
