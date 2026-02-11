@@ -1,3 +1,0 @@
-label,type,id,map_resolution_A,model_resolution_A,vof,fitted_path,source_model,kept
-CDABP0047__AF_P04406,AF,P04406,2.603996663517821,,0.22794385550948176,Alphafold_fetch\fitted_models_v6\CDABP0047__AF_P04406_fitted_v5.pdb,Alphafold_fetch\fetched_structures_v3\AF-P04406-F1-model_v6.pdb,False
-CDABP0047__PDB_8G17,PDB,8G17,2.603996663517821,1.98,0.818260979702986,Alphafold_fetch\fitted_models_v6\CDABP0047__PDB_8G17_fitted_v5.pdb,Alphafold_fetch\fetched_structures_v3\8G17.cif,True

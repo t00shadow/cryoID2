@@ -7,3 +7,8 @@
 /T_AttnPacker/AttnPackerPlusRotPTM
 .venv/
 venv/
+
+# Local archive/backup folders (do not version)
+**/archive/
+**/backup/
+**/backups/

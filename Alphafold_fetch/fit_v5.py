@@ -5,13 +5,9 @@
 """
 Rigid-body fit MODEL+MAP, then evaluate with:
   - VOF (Volume Overlap Fraction) from a 3D voxel IoU between a thresholded map and
-    a fixed-radius model occupancy (no resolution scaling).
+    a model occupancy, optimized over rasterization radius + density cutoff.
 
-New:
-  - Fast single-map resolution estimator (estimate_resolution_single_map)
-  - Resolution-aware parameters use MAP resolution with precedence, then model res.
-
-Returns (VOF, fitted_path).
+Returns `(score, fitted_path)`, where `score = raw_vof * max(mean_z, 0)`.
 
 Deps: gemmi, numpy, scipy, mrcfile
   pip install gemmi numpy scipy mrcfile
@@ -22,8 +18,13 @@ import math, itertools, os
 from typing import Tuple, Optional
 import numpy as np
 import mrcfile, gemmi
-from scipy.ndimage import gaussian_filter, map_coordinates, binary_dilation, binary_erosion
+from scipy.ndimage import map_coordinates
+from scipy.optimize import minimize
 from scipy.spatial.transform import Rotation as R
+from scipy.ndimage import gaussian_filter, label, center_of_mass
+
+_MAPINFO_CACHE: dict[tuple[Path, float, bool, Optional[float], float], tuple[int, int, "MapInfo"]] = {}
+_SPHERE_OFFSETS_CACHE: dict[tuple[int, float], np.ndarray] = {}
 
 # -------------------- MRC helpers --------------------
 def _safe_get_origin(mrc: mrcfile.mrcfile.MrcFile):
@@ -45,17 +46,29 @@ def _safe_get_step(mrc: mrcfile.mrcfile.MrcFile):
         return float(vs.x), float(vs.y), float(vs.z)
     except Exception:
         h = mrc.header
-        cella = np.asarray(h.cella, dtype=np.float64).ravel()
+        cella = np.asarray(getattr(h, "cella", [1.0, 1.0, 1.0]), dtype=np.float64).ravel()
         mx, my, mz = int(getattr(h, "mx", 0) or 0), int(getattr(h, "my", 0) or 0), int(getattr(h, "mz", 0) or 0)
         nx, ny, nz = int(h.nx), int(h.ny), int(h.nz)
-        sx = cella[0] / (mx if mx else nx)
-        sy = cella[1] / (my if my else ny)
-        sz = cella[2] / (mz if mz else nz)
+
+        cellx = float(cella[0]) if cella.size > 0 else 1.0
+        celly = float(cella[1]) if cella.size > 1 else 1.0
+        cellz = float(cella[2]) if cella.size > 2 else 1.0
+
+        def _axis_step(cell: float, m: int, n: int) -> float:
+            denom = m if m > 0 else (n if n > 0 else 1)
+            step = float(cell) / float(denom)
+            if (not np.isfinite(step)) or step == 0.0:
+                return 1.0
+            return abs(float(step))
+
+        sx = _axis_step(cellx, mx, nx)
+        sy = _axis_step(celly, my, ny)
+        sz = _axis_step(cellz, mz, nz)
         return float(sx), float(sy), float(sz)
 
 class MapInfo:
-    """MRC mapping + vectorized interpolation on a blurred copy."""
-    def __init__(self, mrc: mrcfile.mrcfile.MrcFile, blur_sigma_vox: float):
+    """MRC mapping + vectorized interpolation on a working copy."""
+    def __init__(self, mrc: mrcfile.mrcfile.MrcFile):
         raw = mrc.data.astype(np.float32, copy=False)
         if not np.isfinite(raw).all():
             finite = np.isfinite(raw)
@@ -74,36 +87,91 @@ class MapInfo:
         self.mapc = int(getattr(h, "mapc", 1) or 1)
         self.mapr = int(getattr(h, "mapr", 2) or 2)
         self.maps = int(getattr(h, "maps", 3) or 3)
+        if {self.mapc, self.mapr, self.maps} != {1, 2, 3}:
+            self.mapc, self.mapr, self.maps = 1, 2, 3
 
         x0, y0, z0 = _safe_get_origin(mrc)
-        self.eff_x0 = x0 + self._start_for(self.mapc) * self.sx
-        self.eff_y0 = y0 + self._start_for(self.mapr) * self.sy
-        self.eff_z0 = z0 + self._start_for(self.maps) * self.sz
+        self.eff_x0 = x0 + self._start_for_world_axis(1) * self.sx
+        self.eff_y0 = y0 + self._start_for_world_axis(2) * self.sy
+        self.eff_z0 = z0 + self._start_for_world_axis(3) * self.sz
 
-        self.cx = self._count_for(self.mapc)
-        self.cy = self._count_for(self.mapr)
-        self.cz = self._count_for(self.maps)
+        self.cx = self._count_for_world_axis(1)
+        self.cy = self._count_for_world_axis(2)
+        self.cz = self._count_for_world_axis(3)
 
-        self.axX = self._axis_from_code(self.mapc)
-        self.axY = self._axis_from_code(self.mapr)
-        self.axZ = self._axis_from_code(self.maps)
+        self.axX = self._array_axis_for_world_axis(1)
+        self.axY = self._array_axis_for_world_axis(2)
+        self.axZ = self._array_axis_for_world_axis(3)
 
-        self.fit_map = gaussian_filter(self.raw, sigma=(blur_sigma_vox,)*3, mode='nearest') if blur_sigma_vox>0 else self.raw
-        self.mu = float(np.mean(self.fit_map))
-        self.sd = float(np.std(self.fit_map, ddof=0)) + 1e-12
+        self.fit_map = self.raw
+        self.mu = 0.0
+        self.sd = 1.0
+        self.z_map = self.raw
+        self._set_fit_map(self.raw)
+        self._coords_buf = np.empty((3, 0), dtype=np.float64)
 
         self.extent_x = self.sx * (self.cx - 1)
         self.extent_y = self.sy * (self.cy - 1)
         self.extent_z = self.sz * (self.cz - 1)
         self.longest_extent = float(max(self.extent_x, self.extent_y, self.extent_z))
 
-    def _count_for(self, code: int) -> int:
-        return {1: self.nx, 2: self.ny, 3: self.nz}[code]
-    def _start_for(self, code: int) -> int:
-        return {1: self.nxstart, 2: self.nystart, 3: self.nzstart}[code]
-    @staticmethod
-    def _axis_from_code(code: int) -> int:
-        return {1: 2, 2: 1, 3: 0}[code]
+    def _set_fit_map(self, fit_map: np.ndarray):
+        arr = np.asarray(fit_map, dtype=np.float32, order="C")
+        if arr.shape != self.raw.shape:
+            raise ValueError(f"fit_map shape mismatch: got {arr.shape}, expected {self.raw.shape}")
+        if not np.isfinite(arr).all():
+            finite = np.isfinite(arr)
+            fill = np.nanmedian(arr[finite]) if np.any(finite) else 0.0
+            arr = np.where(finite, arr, fill).astype(np.float32, copy=False)
+        self.fit_map = arr
+        self.mu = float(np.mean(self.fit_map))
+        self.sd = float(np.std(self.fit_map, ddof=0)) + 1e-12
+        self.z_map = ((self.fit_map - self.mu) / self.sd).astype(np.float32, copy=False)
+
+    def _array_axis_for_world_axis(self, axis_code: int) -> int:
+        if self.maps == axis_code:
+            return 0
+        if self.mapr == axis_code:
+            return 1
+        if self.mapc == axis_code:
+            return 2
+        raise ValueError(f"Axis code {axis_code} not present in map axis ordering.")
+
+    def _start_for_world_axis(self, axis_code: int) -> int:
+        if self.mapc == axis_code:
+            return self.nxstart
+        if self.mapr == axis_code:
+            return self.nystart
+        if self.maps == axis_code:
+            return self.nzstart
+        raise ValueError(f"Axis code {axis_code} not present in map axis ordering.")
+
+    def _count_for_world_axis(self, axis_code: int) -> int:
+        if self.mapc == axis_code:
+            return self.nx
+        if self.mapr == axis_code:
+            return self.ny
+        if self.maps == axis_code:
+            return self.nz
+        raise ValueError(f"Axis code {axis_code} not present in map axis ordering.")
+
+    def _grid_index_for_world_axis(self, axis_code: int, ix, iy, iz):
+        if self.mapc == axis_code:
+            return ix
+        if self.mapr == axis_code:
+            return iy
+        if self.maps == axis_code:
+            return iz
+        raise ValueError(f"Axis code {axis_code} not present in map axis ordering.")
+
+    def grid_to_world_many(self, ix, iy, iz):
+        idx_x = self._grid_index_for_world_axis(1, ix, iy, iz)
+        idx_y = self._grid_index_for_world_axis(2, ix, iy, iz)
+        idx_z = self._grid_index_for_world_axis(3, ix, iy, iz)
+        xs = self.eff_x0 + idx_x * self.sx
+        ys = self.eff_y0 + idx_y * self.sy
+        zs = self.eff_z0 + idx_z * self.sz
+        return xs, ys, zs
 
     def world_to_array_frac_many(self, pts: np.ndarray):
         xs = pts[:, 0]; ys = pts[:, 1]; zs = pts[:, 2]
@@ -116,11 +184,199 @@ class MapInfo:
         f[self.axZ] = idxZ
         return f  # [fz, fy, fx] in array-axis order (z,y,x)
 
+    def _world_to_coords(self, pts_world: np.ndarray) -> np.ndarray:
+        pts = np.asarray(pts_world, dtype=np.float64)
+        n = int(pts.shape[0])
+        if self._coords_buf.shape[1] < n:
+            self._coords_buf = np.empty((3, n), dtype=np.float64)
+        coords = self._coords_buf[:, :n]
+
+        xs = pts[:, 0]
+        ys = pts[:, 1]
+        zs = pts[:, 2]
+        coords[self.axX] = (xs - self.eff_x0) / self.sx
+        coords[self.axY] = (ys - self.eff_y0) / self.sy
+        coords[self.axZ] = (zs - self.eff_z0) / self.sz
+        return coords
+
     def interp_many(self, pts_world: np.ndarray) -> np.ndarray:
-        fz, fy, fx = self.world_to_array_frac_many(pts_world)
-        coords = np.vstack([fz, fy, fx])
+        coords = self._world_to_coords(pts_world)
         vals = map_coordinates(self.fit_map, coords, order=1, mode='nearest', cval=0.0)
-        return vals.astype(np.float64)
+        return vals.astype(np.float64, copy=False)
+
+
+def _center_blob_mask(
+    arr: np.ndarray,
+    threshold_value: float,
+    cluster_disconnected: bool = True,
+    centroid_link_vox: float = 8.0,
+    center_gate_vox: float = 32.0,
+    min_component_vox: int = 64,
+) -> np.ndarray:
+    """Return a center blob mask; optionally cluster nearby disconnected components."""
+    mask = np.asarray(arr >= float(threshold_value), dtype=bool)
+    if not np.any(mask):
+        return np.ones(arr.shape, dtype=bool)
+
+    labs, nlab = label(mask)
+    if int(nlab) <= 1:
+        return mask
+
+    counts = np.bincount(labs.ravel(), minlength=int(nlab) + 1)
+    comp_labels = np.arange(1, int(nlab) + 1, dtype=np.int32)
+    comp_counts = counts[1:].astype(np.int64, copy=False)
+    valid = comp_counts >= int(max(1, min_component_vox))
+    if not np.any(valid):
+        valid = np.ones_like(comp_labels, dtype=bool)
+    comp_labels = comp_labels[valid]
+    if comp_labels.size == 0:
+        return mask
+
+    center_idx = np.array(
+        [(arr.shape[0] - 1) * 0.5, (arr.shape[1] - 1) * 0.5, (arr.shape[2] - 1) * 0.5],
+        dtype=np.float64,
+    )
+    cz = int(round(center_idx[0]))
+    cy = int(round(center_idx[1]))
+    cx = int(round(center_idx[2]))
+    cz = int(np.clip(cz, 0, arr.shape[0] - 1))
+    cy = int(np.clip(cy, 0, arr.shape[1] - 1))
+    cx = int(np.clip(cx, 0, arr.shape[2] - 1))
+
+    center_lab = int(labs[cz, cy, cx])
+    centroids = []
+    for lab_id in comp_labels.tolist():
+        cm = center_of_mass(mask, labs, int(lab_id))
+        if cm is None or len(cm) != 3:
+            centroids.append((np.nan, np.nan, np.nan))
+            continue
+        centroids.append(cm)
+    centroids = np.asarray(centroids, dtype=np.float64)
+    finite = np.isfinite(centroids).all(axis=1)
+    if not np.any(finite):
+        return labs == int(comp_labels[0])
+    comp_labels = comp_labels[finite]
+    centroids = centroids[finite]
+
+    best_lab = int(comp_labels[0])
+    best_d2 = float("inf")
+    if center_lab > 0 and np.any(comp_labels == center_lab):
+        best_lab = int(center_lab)
+    else:
+        for lab_id, c in zip(comp_labels.tolist(), centroids):
+            d2 = float(np.sum((c - center_idx) ** 2))
+            if d2 < best_d2:
+                best_d2 = d2
+                best_lab = int(lab_id)
+
+    if not cluster_disconnected or comp_labels.size == 1:
+        return labs == best_lab
+
+    seed_idx = int(np.where(comp_labels == best_lab)[0][0])
+    d_center = np.linalg.norm(centroids - center_idx.reshape(1, 3), axis=1)
+    gate = float(max(4.0, center_gate_vox))
+    gated = d_center <= gate
+    if not np.any(gated):
+        return labs == best_lab
+
+    gated_indices = np.where(gated)[0]
+    gated_labels = comp_labels[gated_indices]
+    gated_centers = centroids[gated_indices]
+    if gated_labels.size == 1:
+        return labs == int(gated_labels[0])
+
+    if best_lab in gated_labels:
+        seed_local = int(np.where(gated_labels == best_lab)[0][0])
+    else:
+        return labs == best_lab
+
+    link = float(max(2.0, centroid_link_vox))
+    dmat = np.linalg.norm(gated_centers[:, None, :] - gated_centers[None, :, :], axis=2)
+    adjacency = dmat <= link
+    visited = np.zeros(gated_labels.shape[0], dtype=bool)
+    stack = [seed_local]
+    visited[seed_local] = True
+    while stack:
+        cur = stack.pop()
+        nbrs = np.where(adjacency[cur])[0]
+        for nb in nbrs.tolist():
+            if not visited[nb]:
+                visited[nb] = True
+                stack.append(nb)
+
+    selected_labels = gated_labels[visited]
+    if selected_labels.size == 0:
+        selected_labels = np.array([best_lab], dtype=np.int32)
+    return np.isin(labs, selected_labels)
+
+
+def _get_cached_mapinfo(
+    map_path: Path,
+    denoise_sigma: float = 0.0,
+    denoise_center_blob_only: bool = False,
+    denoise_center_blob_level: Optional[float] = None,
+    denoise_center_blob_z_fallback: float = 0.50,
+    denoise_center_blob_cluster_disconnected: bool = True,
+    denoise_center_blob_link_factor: float = 0.08,
+    denoise_center_blob_center_factor: float = 0.40,
+    denoise_center_blob_min_component_vox: int = 64,
+) -> MapInfo:
+    map_path = Path(map_path).resolve()
+    st = map_path.stat()
+    sig = (int(st.st_mtime_ns), int(st.st_size))
+    sigma = float(max(0.0, denoise_sigma))
+    blob_level = None
+    if denoise_center_blob_level is not None and np.isfinite(denoise_center_blob_level):
+        blob_level = float(denoise_center_blob_level)
+    key = (
+        map_path,
+        sigma,
+        bool(denoise_center_blob_only),
+        (None if blob_level is None else round(blob_level, 6)),
+        float(denoise_center_blob_z_fallback),
+        bool(denoise_center_blob_cluster_disconnected),
+        round(float(denoise_center_blob_link_factor), 6),
+        round(float(denoise_center_blob_center_factor), 6),
+        int(denoise_center_blob_min_component_vox),
+    )
+    cached = _MAPINFO_CACHE.get(key)
+    if cached and (cached[0], cached[1]) == sig:
+        return cached[2]
+
+    with mrcfile.open(str(map_path), mode="r") as mrc:
+        mapinfo = MapInfo(mrc)
+    if sigma > 0.0:
+        src = mapinfo.raw
+        if denoise_center_blob_only:
+            if blob_level is None:
+                zf = float(denoise_center_blob_z_fallback)
+                thr = float(np.mean(src) + zf * (float(np.std(src)) + 1e-12))
+            else:
+                thr = float(blob_level)
+            min_dim = float(max(1, min(src.shape)))
+            link_vox = max(2.0, float(denoise_center_blob_link_factor) * min_dim)
+            center_gate_vox = max(4.0, float(denoise_center_blob_center_factor) * min_dim)
+            keep = _center_blob_mask(
+                src,
+                threshold_value=thr,
+                cluster_disconnected=bool(denoise_center_blob_cluster_disconnected),
+                centroid_link_vox=float(link_vox),
+                center_gate_vox=float(center_gate_vox),
+                min_component_vox=int(max(1, denoise_center_blob_min_component_vox)),
+            )
+            work = np.where(keep, src, 0.0).astype(np.float32, copy=False)
+            den = gaussian_filter(work, sigma=sigma).astype(np.float32, copy=False)
+            den = np.where(keep, den, 0.0).astype(np.float32, copy=False)
+        else:
+            den = gaussian_filter(src, sigma=sigma).astype(np.float32, copy=False)
+        mapinfo._set_fit_map(den)
+
+    _MAPINFO_CACHE[key] = (sig[0], sig[1], mapinfo)
+    if len(_MAPINFO_CACHE) > 8:
+        keep = {key: _MAPINFO_CACHE[key]}
+        _MAPINFO_CACHE.clear()
+        _MAPINFO_CACHE.update(keep)
+    return mapinfo
 
 # -------------------- Structure I/O & transforms --------------------
 def read_model_coords(st_path: Path):
@@ -146,6 +402,33 @@ def read_model_coords(st_path: Path):
     if not coords:
         raise RuntimeError("No atoms found in model.")
     return st, np.asarray(coords, dtype=np.float64)
+
+def _collect_non_h_coords(st: gemmi.Structure) -> np.ndarray:
+    coords = []
+    for model in st:
+        for chain in model:
+            for res in chain:
+                for atom in res:
+                    if atom.element and atom.element.name == "H":
+                        continue
+                    p = atom.pos
+                    coords.append((p.x, p.y, p.z))
+    return np.asarray(coords, dtype=np.float64) if coords else np.empty((0, 3), dtype=np.float64)
+
+def _collect_backbone_coords(st: gemmi.Structure) -> np.ndarray:
+    coords = []
+    for model in st:
+        for chain in model:
+            for res in chain:
+                for atom in res:
+                    if atom.name in ("N", "CA", "C", "O", "P"):
+                        if atom.element and atom.element.name == "H":
+                            continue
+                        p = atom.pos
+                        coords.append((p.x, p.y, p.z))
+    if coords:
+        return np.asarray(coords, dtype=np.float64)
+    return _collect_non_h_coords(st)
 
 def apply_transform_to_structure(st: gemmi.Structure, Rm: np.ndarray, t: np.ndarray):
     Rm = np.asarray(Rm, dtype=np.float64); t = np.asarray(t, dtype=np.float64)
@@ -173,25 +456,6 @@ def pca(points: np.ndarray, weights: np.ndarray | None = None):
     vecs = vecs[:, order]
     return vecs, center
 
-def proper_rotation(M: np.ndarray) -> np.ndarray:
-    U, _, Vt = np.linalg.svd(M)
-    S = np.eye(3)
-    if np.linalg.det(U @ Vt) < 0: S[2, 2] = -1.0
-    return (U @ S @ Vt).astype(np.float64)
-
-def all_24_axis_maps():
-    mats = []
-    for perm in itertools.permutations(range(3)):
-        P = np.eye(3)[:, perm]
-        for signs in itertools.product([-1, 1], repeat=3):
-            S = np.diag(signs); M = P @ S
-            if np.linalg.det(M) > 0.5: mats.append(M.astype(np.float64))
-    uniq = []
-    for M in mats:
-        if not any(np.allclose(M, N) for N in uniq):
-            uniq.append(M)
-    return uniq
-
 def sample_map_points(mapinfo: MapInfo, stride: int, target_min: int):
     A = mapinfo.fit_map
     sub = A[::stride, ::stride, ::stride]
@@ -199,19 +463,13 @@ def sample_map_points(mapinfo: MapInfo, stride: int, target_min: int):
     thresholds = [mu + 1.5*sd, mu + 1.0*sd, np.quantile(sub, 0.98), np.quantile(sub, 0.95), mu + 0.5*sd]
     pts = wts = None
 
-    def grid_to_world(ix, iy, iz):
-        xs = mapinfo.eff_x0 + (ix if mapinfo.mapc == 1 else iy if mapinfo.mapc == 2 else iz) * (mapinfo.sx if mapinfo.mapc == 1 else mapinfo.sy if mapinfo.mapc == 2 else mapinfo.sz)
-        ys = mapinfo.eff_y0 + (ix if mapinfo.mapr == 1 else iy if mapinfo.mapr == 2 else iz) * (mapinfo.sx if mapinfo.mapr == 1 else mapinfo.sy if mapinfo.mapr == 2 else mapinfo.sz)
-        zs = mapinfo.eff_z0 + (ix if mapinfo.maps == 1 else iy if mapinfo.maps == 2 else iz) * (mapinfo.sx if mapinfo.maps == 1 else mapinfo.sy if mapinfo.maps == 2 else mapinfo.sz)
-        return xs, ys, zs
-
     for th in thresholds:
         mask = sub >= th
         if int(mask.sum()) >= target_min:
             iz, iy, ix = np.nonzero(mask)
             iz *= stride; iy *= stride; ix *= stride
             vals = A[iz, iy, ix].astype(np.float64, copy=False)
-            xs, ys, zs = grid_to_world(ix, iy, iz)
+            xs, ys, zs = mapinfo.grid_to_world_many(ix, iy, iz)
             pts = np.column_stack([xs, ys, zs]); wts = vals
             break
 
@@ -219,63 +477,16 @@ def sample_map_points(mapinfo: MapInfo, stride: int, target_min: int):
         iz, iy, ix = np.nonzero(np.ones_like(sub, dtype=bool))
         iz *= stride; iy *= stride; ix *= stride
         vals = A[iz, iy, ix].astype(np.float64, copy=False)
-        xs, ys, zs = grid_to_world(ix, iy, iz)
+        xs, ys, zs = mapinfo.grid_to_world_many(ix, iy, iz)
         pts = np.column_stack([xs, ys, zs]); wts = vals
 
     wsum = float(wts.sum()) or 1.0
     com = (pts * (wts.reshape(-1, 1))).sum(axis=0) / wsum
     return pts, wts, com
 
-def coarse_align_with_24(mapinfo: MapInfo, model_pts: np.ndarray, atoms_sample: int = 3000):
-    mpts = model_pts[np.linspace(0, model_pts.shape[0]-1, min(model_pts.shape[0], atoms_sample), dtype=int)]
-    map_pts, map_wts, map_com = sample_map_points(mapinfo, stride=3, target_min=2500)
-    U_model, m_centroid = pca(mpts)
-    V_map, _ = pca(map_pts, map_wts)
-    candidates = all_24_axis_maps()
-    best_R = None; best_t = None; best_s = -np.inf
-    for A in candidates:
-        R0 = proper_rotation(V_map @ A @ U_model.T)
-        t0 = map_com - (R0 @ m_centroid)
-        z = (mapinfo.interp_many((R0 @ mpts.T).T + t0) - mapinfo.mu) / mapinfo.sd
-        s = float(np.mean(z))
-        if s > best_s: best_s, best_R, best_t = s, R0, t0
-    return best_R, best_t, m_centroid, map_com, best_s
-
-# -------------------- Greedy refine --------------------
 def _score_meanZ(mapinfo: MapInfo, pts_world: np.ndarray) -> float:
     vals = mapinfo.interp_many(pts_world)
     return float(np.mean((vals - mapinfo.mu) / mapinfo.sd))
-
-def greedy_refine(mapinfo: MapInfo, model_pts_scoring: np.ndarray,
-                  R_init: np.ndarray, t_init: np.ndarray,
-                  rot_steps_deg: list[float], trans_steps_ang: list[float],
-                  max_sweeps_per_step: int, trans_bound_ang: float) -> tuple[np.ndarray, np.ndarray, float]:
-    R_best = R_init.copy(); t_best = t_init.copy()
-    s_best = _score_meanZ(mapinfo, (R_best @ model_pts_scoring.T).T + t_best)
-
-    def try_move(Rc, tc, best):
-        pts = (Rc @ model_pts_scoring.T).T + tc
-        s = _score_meanZ(mapinfo, pts)
-        return (Rc, tc, s, True) if s > best else (R_best, t_best, best, False)
-
-    for rstep in rot_steps_deg:
-        for tstep in trans_steps_ang:
-            sweeps = 0
-            while sweeps < max_sweeps_per_step:
-                improved = False; sweeps += 1
-                for axis in [(1,0,0),(0,1,0),(0,0,1)]:
-                    for sgn in (-1.0, 1.0):
-                        Rstep = R.from_rotvec(np.array(axis, float)*math.radians(sgn*rstep)).as_matrix()
-                        R_best, t_best, s_best, did = try_move(Rstep @ R_best, t_best, s_best)
-                        improved |= did
-                for ax in range(3):
-                    for sgn in (-1.0,1.0):
-                        t_try = t_best.copy(); t_try[ax] += sgn*tstep
-                        t_try = np.clip(t_try, -abs(trans_bound_ang), +abs(trans_bound_ang))
-                        R_best, t_best, s_best, did = try_move(R_best, t_try, s_best)
-                        improved |= did
-                if not improved: break
-    return R_best, t_best, s_best
 
 # -------------------- VOF (3D IoU) --------------------
 def _downsample_to_maxdim(vol: np.ndarray, max_dim: int) -> np.ndarray:
@@ -284,159 +495,751 @@ def _downsample_to_maxdim(vol: np.ndarray, max_dim: int) -> np.ndarray:
     if scale == 1: return vol
     return vol[::scale, ::scale, ::scale]
 
+# --- VOF optimization defaults ---
+VOF_RADIUS_RANGE_A = (4.0, 8.0)
+VOF_RADIUS_STEP_A = 0.25
+VOF_Z_THRESHOLDS = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5]
+VOF_Z_QUANTILES = [0.90, 0.93, 0.95, 0.97, 0.98, 0.99, 0.995]
+VOF_MIN_MAP_FRAC = 0.001
+VOF_MIN_MODEL_FRAC = 0.0005
+VOF_MIN_UNION_FRAC = 0.0015
+VOF_MAX_DIM = 160
+VOF_SCORE_ATOMS = "backbone"  # "rep", "backbone", or "heavy"
+
+# --- Global coarse search ---
+GLOBAL_SEARCH_MAX_DIM = 64
+GLOBAL_SEARCH_Z = 1.5
+GLOBAL_SEARCH_RADIUS_A = 3.5
+GLOBAL_SEARCH_ROTATIONS = 32
+GLOBAL_SEARCH_TRANS_RANGE = 1
+GLOBAL_SEARCH_TRANS_STEP_SCALE = 1.0
+GLOBAL_SEARCH_USE_PCA_SEED = True
+GLOBAL_SEARCH_COARSE_TRANSLATION = False
+GLOBAL_SEARCH_COARSE_MULT = 4.0
+GLOBAL_SEARCH_COARSE_RANGE = 2
+GLOBAL_SEARCH_SEED = 0
+GLOBAL_SEARCH_SELF_SPIN_STEPS = 1  # 1 => disable extra self-spin sweep
+
+# --- Joint local refinement (replaces greedy_refine in fit_model_and_score) ---
+GLOBAL_JOINT_POWELL_MAXITER = 32
+GLOBAL_JOINT_POWELL_XTOL = 1e-6
+GLOBAL_JOINT_POWELL_FTOL = 1e-6
+GLOBAL_JOINT_ROT_BOUND_DEG = 20.0
+GLOBAL_JOINT_TRANS_FACTOR = 0.30
+GLOBAL_MAP_DENOISE_ENABLED = False
+GLOBAL_MAP_DENOISE_SIGMA = 1.0
+# If True, evaluate only the denoised map variant (no raw-map fit branch).
+GLOBAL_MAP_USE_DENOISED_ONLY = True
+GLOBAL_MAP_DENOISE_CENTER_BLOB_ONLY = True
+GLOBAL_MAP_DENOISE_CENTER_BLOB_Z_FALLBACK = 0.50
+GLOBAL_MAP_DENOISE_CENTER_BLOB_CLUSTER_DISCONNECTED = True
+GLOBAL_MAP_DENOISE_CENTER_BLOB_LINK_FACTOR = 0.08
+GLOBAL_MAP_DENOISE_CENTER_BLOB_CENTER_FACTOR = 0.40
+GLOBAL_MAP_DENOISE_CENTER_BLOB_MIN_COMPONENT_VOX = 64
+
+def _score_from_vof_meanz(raw_vof: float, mean_z: float) -> float:
+    return float(raw_vof) * max(float(mean_z), 0.0)
+
+
+def joint_powell_refine(
+    mapinfo: MapInfo,
+    model_pts_scoring: np.ndarray,
+    R_seed: np.ndarray,
+    t_seed: np.ndarray,
+    trans_bound_ang: float,
+    maxiter: int = GLOBAL_JOINT_POWELL_MAXITER,
+    xtol: float = GLOBAL_JOINT_POWELL_XTOL,
+    ftol: float = GLOBAL_JOINT_POWELL_FTOL,
+    rot_bound_deg: float = GLOBAL_JOINT_ROT_BOUND_DEG,
+) -> tuple[np.ndarray, np.ndarray, float]:
+    """Joint 6-DoF local optimization (spin+rotation+translation) using Powell on mean Z."""
+    model_pts_scoring = np.asarray(model_pts_scoring, dtype=np.float64)
+    R_seed = np.asarray(R_seed, dtype=np.float64)
+    t_seed = np.asarray(t_seed, dtype=np.float64)
+
+    rot_bound = math.radians(float(rot_bound_deg))
+    trans_bound = abs(float(trans_bound_ang))
+    lb = np.array(
+        [-rot_bound, -rot_bound, -rot_bound, -trans_bound, -trans_bound, -trans_bound],
+        dtype=np.float64,
+    )
+    ub = np.array(
+        [rot_bound, rot_bound, rot_bound, trans_bound, trans_bound, trans_bound],
+        dtype=np.float64,
+    )
+
+    def _project(v: np.ndarray) -> np.ndarray:
+        return np.clip(np.asarray(v, dtype=np.float64), lb, ub)
+
+    def _score(v: np.ndarray) -> float:
+        v = _project(v)
+        rv = v[:3]
+        dt = v[3:]
+        R_delta = R.from_rotvec(rv).as_matrix()
+        R_try = R_delta @ R_seed
+        t_try = t_seed + dt
+        pts_world = (R_try @ model_pts_scoring.T).T + t_try
+        return _score_meanZ(mapinfo, pts_world)
+
+    x0 = np.zeros(6, dtype=np.float64)
+    best_x = x0.copy()
+    best_s = _score(best_x)
+
+    res = minimize(
+        lambda v: -_score(v),
+        x0,
+        method="Powell",
+        bounds=list(zip(lb, ub)),
+        options={
+            "maxiter": int(maxiter),
+            "xtol": float(xtol),
+            "ftol": float(ftol),
+            "disp": False,
+        },
+    )
+    if res.x is not None:
+        x_try = _project(res.x)
+        s_try = _score(x_try)
+        if s_try > best_s:
+            best_s = s_try
+            best_x = x_try
+
+    rv = best_x[:3]
+    dt = best_x[3:]
+    R_delta = R.from_rotvec(rv).as_matrix()
+    R_best = R_delta @ R_seed
+    t_best = t_seed + dt
+    return R_best, t_best, float(best_s)
+
 def _model_occupancy_from_points(shape: tuple[int,int,int], pts_zyx: np.ndarray, rad_vox: float) -> np.ndarray:
     occ = np.zeros(shape, dtype=np.uint8)
-    if pts_zyx.size == 0: return occ
-    zmax,ymax,xmax = shape
-    rr = int(max(1, np.ceil(rad_vox)))
-    offsets = []
-    for dz in range(-rr, rr+1):
-        for dy in range(-rr, rr+1):
-            for dx in range(-rr, rr+1):
-                if (dx*dx + dy*dy + dz*dz) <= rad_vox*rad_vox + 1e-6:
-                    offsets.append((dz,dy,dx))
-    offsets = np.array(offsets, dtype=int)
-    idx = np.round(pts_zyx).astype(int)
-    for z,y,x in idx:
-        zz = np.clip(z + offsets[:,0], 0, zmax-1)
-        yy = np.clip(y + offsets[:,1], 0, ymax-1)
-        xx = np.clip(x + offsets[:,2], 0, xmax-1)
-        occ[zz,yy,xx] = 1
+    if pts_zyx.size == 0:
+        return occ
+
+    zmax, ymax, xmax = shape
+    rv = float(rad_vox)
+    rr = int(max(1, np.ceil(rv)))
+    key = (rr, rv)
+    offsets = _SPHERE_OFFSETS_CACHE.get(key)
+    if offsets is None:
+        off = []
+        r2 = rv * rv + 1e-6
+        for dz in range(-rr, rr + 1):
+            for dy in range(-rr, rr + 1):
+                for dx in range(-rr, rr + 1):
+                    if (dx * dx + dy * dy + dz * dz) <= r2:
+                        off.append((dz, dy, dx))
+        offsets = np.asarray(off, dtype=np.int64)
+        _SPHERE_OFFSETS_CACHE[key] = offsets
+
+    idx = np.round(pts_zyx).astype(np.int64)
+
+    all_coords = idx[:, None, :] + offsets[None, :, :]
+    all_coords = all_coords.reshape(-1, 3)
+    all_coords[:, 0] = np.clip(all_coords[:, 0], 0, zmax - 1)
+    all_coords[:, 1] = np.clip(all_coords[:, 1], 0, ymax - 1)
+    all_coords[:, 2] = np.clip(all_coords[:, 2], 0, xmax - 1)
+    occ[all_coords[:, 0], all_coords[:, 1], all_coords[:, 2]] = 1
     return occ
 
-def compute_vof(mapinfo: MapInfo, model_pts_world: np.ndarray,
-                sphere_radius_vox: float,
-                max_dim: int = 128) -> float:
-    mZ = (mapinfo.fit_map - mapinfo.mu) / mapinfo.sd
-    mZ_ds = _downsample_to_maxdim(mZ, max_dim)
-
-    map_mask = mZ_ds >= 1.0
+def _prepare_vof_inputs(mapinfo: MapInfo, model_pts_world: np.ndarray, max_dim: int):
+    m = mapinfo.fit_map
+    m_ds = _downsample_to_maxdim(m, max_dim)
+    mZ_ds = _downsample_to_maxdim(mapinfo.z_map, max_dim)
 
     fz, fy, fx = mapinfo.world_to_array_frac_many(model_pts_world)
-    scale_z = mZ.shape[0] / mZ_ds.shape[0]
-    scale_y = mZ.shape[1] / mZ_ds.shape[1]
-    scale_x = mZ.shape[2] / mZ_ds.shape[2]
+    scale_z = m.shape[0] / m_ds.shape[0]
+    scale_y = m.shape[1] / m_ds.shape[1]
+    scale_x = m.shape[2] / m_ds.shape[2]
     pts_zyx_ds = np.column_stack([fz/scale_z, fy/scale_y, fx/scale_x])
 
     scale_mean = float(np.mean([scale_z, scale_y, scale_x]))
-    rad_ds = sphere_radius_vox / max(scale_mean, 1e-6)
-    model_occ = _model_occupancy_from_points(mZ_ds.shape, pts_zyx_ds, rad_ds)
+    return m_ds, mZ_ds, pts_zyx_ds, scale_mean
 
-    inter = np.logical_and(map_mask, model_occ > 0).sum()
-    union = np.logical_or(map_mask, model_occ > 0).sum()
-    return float(inter) / float(union) if union > 0 else 0.0
+def _build_radius_candidates(rmin: float, rmax: float, step: float, extra: Optional[list[float]] = None) -> list[float]:
+    base = np.arange(rmin, rmax + 1e-6, step, dtype=np.float64).tolist()
+    if extra:
+        base.extend(extra)
+    uniq = sorted({round(float(r), 4) for r in base if rmin <= float(r) <= rmax})
+    return uniq
 
-# -------------------- Resolution-aware parameterization --------------------
-def _clamp(x, lo, hi): return float(min(max(x, lo), hi))
+def _build_threshold_candidates(
+    mZ_ds: np.ndarray,
+    mapinfo: MapInfo,
+    recommended_contour_level: Optional[float] = None,
+    extra: Optional[list[float]] = None,
+) -> list[float]:
+    candidates: list[float] = []
+    candidates.extend(VOF_Z_THRESHOLDS)
+    if VOF_Z_QUANTILES:
+        try:
+            q_vals = np.quantile(mZ_ds, VOF_Z_QUANTILES).astype(np.float64).ravel().tolist()
+            candidates.extend(q_vals)
+        except Exception:
+            pass
+    if recommended_contour_level is not None and np.isfinite(recommended_contour_level):
+        z_rec = (float(recommended_contour_level) - mapinfo.mu) / mapinfo.sd
+        if np.isfinite(z_rec):
+            candidates.extend([z_rec * 0.8, z_rec, z_rec * 1.2, z_rec - 0.25, z_rec + 0.25])
+    if extra:
+        candidates.extend(extra)
+    uniq = sorted({round(float(z), 5) for z in candidates if np.isfinite(z)})
+    return uniq
 
-def _derive_params_from_resolution(vox_size_xyz: tuple[float,float,float],
-                                   effective_resolution_A: Optional[float]):
-    sx, sy, sz = vox_size_xyz
-    vs_mean = float((sx + sy + sz) / 3.0)
+def _compute_vof_from_masks(map_mask: np.ndarray, model_occ: np.ndarray) -> Tuple[float, int, int, int]:
+    inter = int(np.count_nonzero(map_mask & (model_occ > 0)))
+    map_cnt = int(np.count_nonzero(map_mask))
+    model_cnt = int(np.count_nonzero(model_occ))
+    union = map_cnt + model_cnt - inter
+    vof = float(inter) / float(union) if union > 0 else 0.0
+    return vof, inter, map_cnt, model_cnt
 
-    if effective_resolution_A and effective_resolution_A > 0:
-        fwhm_A = 0.5 * effective_resolution_A
-        sigma_A = fwhm_A / 2.355
-        blur_sigma_vox = _clamp(sigma_A / max(vs_mean, 1e-6), 0.2, 3.0)
-    else:
-        blur_sigma_vox = 0.8
+def compute_vof_for_radius(
+    mapinfo: MapInfo,
+    model_pts_world: np.ndarray,
+    radius_ang: float,
+    max_dim: int = 128,
+    recommended_contour_level: Optional[float] = None,
+) -> Tuple[float, dict]:
+    """
+    Compute VOF for a fixed radius, optimizing only the density cutoff (Z-score).
+    Returns (best_vof, details).
+    """
+    m_ds, mZ_ds, pts_zyx_ds, scale_mean = _prepare_vof_inputs(mapinfo, model_pts_world, max_dim)
+    total_vox = int(m_ds.size)
+    min_map_vox = max(200, int(VOF_MIN_MAP_FRAC * total_vox))
+    min_model_vox = max(120, int(VOF_MIN_MODEL_FRAC * total_vox))
+    min_union_vox = max(min_map_vox, min_model_vox, int(VOF_MIN_UNION_FRAC * total_vox))
 
-    return {
-        "blur_sigma_vox": blur_sigma_vox,
-        "sphere_radius_vox": 6.0 / max(vs_mean, 1e-6),  # fixed 5.5 Å converted to vox
-        "vof_max_dim": 128,
+    vs_mean = float((mapinfo.sx + mapinfo.sy + mapinfo.sz) / 3.0)
+    r_vox = float(radius_ang) / max(vs_mean, 1e-6)
+    rad_ds = r_vox / max(scale_mean, 1e-6)
+    model_occ = _model_occupancy_from_points(m_ds.shape, pts_zyx_ds, rad_ds)
+
+    thresholds = _build_threshold_candidates(
+        mZ_ds,
+        mapinfo,
+        recommended_contour_level=recommended_contour_level,
+    )
+    best = None
+    best_any = None
+    for z_th in thresholds:
+        mask = mZ_ds >= z_th
+        vof, inter, map_cnt, model_cnt = _compute_vof_from_masks(mask, model_occ)
+        union = map_cnt + model_cnt - inter
+        payload = {
+            "vof": vof,
+            "radius_ang": float(radius_ang),
+            "threshold_z": float(z_th),
+            "map_mask_vox": map_cnt,
+            "model_mask_vox": model_cnt,
+            "union_vox": union,
+        }
+        if best_any is None or vof > best_any["vof"]:
+            best_any = payload
+        if map_cnt >= min_map_vox and model_cnt >= min_model_vox and union >= min_union_vox:
+            if best is None or vof > best["vof"]:
+                best = payload
+
+    chosen = best or best_any
+    if not chosen:
+        return 0.0, {
+            "radius_ang": float(radius_ang),
+            "threshold_z": None,
+            "threshold_value": None,
+            "map_mask_vox": 0,
+            "model_mask_vox": 0,
+            "union_vox": 0,
+            "constrained": False,
+        }
+
+    threshold_val = mapinfo.mu + chosen["threshold_z"] * mapinfo.sd
+    details = {
+        "radius_ang": float(chosen["radius_ang"]),
+        "threshold_z": float(chosen["threshold_z"]),
+        "threshold_value": float(threshold_val),
+        "map_mask_vox": int(chosen["map_mask_vox"]),
+        "model_mask_vox": int(chosen["model_mask_vox"]),
+        "union_vox": int(chosen["union_vox"]),
+        "constrained": bool(best is not None),
     }
+    return float(chosen["vof"]), details
 
-# -------------------- Fast single-map resolution estimate --------------------
-def estimate_resolution_single_map(map_path: Path | str,
-                                   tau: float = 1.0,
-                                   max_dim: int = 256) -> Optional[float]:
+def compute_vof_optimized(
+    mapinfo: MapInfo,
+    model_pts_world: np.ndarray,
+    max_dim: int = 128,
+    recommended_contour_level: Optional[float] = None,
+) -> Tuple[float, dict]:
     """
-    Fast spectral SNR crossing on a single map:
-      1) auto soft-mask
-      2) FFT signal (masked) vs background (1-mask)
-      3) find k where As/Ab = tau; return d = 1/k (Å)
+    Optimize VOF over (radius, density threshold) using a plateau-aware
+    exponential bracketing search in radius per threshold.
+    Density thresholds are applied in Z-score space; if a recommended contour
+    level is provided, it is converted to Z and included in candidates.
+    Returns (best_vof, details).
+    """
+    m_ds, mZ_ds, pts_zyx_ds, scale_mean = _prepare_vof_inputs(mapinfo, model_pts_world, max_dim)
+    total_vox = int(m_ds.size)
+    min_map_vox = max(200, int(VOF_MIN_MAP_FRAC * total_vox))
+    min_model_vox = max(120, int(VOF_MIN_MODEL_FRAC * total_vox))
+    min_union_vox = max(min_map_vox, min_model_vox, int(VOF_MIN_UNION_FRAC * total_vox))
 
-    Returns None if no crossing found.
+    vs_mean = float((mapinfo.sx + mapinfo.sy + mapinfo.sz) / 3.0)
+    rmin, rmax = VOF_RADIUS_RANGE_A
+    radii = _build_radius_candidates(rmin, rmax, VOF_RADIUS_STEP_A)
+    z_thresh = _build_threshold_candidates(mZ_ds, mapinfo, recommended_contour_level=recommended_contour_level)
+    if not radii or not z_thresh:
+        return 0.0, {
+            "radius_ang": None,
+            "threshold_z": None,
+            "threshold_value": None,
+            "map_mask_vox": 0,
+            "model_mask_vox": 0,
+            "union_vox": 0,
+            "constrained": False,
+        }
+
+    map_masks: dict[float, tuple[np.ndarray, int]] = {}
+    for z_th in z_thresh:
+        zf = float(z_th)
+        mask = mZ_ds >= zf
+        map_masks[zf] = (mask, int(np.count_nonzero(mask)))
+
+    occ_cache: dict[float, tuple[np.ndarray, int]] = {}
+    pair_cache: dict[tuple[float, float], dict] = {}
+
+    def _get_occ(r_ang: float) -> tuple[np.ndarray, int]:
+        rf = float(r_ang)
+        cached = occ_cache.get(rf)
+        if cached is not None:
+            return cached
+        r_vox = rf / max(vs_mean, 1e-6)
+        rad_ds = r_vox / max(scale_mean, 1e-6)
+        occ = _model_occupancy_from_points(m_ds.shape, pts_zyx_ds, rad_ds)
+        payload = (occ, int(np.count_nonzero(occ)))
+        occ_cache[rf] = payload
+        return payload
+
+    def _eval_pair(z_th: float, r_ang: float) -> dict:
+        zf = float(z_th)
+        rf = float(r_ang)
+        key = (zf, rf)
+        cached = pair_cache.get(key)
+        if cached is not None:
+            return cached
+
+        mask, _ = map_masks[zf]
+        occ, _ = _get_occ(rf)
+        vof, inter, map_cnt_actual, model_cnt_actual = _compute_vof_from_masks(mask, occ)
+        union = map_cnt_actual + model_cnt_actual - inter
+        payload = {
+            "vof": float(vof),
+            "radius_ang": rf,
+            "threshold_z": zf,
+            "map_mask_vox": int(map_cnt_actual),
+            "model_mask_vox": int(model_cnt_actual),
+            "union_vox": int(union),
+        }
+        pair_cache[key] = payload
+        return payload
+
+    best = None
+    best_any = None
+
+    def _update_best(payload: dict) -> None:
+        nonlocal best, best_any
+        if best_any is None or payload["vof"] > best_any["vof"]:
+            best_any = payload
+        if (
+            payload["map_mask_vox"] >= min_map_vox
+            and payload["model_mask_vox"] >= min_model_vox
+            and payload["union_vox"] >= min_union_vox
+        ):
+            if best is None or payload["vof"] > best["vof"]:
+                best = payload
+
+    n_r = len(radii)
+    mid_idx = n_r // 2
+
+    # For each threshold, search radius on the discrete grid:
+    # 1) choose direction from center (plateau-aware),
+    # 2) exponentially bracket candidate peak,
+    # 3) local ternary narrowing in the bracket.
+    for zf in [float(z) for z in z_thresh]:
+        local: dict[int, dict] = {}
+
+        def _get_idx(i: int) -> Optional[dict]:
+            if i < 0 or i >= n_r:
+                return None
+            cached = local.get(i)
+            if cached is not None:
+                return cached
+            payload = _eval_pair(zf, radii[i])
+            local[i] = payload
+            return payload
+
+        center = _get_idx(mid_idx)
+        if center is None:
+            continue
+        left = _get_idx(mid_idx - 1)
+        right = _get_idx(mid_idx + 1)
+
+        direction = 0
+        if right is not None and right["vof"] >= center["vof"] and (left is None or right["vof"] >= left["vof"]):
+            direction = +1
+        elif left is not None and left["vof"] >= center["vof"]:
+            direction = -1
+
+        if direction == 0:
+            for payload in local.values():
+                _update_best(payload)
+            continue
+
+        prev = mid_idx
+        cur = mid_idx + direction
+        step = 2
+        while True:
+            p_cur = _get_idx(cur)
+            if p_cur is None:
+                break
+
+            nxt = cur + direction * step
+            if nxt < 0 or nxt >= n_r:
+                boundary = 0 if nxt < 0 else (n_r - 1)
+                _get_idx(boundary)
+                lo = min(prev, boundary)
+                hi = max(prev, boundary)
+                break
+
+            p_nxt = _get_idx(nxt)
+            if p_nxt is not None and p_nxt["vof"] >= p_cur["vof"]:
+                prev = cur
+                cur = nxt
+                step *= 2
+            else:
+                lo = min(prev, nxt)
+                hi = max(prev, nxt)
+                break
+
+        while hi - lo > 3:
+            m1 = lo + (hi - lo) // 3
+            m2 = hi - (hi - lo) // 3
+            p1 = _get_idx(m1)
+            p2 = _get_idx(m2)
+            if p1 is None or p2 is None:
+                break
+            if p1["vof"] < p2["vof"]:
+                lo = m1
+            elif p1["vof"] > p2["vof"]:
+                hi = m2
+            else:
+                lo = m1
+                hi = m2
+
+        for i in range(lo, hi + 1):
+            _get_idx(i)
+        for payload in local.values():
+            _update_best(payload)
+
+    chosen = best or best_any
+    if not chosen:
+        return 0.0, {
+            "radius_ang": None,
+            "threshold_z": None,
+            "threshold_value": None,
+            "map_mask_vox": 0,
+            "model_mask_vox": 0,
+            "union_vox": 0,
+            "constrained": False,
+        }
+
+    threshold_val = mapinfo.mu + chosen["threshold_z"] * mapinfo.sd
+    details = {
+        "radius_ang": float(chosen["radius_ang"]),
+        "threshold_z": float(chosen["threshold_z"]),
+        "threshold_value": float(threshold_val),
+        "map_mask_vox": int(chosen["map_mask_vox"]),
+        "model_mask_vox": int(chosen["model_mask_vox"]),
+        "union_vox": int(chosen["union_vox"]),
+        "constrained": bool(best is not None),
+    }
+    return float(chosen["vof"]), details
+
+def _fib_axes_angles(n: int) -> tuple[np.ndarray, np.ndarray]:
+    if n <= 1:
+        return (
+            np.array([[0.0, 0.0, 1.0]], dtype=np.float64),
+            np.array([0.0], dtype=np.float64),
+        )
+    phi = (1.0 + math.sqrt(5.0)) / 2.0
+    axes = []
+    angles = []
+    for k in range(n):
+        i = k + 0.5
+        z = 1.0 - 2.0 * (i / n)
+        r = math.sqrt(max(0.0, 1.0 - z * z))
+        theta = 2.0 * math.pi * (i / phi)
+        axis = np.array([r * math.cos(theta), r * math.sin(theta), z], dtype=np.float64)
+        angle = 2.0 * math.pi * ((k + 1) / phi % 1.0)
+        axes.append(axis)
+        angles.append(angle)
+    return np.asarray(axes, dtype=np.float64), np.asarray(angles, dtype=np.float64)
+
+
+def _rotation_from_a_to_b(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    a = np.asarray(a, dtype=np.float64)
+    b = np.asarray(b, dtype=np.float64)
+    a /= (np.linalg.norm(a) + 1e-12)
+    b /= (np.linalg.norm(b) + 1e-12)
+    c = float(np.clip(np.dot(a, b), -1.0, 1.0))
+    if c >= 1.0 - 1e-10:
+        return np.eye(3, dtype=np.float64)
+    if c <= -1.0 + 1e-10:
+        ortho = np.array([1.0, 0.0, 0.0], dtype=np.float64)
+        if abs(a[0]) > 0.9:
+            ortho = np.array([0.0, 1.0, 0.0], dtype=np.float64)
+        axis = np.cross(a, ortho)
+        axis /= (np.linalg.norm(axis) + 1e-12)
+        return R.from_rotvec(axis * math.pi).as_matrix()
+    v = np.cross(a, b)
+    s = np.linalg.norm(v)
+    if s < 1e-12:
+        return np.eye(3, dtype=np.float64)
+    axis = v / s
+    ang = math.atan2(s, c)
+    return R.from_rotvec(axis * ang).as_matrix()
+
+
+def _align_fib_axes_to_target(axes: np.ndarray, target_axis: np.ndarray) -> np.ndarray:
+    axes = np.asarray(axes, dtype=np.float64)
+    if axes.size == 0:
+        return axes
+    t = np.asarray(target_axis, dtype=np.float64)
+    tn = np.linalg.norm(t)
+    if not np.isfinite(tn) or tn < 1e-12:
+        return axes
+    t = t / tn
+    idx = int(np.argmax(axes @ t))  # nearest dot/axis to target
+    Q = _rotation_from_a_to_b(axes[idx], t)
+    out = (Q @ axes.T).T
+    out /= (np.linalg.norm(out, axis=1, keepdims=True) + 1e-12)
+    return out
+
+
+def global_rotation_align(
+    mapinfo: MapInfo,
+    model_pts_world: np.ndarray,
+    max_dim: int = GLOBAL_SEARCH_MAX_DIM,
+    z_thresh: float = GLOBAL_SEARCH_Z,
+    radius_ang: float = GLOBAL_SEARCH_RADIUS_A,
+    n_rot: int = GLOBAL_SEARCH_ROTATIONS,
+    seed: int = GLOBAL_SEARCH_SEED,
+) -> Tuple[np.ndarray, np.ndarray, float]:
     """
-    map_path = Path(map_path)
+    Coarse global alignment (single method):
+      - Downsample map to max_dim
+      - Threshold map in Z-score space (>= z_thresh)
+      - Sample rotations; for each, translate by map/model COM
+      - Choose best base rotation by coarse score on the downsampled grid
+      - Spin this base around the model's own PCA axis at model COM
+      - Refine translation around the best spun seed
+      - Coarse score uses IoU * max(meanZ, 0)
+    Returns (R_best, t_best, best_iou) in world coordinates.
+    """
+    # Downsample map + mask
+    m = mapinfo.fit_map
+    m_ds = _downsample_to_maxdim(m, max_dim)
+    mZ_ds = (m_ds - mapinfo.mu) / mapinfo.sd
+    map_mask = (mZ_ds >= float(z_thresh))
+    map_sum = float(np.count_nonzero(map_mask))
+    if map_sum <= 0:
+        return np.eye(3, dtype=np.float64), np.zeros(3, dtype=np.float64), 0.0
+
+    # Scales to downsampled grid
+    scale_z = m.shape[0] / m_ds.shape[0]
+    scale_y = m.shape[1] / m_ds.shape[1]
+    scale_x = m.shape[2] / m_ds.shape[2]
+    scale_mean = float(np.mean([scale_z, scale_y, scale_x]))
+
+    # Occupancy radius in downsampled voxels
+    vs_mean = float((mapinfo.sx + mapinfo.sy + mapinfo.sz) / 3.0)
+    r_vox = float(radius_ang) / max(vs_mean, 1e-6)
+    rad_ds = r_vox / max(scale_mean, 1e-6)
+
+    # Map COM (density-weighted from sampled points)
+    _, _, map_com = sample_map_points(mapinfo, stride=3, target_min=2500)
+    model_com = model_pts_world.mean(axis=0)
+
+    # Rotation sampling (deterministic Fibonacci sphere).
+    # PCA seeding here means:
+    #   1) compute dominant PCA axis (through COM),
+    #   2) find nearest Fibonacci axis/dot,
+    #   3) rotate the whole sphere so that this axis overlaps the PCA axis.
+    pca_axis: Optional[np.ndarray] = None
     try:
-        with mrcfile.open(str(map_path), mode="r") as mrc:
-            vol = mrc.data.astype(np.float32, copy=False)
-            apix = float(mrc.voxel_size.x)  # assume cubic voxels
-        # downsample (keeps runtime small)
-        z,y,x = vol.shape
-        scale = int(np.ceil(max(z,y,x)/max_dim))
-        if scale > 1:
-            vol = vol[::scale, ::scale, ::scale].copy()
-
-        v = vol - float(vol.mean())
-        thr = float(v.mean() + 0.5*v.std(ddof=0))
-        hard = (v >= thr)
-        hard = binary_dilation(binary_erosion(hard, iterations=1), iterations=3)
-        soft = gaussian_filter(hard.astype(np.float32), sigma=3.0)
-        soft -= soft.min()
-        if soft.max() > 0: soft /= soft.max()
-        mask = np.clip(soft, 0.0, 1.0).astype(np.float32, copy=False)
-
-        sig = v * mask
-        bkg = v * (1.0 - mask)
-
-        F_sig = np.fft.fftn(sig)
-        F_bkg = np.fft.fftn(bkg)
-
-        nz,ny,nx = sig.shape
-        kz = np.fft.fftfreq(nz, d=apix)
-        ky = np.fft.fftfreq(ny, d=apix)
-        kx = np.fft.fftfreq(nx, d=apix)
-        KZ, KY, KX = np.meshgrid(kz, ky, kx, indexing="ij")
-        kr = np.sqrt(KZ*KZ + KY*KY + KX*KX)  # Å^-1
-        nbins = int(np.ceil(min(nx, ny, nz) / 2))
-        edges = np.linspace(0.0, float(np.max(kr)), nbins+1, dtype=np.float64)
-        centers = 0.5*(edges[:-1] + edges[1:])
-
-        def radavg_amp(F):
-            amp = np.abs(F).astype(np.float64, copy=False)
-            idx = np.digitize(kr.ravel(), edges) - 1
-            nb = len(edges) - 1
-            s = np.bincount(idx, weights=amp.ravel(), minlength=nb).astype(np.float64)
-            c = np.bincount(idx, minlength=nb).astype(np.float64)
-            with np.errstate(divide="ignore", invalid="ignore"):
-                return np.where(c>0, s/c, 0.0)
-
-        As = radavg_amp(F_sig)
-        Ab = radavg_amp(F_bkg)
-        ratio = As / (Ab + 1e-12)
-
-        above = ratio >= tau
-        if not np.any(above): return None
-        i = int(np.max(np.where(above)[0]))
-        if i >= len(centers)-1: return None
-        x0,x1 = centers[i], centers[i+1]
-        y0,y1 = ratio[i], ratio[i+1]
-        if y1 == y0: k_cross = x1
-        else:
-            t = (tau - y0)/(y1 - y0)
-            k_cross = float(x0 + t*(x1 - x0))
-        return (1.0/k_cross) if (k_cross and k_cross>0) else None
+        U_model, _ = pca(model_pts_world)
+        pca_axis = np.asarray(U_model[:, 0], dtype=np.float64)
     except Exception:
-        return None
+        pca_axis = None
+
+    n_eff = max(1, int(n_rot))
+    fib_axes, fib_angles = _fib_axes_angles(n_eff)
+    if GLOBAL_SEARCH_USE_PCA_SEED and n_eff > 1 and pca_axis is not None:
+        fib_axes = _align_fib_axes_to_target(fib_axes, pca_axis)
+    if (not GLOBAL_SEARCH_USE_PCA_SEED) and n_eff > 1:
+        shift = int(seed) % n_eff
+        if shift:
+            fib_axes = np.roll(fib_axes, shift=shift, axis=0)
+            fib_angles = np.roll(fib_angles, shift=shift, axis=0)
+    rotations = np.stack(
+        [R.from_rotvec(axis * angle).as_matrix() for axis, angle in zip(fib_axes, fib_angles)],
+        axis=0,
+    )
+
+    # Preselect points for occupancy + alignment scoring to keep this coarse stage fast
+    n_occ = model_pts_world.shape[0]
+    if n_occ > 5000:
+        idx = np.linspace(0, n_occ - 1, 5000, dtype=int)
+        model_pts_occ = model_pts_world[idx]
+    else:
+        model_pts_occ = model_pts_world
+
+    n_pts = model_pts_world.shape[0]
+    if n_pts > 2000:
+        idx = np.linspace(0, n_pts - 1, 2000, dtype=int)
+        model_pts_score = model_pts_world[idx]
+    else:
+        model_pts_score = model_pts_world
+
+    # Local spin axis in model frame (principal axis 1).
+    if pca_axis is not None:
+        spin_axis_local = pca_axis.copy()
+    else:
+        spin_axis_local = np.array([0.0, 0.0, 1.0], dtype=np.float64)
+    spin_axis_local /= (np.linalg.norm(spin_axis_local) + 1e-12)
+
+    # Rotate about model COM, then place at map COM.
+    model_pts_occ_ctr = model_pts_occ - model_com
+    model_pts_score_ctr = model_pts_score - model_com
+
+    # Translation offsets around COM (coarse grid)
+    base_step_ang = max(vs_mean * scale_mean, 1.0) * float(GLOBAL_SEARCH_TRANS_STEP_SCALE)
+    r_fine = int(GLOBAL_SEARCH_TRANS_RANGE)
+    offsets_fine = [i * base_step_ang for i in range(-r_fine, r_fine + 1)]
+    trans_offsets_fine = np.array(list(itertools.product(offsets_fine, offsets_fine, offsets_fine)), dtype=np.float64)
+
+    use_coarse = bool(GLOBAL_SEARCH_COARSE_TRANSLATION)
+    r_coarse = int(GLOBAL_SEARCH_COARSE_RANGE)
+    coarse_mult = float(GLOBAL_SEARCH_COARSE_MULT)
+    if use_coarse:
+        step_coarse = base_step_ang * coarse_mult
+        offsets_coarse = [i * step_coarse for i in range(-r_coarse, r_coarse + 1)]
+        trans_offsets_coarse = np.array(list(itertools.product(offsets_coarse, offsets_coarse, offsets_coarse)), dtype=np.float64)
+    else:
+        trans_offsets_coarse = None
+
+    def _score_pose(pts_world: np.ndarray, pts_world_score: Optional[np.ndarray]):
+        fz, fy, fx = mapinfo.world_to_array_frac_many(pts_world)
+        pts_zyx_ds = np.column_stack([fz/scale_z, fy/scale_y, fx/scale_x])
+        model_occ = _model_occupancy_from_points(m_ds.shape, pts_zyx_ds, rad_ds)
+        model_sum = float(np.count_nonzero(model_occ))
+        if model_sum <= 0:
+            return float("-inf"), 0.0
+        inter = float(np.logical_and(map_mask, model_occ > 0).sum())
+        union = map_sum + model_sum - inter
+        iou = (inter / union) if union > 0 else 0.0
+        mean_z = _score_meanZ(mapinfo, pts_world_score)
+        score = iou * max(mean_z, 0.0)
+        return score, iou
+
+    # First pass: score each rotation at COM translation only.
+    rot_scores: list[tuple[float, float, np.ndarray, np.ndarray]] = []
+    for Rm in rotations:
+        t0 = map_com - (Rm @ model_com)
+        pts_world = (Rm @ model_pts_occ_ctr.T).T + map_com
+        pts_world_score = (Rm @ model_pts_score_ctr.T).T + map_com if model_pts_score is not None else None
+        score, iou = _score_pose(pts_world, pts_world_score)
+        rot_scores.append((score, iou, Rm, t0))
+
+    # Pick best base candidate by coarse score.
+    if not rot_scores:
+        return np.eye(3, dtype=np.float64), np.zeros(3, dtype=np.float64), 0.0
+    _, _, R_seed, t0_seed = max(rot_scores, key=lambda x: (x[0], x[1]))
+
+    # Spin around model's own axis (about model COM) for this score-best seed.
+    spin_steps = max(1, int(GLOBAL_SEARCH_SELF_SPIN_STEPS))
+    best_spin_score = float("-inf")
+    best_spin_iou = float("-inf")
+    best_spin_R = R_seed
+    best_spin_t0 = t0_seed
+    best_spin_pts_rot = (R_seed @ model_pts_occ_ctr.T).T + map_com
+    best_spin_pts_rot_score = (R_seed @ model_pts_score_ctr.T).T + map_com if model_pts_score is not None else None
+
+    axis_world = R_seed @ spin_axis_local
+    axis_world /= (np.linalg.norm(axis_world) + 1e-12)
+    for sidx in range(spin_steps):
+        ang = (2.0 * math.pi * float(sidx)) / float(spin_steps)
+        R_spin = R.from_rotvec(axis_world * ang).as_matrix()
+        Rm = R_spin @ R_seed
+        t0 = map_com - (Rm @ model_com)
+        pts_rot = (Rm @ model_pts_occ_ctr.T).T + map_com
+        pts_rot_score = (Rm @ model_pts_score_ctr.T).T + map_com if model_pts_score is not None else None
+        score, iou = _score_pose(pts_rot, pts_rot_score)
+        if (score > best_spin_score) or (score == best_spin_score and iou > best_spin_iou):
+            best_spin_score = score
+            best_spin_iou = iou
+            best_spin_R = Rm
+            best_spin_t0 = t0
+            best_spin_pts_rot = pts_rot
+            best_spin_pts_rot_score = pts_rot_score
+
+    # Translation refinement for the spun seed
+    best_iou = float("-inf")
+    best_score = float("-inf")
+    best_R = best_spin_R
+    best_t = best_spin_t0
+    pts_rot = best_spin_pts_rot
+    pts_rot_score = best_spin_pts_rot_score
+
+    # Coarse translation sweep (optional)
+    delta_seed = np.zeros(3, dtype=np.float64)
+    if trans_offsets_coarse is not None:
+        local_best = (float("-inf"), 0.0, delta_seed)
+        for delta in trans_offsets_coarse:
+            pts_world = pts_rot + delta
+            pts_world_score = pts_rot_score + delta if pts_rot_score is not None else None
+            score, iou = _score_pose(pts_world, pts_world_score)
+            if score > local_best[0]:
+                local_best = (score, iou, delta)
+        delta_seed = local_best[2]
+
+    # Fine translation sweep around best coarse
+    for delta in trans_offsets_fine:
+        delta_total = delta_seed + delta
+        pts_world = pts_rot + delta_total
+        pts_world_score = pts_rot_score + delta_total if pts_rot_score is not None else None
+        score, iou = _score_pose(pts_world, pts_world_score)
+        if score > best_score:
+            best_score = score
+            best_iou = iou
+            best_R = best_spin_R
+            best_t = best_spin_t0 + delta_total
+
+    return best_R, best_t, best_iou
 
 # ====================== Exported API =============================
 def fit_model_and_score(
     map_path: Path | str,
     model_path: Path | str,
     out_pdb_path: Path | str | None = None,
-    model_resolution_A: Optional[float] = None,
-    map_resolution_A: Optional[float] = None,
+    recommended_contour_level: Optional[float] = None,
 ) -> Tuple[Optional[float], Optional[Path]]:
     """
-    Fit `model_path` into `map_path` (rigid body), evaluate VOF, and write fitted PDB.
-    Returns (VOF, out_pdb_path). On any exception, returns (None,None) and
+    Fit `model_path` into `map_path` (rigid body), evaluate VOF and mean-Z, and write the fitted structure.
+    Returns `(score, out_path)` where `score = raw_vof * max(mean_z, 0)`.
+    On any exception, returns `(None, None)` and
     cleans temporary outputs.
 
-    Resolution precedence:
-      effective_resolution = map_resolution_A (if given) else model_resolution_A (if given) else defaults.
     """
     out_final: Optional[Path] = None
     out_tmp: Optional[Path] = None
@@ -445,62 +1248,117 @@ def fit_model_and_score(
         if not map_path.exists(): raise FileNotFoundError(f"Map not found: {map_path}")
         if not model_path.exists(): raise FileNotFoundError(f"Model not found: {model_path}")
 
-        # Read voxel size to derive resolution-aware params BEFORE building MapInfo
-        with mrcfile.open(str(map_path), mode="r") as mrc_probe:
-            sx, sy, sz = _safe_get_step(mrc_probe)
-            effective_res = map_resolution_A if (map_resolution_A and map_resolution_A>0) else model_resolution_A
-            params = _derive_params_from_resolution((sx, sy, sz), effective_res)
+        # Fixed parameters BEFORE building MapInfo
+        vof_max_dim = VOF_MAX_DIM
 
-        # Build MapInfo using derived blur sigma
-        with mrcfile.open(str(map_path), mode="r") as mrc:
-            mapinfo = MapInfo(mrc, blur_sigma_vox=params["blur_sigma_vox"])
-
-        # Load model coords (representative atoms)
-        st, model_coords_full = read_model_coords(model_path)
-
-        # Coarse align + refine
-        R0, t0, _, _, _ = coarse_align_with_24(mapinfo, model_coords_full, atoms_sample=3000)
-        if model_coords_full.shape[0] > 2500:
-            idx = np.linspace(0, model_coords_full.shape[0]-1, 2500, dtype=int)
-            model_pts_score = model_coords_full[idx]
-        else:
-            model_pts_score = model_coords_full
-
-        longest = max(mapinfo.longest_extent, 1e-6)
-        trans_bound_ang = 0.60 * longest
-        R_best, t_best, _ = greedy_refine(
-            mapinfo, model_pts_score, R0, t0,
-            rot_steps_deg=[4.0, 2.0, 1.0],
-            trans_steps_ang=[2.0, 1.0, 0.5],
-            max_sweeps_per_step=2,
-            trans_bound_ang=trans_bound_ang
-        )
-
-        # Random restarts (choose by internal mean-Z)
-        rng = np.random.default_rng(0)
-        s_best = _score_meanZ(mapinfo, (R_best @ model_pts_score.T).T + t_best)
-        for _ in range(3):
-            axis = rng.normal(size=3); n = np.linalg.norm(axis); axis = axis/n if n else np.array([1.0,0.0,0.0])
-            ang = math.radians(rng.uniform(-20.0, 20.0))
-            Rrand = R.from_rotvec(axis * ang).as_matrix()
-            ttry = t0 + rng.uniform(-0.08*longest, 0.08*longest, size=3)
-            Rc, tc, sc = greedy_refine(
-                mapinfo, model_pts_score, Rrand @ R0, ttry,
-                rot_steps_deg=[4.0, 2.0, 1.0],
-                trans_steps_ang=[2.0, 1.0, 0.5],
-                max_sweeps_per_step=2,
-                trans_bound_ang=trans_bound_ang
+        # Build/reuse map variants.
+        # Default behavior: denoise-only branch.
+        map_variants: list[tuple[str, MapInfo]] = []
+        if GLOBAL_MAP_DENOISE_ENABLED and GLOBAL_MAP_DENOISE_SIGMA > 0:
+            den_tag = f"gaussian_sigma{GLOBAL_MAP_DENOISE_SIGMA:g}"
+            if GLOBAL_MAP_DENOISE_CENTER_BLOB_ONLY:
+                den_tag += "_center_blob"
+            den_variant = (
+                den_tag,
+                _get_cached_mapinfo(
+                    map_path,
+                    denoise_sigma=GLOBAL_MAP_DENOISE_SIGMA,
+                    denoise_center_blob_only=GLOBAL_MAP_DENOISE_CENTER_BLOB_ONLY,
+                    denoise_center_blob_level=recommended_contour_level,
+                    denoise_center_blob_z_fallback=GLOBAL_MAP_DENOISE_CENTER_BLOB_Z_FALLBACK,
+                    denoise_center_blob_cluster_disconnected=GLOBAL_MAP_DENOISE_CENTER_BLOB_CLUSTER_DISCONNECTED,
+                    denoise_center_blob_link_factor=GLOBAL_MAP_DENOISE_CENTER_BLOB_LINK_FACTOR,
+                    denoise_center_blob_center_factor=GLOBAL_MAP_DENOISE_CENTER_BLOB_CENTER_FACTOR,
+                    denoise_center_blob_min_component_vox=GLOBAL_MAP_DENOISE_CENTER_BLOB_MIN_COMPONENT_VOX,
+                ),
             )
-            if sc > s_best:
-                R_best, t_best, s_best = Rc, tc, sc
+            if GLOBAL_MAP_USE_DENOISED_ONLY:
+                map_variants = [den_variant]
+            else:
+                map_variants = [("raw", _get_cached_mapinfo(map_path, denoise_sigma=0.0)), den_variant]
+        else:
+            map_variants = [("raw", _get_cached_mapinfo(map_path, denoise_sigma=0.0))]
 
-        # Evaluate on final placement FIRST (avoid writing files if scoring fails)
-        pts_world = (R_best @ model_coords_full.T).T + t_best
-        vof = compute_vof(mapinfo, pts_world,
-                          sphere_radius_vox=params["sphere_radius_vox"],
-                          max_dim=params["vof_max_dim"])
+        # Load model coords (representative atoms) for alignment
+        st, model_coords_full = read_model_coords(model_path)
+        if VOF_SCORE_ATOMS == "backbone":
+            score_coords_full = _collect_backbone_coords(st)
+        elif VOF_SCORE_ATOMS == "heavy":
+            score_coords_full = _collect_non_h_coords(st)
+        else:
+            score_coords_full = model_coords_full
+        if score_coords_full.size == 0:
+            score_coords_full = model_coords_full
 
-        # Write PDB atom coordinates to a temp, then atomically move
+        # Use the exact same (full) scoring atom set for local refinement and final scoring.
+        model_pts_score = score_coords_full
+
+        # Use scoring atoms for global search to better match density
+        align_pts = score_coords_full if score_coords_full.size else model_coords_full
+
+        def _refine_and_score(mapinfo: MapInfo, R_init: np.ndarray, t_init: np.ndarray):
+            longest = max(mapinfo.longest_extent, 1e-6)
+            trans_bound_ang = GLOBAL_JOINT_TRANS_FACTOR * longest
+            R_best, t_best, _ = joint_powell_refine(
+                mapinfo,
+                model_pts_score,
+                R_init,
+                t_init,
+                trans_bound_ang=trans_bound_ang,
+            )
+            pts_world = (R_best @ score_coords_full.T).T + t_best
+            vof, vof_meta = compute_vof_optimized(
+                mapinfo,
+                pts_world,
+                max_dim=vof_max_dim,
+                recommended_contour_level=recommended_contour_level,
+            )
+            mean_z = _score_meanZ(mapinfo, pts_world)
+            score_used = _score_from_vof_meanz(float(vof), mean_z)
+
+            return {
+                "R": R_best,
+                "t": t_best,
+                "vof": float(vof),
+                "vof_meta": vof_meta,
+                "score": float(score_used),
+                "mean_z": mean_z,
+            }
+
+        best = None
+        for variant_name, mapinfo in map_variants:
+            R0, t0, _ = global_rotation_align(
+                mapinfo,
+                align_pts,
+                max_dim=GLOBAL_SEARCH_MAX_DIM,
+                z_thresh=GLOBAL_SEARCH_Z,
+                radius_ang=GLOBAL_SEARCH_RADIUS_A,
+                n_rot=GLOBAL_SEARCH_ROTATIONS,
+                seed=GLOBAL_SEARCH_SEED,
+            )
+            cand = _refine_and_score(mapinfo, R0, t0)
+            cand["map_variant"] = variant_name
+            if best is None or cand["score"] > best["score"]:
+                best = cand
+        if best is None:
+            raise RuntimeError("No fit result produced for any map variant.")
+
+        R_best = best["R"]
+        t_best = best["t"]
+        vof_meta = best["vof_meta"]
+        score_used = best["score"]
+        if vof_meta and vof_meta.get("radius_ang") is not None:
+            r_sel = vof_meta.get("radius_ang")
+            z_sel = vof_meta.get("threshold_z")
+            thr_val = vof_meta.get("threshold_value")
+            constrained = vof_meta.get("constrained")
+            map_variant = str(best.get("map_variant", "raw"))
+            msg = f"[fit_v5] map={map_variant}; VOF params: radius={r_sel:.2f} A, z={z_sel:.2f}, thr={thr_val:.4g}"
+            if constrained is False:
+                msg += " (fallback unconstrained)"
+            print(msg)
+
+        # Write fitted structure (PDB or CIF) to a temp, then atomically move
         if out_pdb_path is None:
             out_pdb_path = model_path.with_name(model_path.stem + "_fitted_v5.pdb")
         out_final = Path(out_pdb_path)
@@ -508,24 +1366,22 @@ def fit_model_and_score(
         out_tmp = out_final.with_suffix(out_final.suffix + ".tmp")
 
         apply_transform_to_structure(st, R_best, t_best)
-        st.write_pdb(str(out_tmp))
+        suffix = out_final.suffix.lower()
+        if suffix in (".cif", ".mmcif"):
+            doc = st.make_mmcif_document()
+            doc.write_file(str(out_tmp))
+        else:
+            st.write_pdb(str(out_tmp))
         if not out_tmp.exists() or out_tmp.stat().st_size == 0:
-            raise RuntimeError("Temporary fitted PDB was not written correctly.")
-        if out_final.exists():
-            try: out_final.unlink()
-            except Exception: pass
+            raise RuntimeError("Temporary fitted structure was not written correctly.")
         os.replace(str(out_tmp), str(out_final))
 
-        return float(vof), out_final
+        return float(score_used), out_final
 
     except Exception as e:
         print(f"[fit_v5] Error during fit: {e}")
         try:
             if out_tmp and Path(out_tmp).exists():
                 Path(out_tmp).unlink(missing_ok=True)
-        except Exception: pass
-        try:
-            if out_final and Path(out_final).exists():
-                Path(out_final).unlink(missing_ok=True)
         except Exception: pass
         return None, None
