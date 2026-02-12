@@ -45,7 +45,7 @@ MAX_EXPERIMENTAL_TRIES: Optional[int] = None # cap for experimental clusters (No
 RECOMMENDED_CONTOUR_LEVEL: Optional[float] = None  # set to None to disable
 # Parallel candidate alignment+scoring workers (within one target).
 # Set to 1 for strict one-at-a-time candidate evaluation.
-CANDIDATE_FIT_MAX_WORKERS = 2
+CANDIDATE_FIT_MAX_WORKERS = 16
 
 # ----------- Clustering settings -----------
 # Toggle experimental clustering.

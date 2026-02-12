@@ -6,9 +6,7 @@ import gzip
 import importlib.util
 import subprocess
 import sys
-import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
@@ -22,18 +20,13 @@ if str(SCRIPT_DIR) not in sys.path:
 STRUCT_FETCH_PATH = SCRIPT_DIR / "struct_fetch_v4.py"
 
 # ------------------- Hardcoded parameters -------------------
-CSV_PATH = SCRIPT_DIR / "qscore_groundtruth_results_not_worked.csv"
+CSV_PATH = SCRIPT_DIR / "ready_to_test_new_1_29_ok_only_copy.csv"
 QSCORE_SCRIPT = SCRIPT_DIR / "qscore_chimerax.py"
 # Output directory for all maps/models/logs produced during testing.
-OUTPUT_DIR = SCRIPT_DIR / "qscore_groundtruth_run_2_10"
+OUTPUT_DIR = SCRIPT_DIR / "qscore_groundtruth_run_2_11"
 LOG_PATH = OUTPUT_DIR / "qscore_groundtruth_results.csv"
 # Set to an integer to limit rows, or None for all rows.
 MAX_ROWS = None
-# Number of worker threads for parallel processing.
-MAX_WORKERS = 1
-# Candidate fit workers used inside struct_fetch_v4.
-# This is separate from MAX_WORKERS above (row-level threading in this script).
-STRUCT_FETCH_CANDIDATE_FIT_MAX_WORKERS = 1
 
 QSCORE_TIMEOUT_SEC = 1800
 EMDB_DOWNLOAD_RETRIES = 6
@@ -287,10 +280,6 @@ def _configure_struct_fetch(map_path: Path, work_dir: Path, module) -> None:
     module.OUT_DIR = work_dir / "fetched_structures"
     module.FITTED_DIR = work_dir / "fitted_models"
     module.LOGS_DIR = module.FITTED_DIR / "logs"
-    try:
-        module.CANDIDATE_FIT_MAX_WORKERS = max(1, int(STRUCT_FETCH_CANDIDATE_FIT_MAX_WORKERS))
-    except Exception:
-        module.CANDIDATE_FIT_MAX_WORKERS = 1
 
 
 def _rewrite_log(log_path: Path, input_cols: list[str], rows: list[Dict[str, str]]) -> None:
@@ -299,6 +288,24 @@ def _rewrite_log(log_path: Path, input_cols: list[str], rows: list[Dict[str, str
         writer.writeheader()
         for row in rows:
             writer.writerow(row)
+
+
+def _load_existing_log_rows(log_path: Path, input_cols: list[str]) -> list[Dict[str, str]]:
+    """Load existing log rows so reruns append instead of overwrite."""
+    if not log_path.exists():
+        return []
+    expected_cols = list(input_cols) + list(EXTRA_LOG_COLUMNS)
+    rows: list[Dict[str, str]] = []
+    try:
+        with log_path.open("r", newline="") as log_file:
+            reader = csv.DictReader(log_file)
+            for row in reader:
+                norm_row = {col: row.get(col, "") for col in expected_cols}
+                rows.append(norm_row)
+    except Exception as exc:
+        print(f"Warning: failed to read existing log {log_path}: {exc}")
+        return []
+    return rows
 
 
 def _cleanup_workdir(work_dir: Path) -> None:
@@ -322,8 +329,23 @@ def _cleanup_workdir(work_dir: Path) -> None:
                 pass
 
 
+def _next_run_index(out_dir: Path) -> int:
+    """Return next numeric prefix for run subdirectories like '001_gene'."""
+    if not out_dir.exists():
+        return 1
+    max_idx = 0
+    for child in out_dir.iterdir():
+        if not child.is_dir():
+            continue
+        prefix = child.name.split("_", 1)[0]
+        if prefix.isdigit():
+            max_idx = max(max_idx, int(prefix))
+    return max_idx + 1 if max_idx > 0 else 1
+
+
 def _process_row(
-    idx: int,
+    run_idx: int,
+    progress_idx: int,
     row: Dict[str, str],
     input_cols: list[str],
     total: int,
@@ -355,7 +377,7 @@ def _process_row(
         if not pdb_raw:
             missing.append("fitted_pdbs")
         error = "missing_" + "_".join(missing)
-        print(f"\n[{idx}/{total}] Skipping row: {error}")
+        print(f"\n[{progress_idx}/{total}] Skipping row: {error}")
         out_row = {col: row.get(col, "") for col in input_cols}
         out_row.update(
             {
@@ -377,7 +399,7 @@ def _process_row(
     if not emdb_norm or not pdb_id:
         status = "bad_ids"
         error = "invalid_emdb_or_pdb"
-        print(f"\n[{idx}/{total}] Skipping row: {error}")
+        print(f"\n[{progress_idx}/{total}] Skipping row: {error}")
         out_row = {col: row.get(col, "") for col in input_cols}
         out_row.update(
             {
@@ -394,9 +416,9 @@ def _process_row(
         )
         return out_row
 
-    print(f"\n[{idx}/{total}] {gene_id} | {emdb_norm} | ground truth {pdb_id}")
+    print(f"\n[{progress_idx}/{total}] {gene_id} | {emdb_norm} | ground truth {pdb_id}")
 
-    work_dir = OUTPUT_DIR / f"{idx:03d}_{_sanitize_name(gene_id)}"
+    work_dir = OUTPUT_DIR / f"{run_idx:03d}_{_sanitize_name(gene_id)}"
     work_dir.mkdir(parents=True, exist_ok=True)
     map_path = work_dir / f"emd_{_emdb_numeric_id(emdb_norm) or emdb_norm}.map"
 
@@ -409,7 +431,7 @@ def _process_row(
         map_file = downloaded_map.name
         print(f"[{gene_id}] Map downloaded -> {downloaded_map}")
 
-        sf_tag = f"{idx}_{threading.get_ident()}"
+        sf_tag = f"{run_idx}"
         sf = _load_struct_fetch(sf_tag)
         _configure_struct_fetch(downloaded_map, work_dir, sf)
 
@@ -508,37 +530,34 @@ def main() -> int:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     log_path = Path(LOG_PATH).expanduser().resolve()
     log_path.parent.mkdir(parents=True, exist_ok=True)
+    start_run_idx = _next_run_index(OUTPUT_DIR)
+    print(f"Starting run folder index at {start_run_idx:03d}")
 
     total = len(rows)
-    log_rows: list[Optional[Dict[str, str]]] = [None] * total
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        futures = {}
-        for idx, row in enumerate(rows, start=1):
-            future = executor.submit(_process_row, idx, row, input_cols, total)
-            futures[future] = idx
-
-        for future in as_completed(futures):
-            idx = futures[future]
-            try:
-                out_row = future.result()
-            except Exception as exc:
-                out_row = {col: rows[idx - 1].get(col, "") for col in input_cols}
-                out_row.update(
-                    {
-                        "map_file": "",
-                        "ground_truth_model": "",
-                        "selected_pdb_id": "",
-                        "selected_fitted_model": "",
-                        "qscore_ground_truth": "nan",
-                        "qscore_identified": "nan",
-                        "qscore_diff": "nan",
-                        "status": "error",
-                        "error": str(exc),
-                    }
-                )
-            log_rows[idx - 1] = out_row
-            completed = [row for row in log_rows if row is not None]
-            _rewrite_log(log_path, input_cols, completed)
+    log_rows = _load_existing_log_rows(log_path, input_cols)
+    if log_rows:
+        print(f"Found existing log with {len(log_rows)} row(s); new results will be appended.")
+    for progress_idx, row in enumerate(rows, start=1):
+        run_idx = start_run_idx + progress_idx - 1
+        try:
+            out_row = _process_row(run_idx, progress_idx, row, input_cols, total)
+        except Exception as exc:
+            out_row = {col: row.get(col, "") for col in input_cols}
+            out_row.update(
+                {
+                    "map_file": "",
+                    "ground_truth_model": "",
+                    "selected_pdb_id": "",
+                    "selected_fitted_model": "",
+                    "qscore_ground_truth": "nan",
+                    "qscore_identified": "nan",
+                    "qscore_diff": "nan",
+                    "status": "error",
+                    "error": str(exc),
+                }
+            )
+        log_rows.append(out_row)
+        _rewrite_log(log_path, input_cols, log_rows)
 
     print(f"\nLog written: {log_path}")
     return 0
