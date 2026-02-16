@@ -5,3 +5,8 @@
 /cryoID2
 /ZZZZZZZZZZ
 /T_AttnPacker/AttnPackerPlusRotPTM
+__pycache__/
+.vscode/
+E_HMMER_searching/test_files/fasta_files
+D_BLAST_searching/test_files/fasta
+D_BLAST_searching/test_files/results

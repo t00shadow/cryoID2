@@ -1,0 +1,24 @@
+{
+  "version": "1.2",
+  "dbname": "malaria_pool_db",
+  "dbtype": "Protein",
+  "db-version": 5,
+  "description": "D_BLAST_searching/test_files/fasta/cryoid_v1/malaria_pool_mapped.fasta",
+  "number-of-letters": 245203,
+  "number-of-sequences": 166,
+  "last-updated": "2025-10-18T15:16:00",
+  "number-of-volumes": 1,
+  "bytes-total": 331200,
+  "bytes-to-cache": 246858,
+  "files": [
+    "malaria_pool_db.pdb",
+    "malaria_pool_db.phr",
+    "malaria_pool_db.pin",
+    "malaria_pool_db.pog",
+    "malaria_pool_db.pos",
+    "malaria_pool_db.pot",
+    "malaria_pool_db.psq",
+    "malaria_pool_db.ptf",
+    "malaria_pool_db.pto"
+  ]
+}
