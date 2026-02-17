@@ -14,10 +14,10 @@ from A0_config_loader import load_sample_paths, load_config_section
 
 config_file = "H_Backbone_tracing/A0_config.yaml"
 
-FILE_TOGGLE = "emd_34843"
-FILE_TOGGLE = "emd_38402"
+# FILE_TOGGLE = "emd_34843"
+# FILE_TOGGLE = "emd_38402"
 FILE_TOGGLE = "real_malaria_1"
-FILE_TOGGLE = "emd_42791"
+# FILE_TOGGLE = "emd_42791"
 
 paths_cfg = load_sample_paths(config_file, FILE_TOGGLE)
 INPUT_MRC = paths_cfg["CA_mrc"]

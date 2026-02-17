@@ -14,8 +14,8 @@ from A0_config_loader import load_sample_paths, load_config_section
 
 config_file = "H_Backbone_tracing/A0_config.yaml"
 
-FILE_TOGGLE = "emd_34843"
-FILE_TOGGLE = "emd_38402"
+# FILE_TOGGLE = "emd_34843"
+# FILE_TOGGLE = "emd_38402"
 FILE_TOGGLE = "real_malaria_1"
 # FILE_TOGGLE = "emd_42791"
 
@@ -55,9 +55,9 @@ z_slice = (50, 150)
 y_slice = (50, 150)
 x_slice = (50, 150)
 
-z_slice = (0, 999)    # max size is 208 but going over is fine since the code will fix it
-y_slice = (0, 999)
-x_slice = (0, 999)
+z_slice = (0, 50)    # max size is 208 but going over is fine since the code will fix it
+y_slice = (0, 50)
+x_slice = (0, 50)
 # x_slice = (0, 104)    # 10/3/25 sending more results to Grayson, just undo these changes after
 # x_slice = (104, 999)    # 10/3/25 sending more results to Grayson, just undo these changes after
 
