@@ -7,6 +7,7 @@
 /T_AttnPacker/AttnPackerPlusRotPTM
 .idea/
 *.pyc
+/.venv
 
 # output files
 /H_Backbone_tracing/outputs
@@ -24,3 +25,14 @@ Large_Error_PDBOUT.pdb
 /H_Backbone_tracing/SMALL_MISC_EXPERIMENTS
 /H_Backbone_tracing/TOO SLOW or NOT good enough
 /H_Backbone_tracing/NEW_CLUSTERING_REFACTOR (on hold)
+# dif gitignore approach below, instead of a blacklist, make a whitelist
+/H_Backbone_tracing/small_prototypes/*
+!H_Backbone_tracing/small_prototypes/A0_config_loader.py
+!H_Backbone_tracing/small_prototypes/A0_config.yaml
+!H_Backbone_tracing/small_prototypes/A0_config_loader.py
+# R = refactor/rewrite
+!H_Backbone_tracing/small_prototypes/R_A0_utils.py
+!H_Backbone_tracing/small_prototypes/R_A1_clustering.py
+!H_Backbone_tracing/small_prototypes/R_A1_clustering_2stages_v2.py
+!H_Backbone_tracing/small_prototypes/R_A2_superset_graph.py
+!H_Backbone_tracing/small_prototypes/R_A3_limit_degree.py
