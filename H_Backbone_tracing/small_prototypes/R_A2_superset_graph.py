@@ -98,6 +98,7 @@ def save_graph_pdb(coords, edges, filename):
 
 def main():
     from R_A1_clustering import main as run_clustering
+    # from R_A1_clustering_2stages_v2 import main as run_clustering
     from datetime import datetime
     import os
 

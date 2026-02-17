@@ -151,7 +151,7 @@ if __name__ == "__main__":
 
     from trace_helices_v3__perturbations_for_testing import shake_coords            # just import it instead of copy pasting, saves vertical space
     coords_noisy = shake_coords(coords, fraction=0.5, min_shift=0.2, max_shift=1.0, seed=123)     # 1.0 might be too much, but it is a good stress test, next steps to improve would prolly be to ask it to move points, and plug in holes or simulate holes, and lowkey run it on real data now.
-    coords_noisy = shake_coords(coords, fraction=0.5, min_shift=0.2, max_shift=0.5, seed=123)
+    # coords_noisy = shake_coords(coords, fraction=0.5, min_shift=0.2, max_shift=0.5, seed=123)
 
     # helices, corrected_coords = trace_helices(coords, ss)
     helices, corrected_coords = trace_helices_refined(coords_noisy, ss)

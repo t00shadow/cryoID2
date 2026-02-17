@@ -78,6 +78,7 @@ def sample_residue_maps(voxel_dict, residue_dir, shape):    # TODO: maybe rename
             data = mrc.data
             data = np.squeeze(data)
             print(f"{res_file}: {data.shape}")
+            print("shape 1:", data.shape, ", shape 2:", shape)
             assert data.shape == shape, "Residue map shape mismatch!"
 
             for atom_id, voxels in voxel_dict.items():
@@ -253,8 +254,10 @@ def update_pdb_residues(input_pdb, output_pdb, residue_sequence):
 def main(input_file_path = None, main_map_path = None, residue_dir_path = None):
     # main_map = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-21887_re_3.2\possibility\emd_21887.map_key_atoms_1_possibility.mrc"
     # TODO: rename main_map to smth else because it is NOT a map. Also just fyi, this file is only for getting the dimensions (assumes all unet possiblity mrcs have same dimensions, for the same sample).
-    main_map = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-34843_re_3.2\possibility\emd_34843.map_key_atoms_1_possibility.mrc"
-    pdb_file = "traced_backbone3.pdb"
+    # main_map = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-34843_re_3.2\possibility\emd_34843.map_key_atoms_1_possibility.mrc"
+    # pdb_file = "traced_backbone3.pdb"
+    main_map = r"C:\Users\noelu\programming\python_projects\cryoID_v2_DATA\UnetPrediction\real_malaria\1\possibility\cryosparc_P164_J166_006_volume_map_key_atoms_1_possibility.mrc"
+    pdb_file = r"C:\Users\noelu\programming\python_projects\cryoID_v2\H_Backbone_tracing\small_prototypes\compare_dif_versions\superset_graph.pdb"
     # 10/1/25 one off files for michael
     # pdb_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering_v2\emd_34843_agglomerative_cd_4.2_combined_fullGraph_20250927_235412.pdb"
     if input_file_path:
@@ -270,7 +273,8 @@ def main(input_file_path = None, main_map_path = None, residue_dir_path = None):
     # BUG: bruh
     # TODO: fix this so can pass in residue_dir, should just build it from config file, it's based on base_dir, literally just Path(base_dir) / possibility
     # TODO: minor consideration, rename to residue_possibility_dir? longer tho so maybe no. tho regardless itll get autofilled eventually based on the config file. user should NOT have to set this variable manually
-    residue_dir = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-34843_re_3.2\possibility"
+    # residue_dir = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-34843_re_3.2\possibility"
+    residue_dir = r"C:\Users\noelu\programming\python_projects\cryoID_v2_DATA\UnetPrediction\real_malaria\1\possibility"
     if residue_dir_path:
         residue_dir = residue_dir_path
 

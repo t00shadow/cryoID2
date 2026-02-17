@@ -490,5 +490,8 @@ if __name__ == "__main__":
     # Example usage
     # input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\example.pdb"
     input_file = r"C:\Users\noelu\Python Projects\cryoID_v2\H_Backbone_tracing\outputs\clustering_v2\emd_34843_agglomerative_cd_4.0_data_alone_20250923_210010.pdb"
+    input_file = r"C:\Users\noelu\programming\python_projects\cryoID_v2\H_Backbone_tracing\small_prototypes\8HK3.pdb"
+    input_file = r"C:\Users\noelu\Downloads\emd_34843_agglomerative_cd_4.0_data_alone_20251217_200849.pdb"
+    # input_file = r"C:\Users\noelu\Downloads\emd_34843_agglomerative_cd_4.0_data_plus_helix_20251217_195836.pdb"
     output_file = r"traced_backbone_output.pdb"
     main(input_file=input_file, output_file=output_file, beam_width=20)

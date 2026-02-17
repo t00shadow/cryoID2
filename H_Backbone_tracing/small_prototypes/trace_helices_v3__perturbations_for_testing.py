@@ -1,5 +1,6 @@
 # READ:
 #! make copies of this file when testing better tracing algos
+#TODO rename perturbations to noise
 
 import numpy as np
 from scipy.spatial import cKDTree
