@@ -1,0 +1,2 @@
+improve vof calculation algorithm (largest continous blob or grid search)
+rely more on metadata/symmetry data after structure is identified to decrease search space

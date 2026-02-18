@@ -1,5 +1,4 @@
 numpy
-torch==2.01
 scipy
 biopython
 pandas
@@ -11,3 +10,4 @@ split-folders
 pickle
 shutil
 pyhmmer
+PyQt6
