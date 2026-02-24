@@ -25,6 +25,13 @@ from scipy.ndimage import gaussian_filter, label, center_of_mass
 
 _MAPINFO_CACHE: dict[tuple[Path, float, bool, Optional[float], float], tuple[int, int, "MapInfo"]] = {}
 _SPHERE_OFFSETS_CACHE: dict[tuple[int, float], np.ndarray] = {}
+_FALLBACK_NOTICE_SEEN: set[str] = set()
+
+def _fallback_notice(tag: str, message: str, once: bool = False) -> None:
+    if once and tag in _FALLBACK_NOTICE_SEEN:
+        return
+    _FALLBACK_NOTICE_SEEN.add(tag)
+    print(f"[fit_v5][fallback] {message}")
 
 # -------------------- MRC helpers --------------------
 def _safe_get_origin(mrc: mrcfile.mrcfile.MrcFile):
@@ -32,12 +39,23 @@ def _safe_get_origin(mrc: mrcfile.mrcfile.MrcFile):
     try:
         return float(h.xorigin), float(h.yorigin), float(h.zorigin)
     except Exception:
+        _fallback_notice(
+            "safe_get_origin_header_fields",
+            "Header origin fields unavailable; trying legacy origin array.",
+        )
         try:
             arr = np.asarray(h.origin, dtype=np.float64).ravel()
             if arr.size >= 3:
                 return float(arr[0]), float(arr[1]), float(arr[2])
+            _fallback_notice(
+                "safe_get_origin_zero",
+                "Legacy origin array incomplete; using (0,0,0) origin.",
+            )
         except Exception:
-            pass
+            _fallback_notice(
+                "safe_get_origin_zero",
+                "Legacy origin array unavailable; using (0,0,0) origin.",
+            )
     return 0.0, 0.0, 0.0
 
 def _safe_get_step(mrc: mrcfile.mrcfile.MrcFile):
@@ -45,6 +63,10 @@ def _safe_get_step(mrc: mrcfile.mrcfile.MrcFile):
         vs = mrc.voxel_size
         return float(vs.x), float(vs.y), float(vs.z)
     except Exception:
+        _fallback_notice(
+            "safe_get_step_header",
+            "Voxel size unavailable; deriving voxel step from header cell dimensions.",
+        )
         h = mrc.header
         cella = np.asarray(getattr(h, "cella", [1.0, 1.0, 1.0]), dtype=np.float64).ravel()
         mx, my, mz = int(getattr(h, "mx", 0) or 0), int(getattr(h, "my", 0) or 0), int(getattr(h, "mz", 0) or 0)
@@ -55,9 +77,18 @@ def _safe_get_step(mrc: mrcfile.mrcfile.MrcFile):
         cellz = float(cella[2]) if cella.size > 2 else 1.0
 
         def _axis_step(cell: float, m: int, n: int) -> float:
+            if m <= 0 and n <= 0:
+                _fallback_notice(
+                    "safe_get_step_denom_default",
+                    "Header axis sampling counts are missing/zero; using denominator fallback of 1.",
+                )
             denom = m if m > 0 else (n if n > 0 else 1)
             step = float(cell) / float(denom)
             if (not np.isfinite(step)) or step == 0.0:
+                _fallback_notice(
+                    "safe_get_step_axis_default",
+                    "Invalid axis voxel step encountered; falling back to 1.0 A step.",
+                )
                 return 1.0
             return abs(float(step))
 
@@ -71,6 +102,10 @@ class MapInfo:
     def __init__(self, mrc: mrcfile.mrcfile.MrcFile):
         raw = mrc.data.astype(np.float32, copy=False)
         if not np.isfinite(raw).all():
+            _fallback_notice(
+                "mapinfo_raw_nonfinite",
+                "Input map has non-finite voxels; replacing with finite median values.",
+            )
             finite = np.isfinite(raw)
             fill = np.nanmedian(raw[finite]) if np.any(finite) else 0.0
             raw = np.where(finite, raw, fill).astype(np.float32, copy=False)
@@ -88,6 +123,10 @@ class MapInfo:
         self.mapr = int(getattr(h, "mapr", 2) or 2)
         self.maps = int(getattr(h, "maps", 3) or 3)
         if {self.mapc, self.mapr, self.maps} != {1, 2, 3}:
+            _fallback_notice(
+                "mapinfo_axis_order_default",
+                f"Non-standard map axis order ({self.mapc},{self.mapr},{self.maps}); using default (1,2,3).",
+            )
             self.mapc, self.mapr, self.maps = 1, 2, 3
 
         x0, y0, z0 = _safe_get_origin(mrc)
@@ -120,6 +159,10 @@ class MapInfo:
         if arr.shape != self.raw.shape:
             raise ValueError(f"fit_map shape mismatch: got {arr.shape}, expected {self.raw.shape}")
         if not np.isfinite(arr).all():
+            _fallback_notice(
+                "mapinfo_fit_nonfinite",
+                "Working map has non-finite voxels; replacing with finite median values.",
+            )
             finite = np.isfinite(arr)
             fill = np.nanmedian(arr[finite]) if np.any(finite) else 0.0
             arr = np.where(finite, arr, fill).astype(np.float32, copy=False)
@@ -216,6 +259,10 @@ def _center_blob_mask(
     """Return a center blob mask; optionally cluster nearby disconnected components."""
     mask = np.asarray(arr >= float(threshold_value), dtype=bool)
     if not np.any(mask):
+        _fallback_notice(
+            "center_blob_empty_mask",
+            "Center-blob mask is empty at threshold; using full-map mask.",
+        )
         return np.ones(arr.shape, dtype=bool)
 
     labs, nlab = label(mask)
@@ -254,6 +301,10 @@ def _center_blob_mask(
     centroids = np.asarray(centroids, dtype=np.float64)
     finite = np.isfinite(centroids).all(axis=1)
     if not np.any(finite):
+        _fallback_notice(
+            "center_blob_centroid_invalid",
+            "Component centroids invalid; falling back to first component.",
+        )
         return labs == int(comp_labels[0])
     comp_labels = comp_labels[finite]
     centroids = centroids[finite]
@@ -277,6 +328,10 @@ def _center_blob_mask(
     gate = float(max(4.0, center_gate_vox))
     gated = d_center <= gate
     if not np.any(gated):
+        _fallback_notice(
+            "center_blob_gate_empty",
+            "No components within center gate; falling back to nearest center component.",
+        )
         return labs == best_lab
 
     gated_indices = np.where(gated)[0]
@@ -288,6 +343,10 @@ def _center_blob_mask(
     if best_lab in gated_labels:
         seed_local = int(np.where(gated_labels == best_lab)[0][0])
     else:
+        _fallback_notice(
+            "center_blob_seed_missing",
+            "Best center component missing after gating; falling back to nearest center component.",
+        )
         return labs == best_lab
 
     link = float(max(2.0, centroid_link_vox))
@@ -306,6 +365,10 @@ def _center_blob_mask(
 
     selected_labels = gated_labels[visited]
     if selected_labels.size == 0:
+        _fallback_notice(
+            "center_blob_cluster_empty",
+            "Disconnected-component clustering selected none; falling back to nearest center component.",
+        )
         selected_labels = np.array([best_lab], dtype=np.int32)
     return np.isin(labs, selected_labels)
 
@@ -350,6 +413,10 @@ def _get_cached_mapinfo(
         if denoise_center_blob_only:
             if blob_level is None:
                 zf = float(denoise_center_blob_z_fallback)
+                _fallback_notice(
+                    "denoise_blob_level_z_fallback",
+                    f"No contour level provided for center-blob denoise; using z-fallback {zf:.2f}.",
+                )
                 thr = float(np.mean(src) + zf * (float(np.std(src)) + 1e-12))
             else:
                 thr = float(blob_level)
@@ -456,6 +523,143 @@ def pca(points: np.ndarray, weights: np.ndarray | None = None):
     vecs = vecs[:, order]
     return vecs, center
 
+def _safe_normalize(v: np.ndarray, fallback: np.ndarray) -> np.ndarray:
+    v = np.asarray(v, dtype=np.float64)
+    n = float(np.linalg.norm(v))
+    if not np.isfinite(n) or n < 1e-12:
+        _fallback_notice(
+            "safe_normalize_vector",
+            "Attempted to normalize a near-zero/invalid vector; using fallback axis.",
+        )
+        out = np.asarray(fallback, dtype=np.float64)
+        out_n = float(np.linalg.norm(out))
+        if not np.isfinite(out_n) or out_n < 1e-12:
+            _fallback_notice(
+                "safe_normalize_default_x",
+                "Fallback axis is invalid; using hard default [1,0,0].",
+            )
+            return np.array([1.0, 0.0, 0.0], dtype=np.float64)
+        return out / out_n
+    return v / n
+
+def _orthogonal_fallback_axis(axis: np.ndarray) -> np.ndarray:
+    axis = _safe_normalize(axis, np.array([1.0, 0.0, 0.0], dtype=np.float64))
+    cands = (
+        np.array([1.0, 0.0, 0.0], dtype=np.float64),
+        np.array([0.0, 1.0, 0.0], dtype=np.float64),
+        np.array([0.0, 0.0, 1.0], dtype=np.float64),
+    )
+    best = cands[0]
+    best_norm = -1.0
+    for cand in cands:
+        v = cand - axis * float(np.dot(cand, axis))
+        n = float(np.linalg.norm(v))
+        if n > best_norm:
+            best_norm = n
+            best = v
+    return _safe_normalize(best, np.array([0.0, 1.0, 0.0], dtype=np.float64))
+
+def _weighted_skewness(values: np.ndarray, weights: np.ndarray | None = None) -> float:
+    x = np.asarray(values, dtype=np.float64).reshape(-1)
+    if x.size == 0:
+        return 0.0
+    if weights is None:
+        x0 = x - float(np.mean(x))
+        m2 = float(np.mean(x0 * x0))
+        if m2 < 1e-16:
+            return 0.0
+        m3 = float(np.mean(x0 * x0 * x0))
+        return m3 / ((m2 ** 1.5) + 1e-18)
+    w = np.asarray(weights, dtype=np.float64).reshape(-1)
+    if w.size != x.size:
+        _fallback_notice(
+            "weighted_skew_mismatch",
+            "Skewness weights length mismatch; returning 0 skewness fallback.",
+        )
+        return 0.0
+    w = np.where(np.isfinite(w), np.maximum(w, 0.0), 0.0)
+    wsum = float(np.sum(w))
+    if wsum <= 0.0:
+        _fallback_notice(
+            "weighted_skew_unweighted",
+            "Skewness weights sum is non-positive; falling back to unweighted skewness.",
+        )
+        return _weighted_skewness(x, weights=None)
+    mu = float(np.sum(w * x) / wsum)
+    x0 = x - mu
+    m2 = float(np.sum(w * x0 * x0) / wsum)
+    if m2 < 1e-16:
+        return 0.0
+    m3 = float(np.sum(w * x0 * x0 * x0) / wsum)
+    return m3 / ((m2 ** 1.5) + 1e-18)
+
+def _orient_axis_by_skewness(
+    axis: np.ndarray,
+    points: np.ndarray,
+    center: np.ndarray,
+    weights: np.ndarray | None = None,
+) -> np.ndarray:
+    axis = _safe_normalize(axis, np.array([1.0, 0.0, 0.0], dtype=np.float64))
+    pts = np.asarray(points, dtype=np.float64)
+    ctr = np.asarray(center, dtype=np.float64)
+    proj = (pts - ctr) @ axis
+    skew = _weighted_skewness(proj, weights)
+    if skew < 0.0:
+        axis = -axis
+    elif abs(skew) <= 1e-8:
+        if weights is None:
+            pos = int(np.count_nonzero(proj >= 0.0))
+            neg = int(np.count_nonzero(proj < 0.0))
+            if pos < neg:
+                axis = -axis
+        else:
+            w = np.asarray(weights, dtype=np.float64).reshape(-1)
+            if w.size == proj.size:
+                w = np.where(np.isfinite(w), np.maximum(w, 0.0), 0.0)
+                pos = float(np.sum(w[proj >= 0.0]))
+                neg = float(np.sum(w[proj < 0.0]))
+                if pos < neg:
+                    axis = -axis
+        # deterministic tie-break
+        k = int(np.argmax(np.abs(axis)))
+        if axis[k] < 0.0:
+            axis = -axis
+    return axis
+
+def _build_signed_pca_frame(
+    points: np.ndarray,
+    weights: np.ndarray | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    vecs, center = pca(points, weights=weights)
+    pc1 = _orient_axis_by_skewness(vecs[:, 0], points, center, weights)
+
+    pc2_raw = np.asarray(vecs[:, 1], dtype=np.float64)
+    pc2_raw = pc2_raw - pc1 * float(np.dot(pc2_raw, pc1))
+    if float(np.linalg.norm(pc2_raw)) < 1e-12:
+        _fallback_notice(
+            "pca_frame_pc2_fallback",
+            "PC2 is degenerate after orthogonalization; using orthogonal fallback axis.",
+        )
+        pc2_raw = _orthogonal_fallback_axis(pc1)
+    pc2 = _orient_axis_by_skewness(pc2_raw, points, center, weights)
+    pc2 = _safe_normalize(pc2 - pc1 * float(np.dot(pc2, pc1)), _orthogonal_fallback_axis(pc1))
+
+    pc3 = _safe_normalize(np.cross(pc1, pc2), _orthogonal_fallback_axis(pc1))
+    pc2 = _safe_normalize(np.cross(pc3, pc1), pc2)
+    frame = np.column_stack([pc1, pc2, pc3]).astype(np.float64, copy=False)
+
+    # Numerical guard to preserve right-handedness.
+    if np.linalg.det(frame) < 0.0:
+        _fallback_notice(
+            "pca_frame_handedness_fix",
+            "PCA frame had negative determinant; flipping PC2 to enforce right-handed frame.",
+        )
+        pc2 = -pc2
+        pc3 = _safe_normalize(np.cross(pc1, pc2), pc3)
+        pc2 = _safe_normalize(np.cross(pc3, pc1), pc2)
+        frame = np.column_stack([pc1, pc2, pc3]).astype(np.float64, copy=False)
+    return frame, np.asarray(center, dtype=np.float64)
+
 def sample_map_points(mapinfo: MapInfo, stride: int, target_min: int):
     A = mapinfo.fit_map
     sub = A[::stride, ::stride, ::stride]
@@ -474,6 +678,10 @@ def sample_map_points(mapinfo: MapInfo, stride: int, target_min: int):
             break
 
     if pts is None:
+        _fallback_notice(
+            "sample_map_points_full_map",
+            "No threshold produced enough map points; falling back to full-map sampling for PCA/COM.",
+        )
         iz, iy, ix = np.nonzero(np.ones_like(sub, dtype=bool))
         iz *= stride; iy *= stride; ix *= stride
         vals = A[iz, iy, ix].astype(np.float64, copy=False)
@@ -743,6 +951,10 @@ def compute_vof_for_radius(
 
     chosen = best or best_any
     if not chosen:
+        _fallback_notice(
+            "vof_for_radius_no_candidate",
+            "VOF(radius) found no valid threshold candidate; returning zero score.",
+        )
         return 0.0, {
             "radius_ang": float(radius_ang),
             "threshold_z": None,
@@ -763,6 +975,11 @@ def compute_vof_for_radius(
         "union_vox": int(chosen["union_vox"]),
         "constrained": bool(best is not None),
     }
+    if best is None and best_any is not None:
+        _fallback_notice(
+            "vof_for_radius_unconstrained",
+            "VOF(radius) constrained mask criteria not met; using best unconstrained threshold.",
+        )
     return float(chosen["vof"]), details
 
 def compute_vof_optimized(
@@ -789,6 +1006,10 @@ def compute_vof_optimized(
     radii = _build_radius_candidates(rmin, rmax, VOF_RADIUS_STEP_A)
     z_thresh = _build_threshold_candidates(mZ_ds, mapinfo, recommended_contour_level=recommended_contour_level)
     if not radii or not z_thresh:
+        _fallback_notice(
+            "vof_optimized_empty_grid",
+            "VOF optimization has empty radius/threshold grid; returning zero score.",
+        )
         return 0.0, {
             "radius_ang": None,
             "threshold_z": None,
@@ -943,6 +1164,10 @@ def compute_vof_optimized(
 
     chosen = best or best_any
     if not chosen:
+        _fallback_notice(
+            "vof_optimized_no_candidate",
+            "VOF optimization found no candidate; returning zero score.",
+        )
         return 0.0, {
             "radius_ang": None,
             "threshold_z": None,
@@ -963,10 +1188,19 @@ def compute_vof_optimized(
         "union_vox": int(chosen["union_vox"]),
         "constrained": bool(best is not None),
     }
+    if best is None and best_any is not None:
+        _fallback_notice(
+            "vof_optimized_unconstrained",
+            "VOF constrained mask criteria not met; using best unconstrained candidate.",
+        )
     return float(chosen["vof"]), details
 
 def _fib_axes_angles(n: int) -> tuple[np.ndarray, np.ndarray]:
     if n <= 1:
+        _fallback_notice(
+            "fib_single_rotation",
+            "Fibonacci rotation count <= 1; falling back to single identity-like axis.",
+        )
         return (
             np.array([[0.0, 0.0, 1.0]], dtype=np.float64),
             np.array([0.0], dtype=np.float64),
@@ -1017,6 +1251,10 @@ def _align_fib_axes_to_target(axes: np.ndarray, target_axis: np.ndarray) -> np.n
     t = np.asarray(target_axis, dtype=np.float64)
     tn = np.linalg.norm(t)
     if not np.isfinite(tn) or tn < 1e-12:
+        _fallback_notice(
+            "align_fib_target_invalid",
+            "Target axis for Fibonacci alignment is invalid; leaving sphere orientation unchanged.",
+        )
         return axes
     t = t / tn
     idx = int(np.argmax(axes @ t))  # nearest dot/axis to target
@@ -1053,6 +1291,10 @@ def global_rotation_align(
     map_mask = (mZ_ds >= float(z_thresh))
     map_sum = float(np.count_nonzero(map_mask))
     if map_sum <= 0:
+        _fallback_notice(
+            "global_align_empty_map_mask",
+            "Coarse alignment map mask is empty at current z-threshold; returning identity pose.",
+        )
         return np.eye(3, dtype=np.float64), np.zeros(3, dtype=np.float64), 0.0
 
     # Scales to downsampled grid
@@ -1066,32 +1308,67 @@ def global_rotation_align(
     r_vox = float(radius_ang) / max(vs_mean, 1e-6)
     rad_ds = r_vox / max(scale_mean, 1e-6)
 
-    # Map COM (density-weighted from sampled points)
-    _, _, map_com = sample_map_points(mapinfo, stride=3, target_min=2500)
+    # Build map/model PCA frames (with skew-sign rule) and initialize a PCA->PCA seed pose.
+    map_pts, map_wts, map_com = sample_map_points(mapinfo, stride=3, target_min=2500)
     model_com = model_pts_world.mean(axis=0)
-
-    # Rotation sampling (deterministic Fibonacci sphere).
-    # PCA seeding here means:
-    #   1) compute dominant PCA axis (through COM),
-    #   2) find nearest Fibonacci axis/dot,
-    #   3) rotate the whole sphere so that this axis overlaps the PCA axis.
-    pca_axis: Optional[np.ndarray] = None
+    map_frame: Optional[np.ndarray] = None
+    model_frame: Optional[np.ndarray] = None
+    model_pc1_local: Optional[np.ndarray] = None
+    fib_target_axis: Optional[np.ndarray] = None
+    R_base = np.eye(3, dtype=np.float64)
     try:
-        U_model, _ = pca(model_pts_world)
-        pca_axis = np.asarray(U_model[:, 0], dtype=np.float64)
+        map_frame, map_center = _build_signed_pca_frame(map_pts, weights=map_wts)
+        map_com = map_center
+        fib_target_axis = map_frame[:, 0].copy()
     except Exception:
-        pca_axis = None
+        _fallback_notice(
+            "global_align_map_pca_failed",
+            "Map PCA frame construction failed; using non-PCA base rotation fallback.",
+        )
+        map_frame = None
+    try:
+        model_frame, model_center = _build_signed_pca_frame(model_pts_world, weights=None)
+        model_com = model_center
+        model_pc1_local = model_frame[:, 0].copy()
+    except Exception:
+        _fallback_notice(
+            "global_align_model_pca_failed",
+            "Model PCA frame construction failed; using non-PCA base rotation fallback.",
+        )
+        model_frame = None
 
+    if GLOBAL_SEARCH_USE_PCA_SEED and map_frame is not None and model_frame is not None:
+        # PCA-to-PCA rigid seed: aligns COM + full principal frame (PC1/PC2 => spin included).
+        R_base = map_frame @ model_frame.T
+        if np.linalg.det(R_base) < 0.0:
+            _fallback_notice(
+                "global_align_seed_handedness_fix",
+                "PCA seed rotation had negative determinant; applying handedness fix.",
+            )
+            # Safety guard for numerical edge cases.
+            fix = model_frame.copy()
+            fix[:, 1] *= -1.0
+            fix[:, 2] = _safe_normalize(np.cross(fix[:, 0], fix[:, 1]), fix[:, 2])
+            fix[:, 1] = _safe_normalize(np.cross(fix[:, 2], fix[:, 0]), fix[:, 1])
+            R_base = map_frame @ fix.T
+    elif GLOBAL_SEARCH_USE_PCA_SEED:
+        _fallback_notice(
+            "global_align_seed_identity",
+            "PCA seeding enabled but unavailable; using identity base rotation before Fibonacci perturbations.",
+        )
+
+    # Rotation sampling (deterministic Fibonacci sphere), then perturb around PCA seed.
     n_eff = max(1, int(n_rot))
     fib_axes, fib_angles = _fib_axes_angles(n_eff)
-    if GLOBAL_SEARCH_USE_PCA_SEED and n_eff > 1 and pca_axis is not None:
-        fib_axes = _align_fib_axes_to_target(fib_axes, pca_axis)
+    if GLOBAL_SEARCH_USE_PCA_SEED and n_eff > 1 and fib_target_axis is not None:
+        # Rotate sphere so nearest fib axis aligns with +PC1.
+        fib_axes = _align_fib_axes_to_target(fib_axes, fib_target_axis)
     if (not GLOBAL_SEARCH_USE_PCA_SEED) and n_eff > 1:
         shift = int(seed) % n_eff
         if shift:
             fib_axes = np.roll(fib_axes, shift=shift, axis=0)
             fib_angles = np.roll(fib_angles, shift=shift, axis=0)
-    rotations = np.stack(
+    rotations_delta = np.stack(
         [R.from_rotvec(axis * angle).as_matrix() for axis, angle in zip(fib_axes, fib_angles)],
         axis=0,
     )
@@ -1112,9 +1389,13 @@ def global_rotation_align(
         model_pts_score = model_pts_world
 
     # Local spin axis in model frame (principal axis 1).
-    if pca_axis is not None:
-        spin_axis_local = pca_axis.copy()
+    if model_pc1_local is not None:
+        spin_axis_local = model_pc1_local.copy()
     else:
+        _fallback_notice(
+            "global_align_spin_axis_default",
+            "Model PC1 unavailable; using default spin axis [0,0,1].",
+        )
         spin_axis_local = np.array([0.0, 0.0, 1.0], dtype=np.float64)
     spin_axis_local /= (np.linalg.norm(spin_axis_local) + 1e-12)
 
@@ -1154,7 +1435,8 @@ def global_rotation_align(
 
     # First pass: score each rotation at COM translation only.
     rot_scores: list[tuple[float, float, np.ndarray, np.ndarray]] = []
-    for Rm in rotations:
+    for R_delta in rotations_delta:
+        Rm = R_delta @ R_base
         t0 = map_com - (Rm @ model_com)
         pts_world = (Rm @ model_pts_occ_ctr.T).T + map_com
         pts_world_score = (Rm @ model_pts_score_ctr.T).T + map_com if model_pts_score is not None else None
@@ -1163,6 +1445,10 @@ def global_rotation_align(
 
     # Pick best base candidate by coarse score.
     if not rot_scores:
+        _fallback_notice(
+            "global_align_no_rot_scores",
+            "No coarse rotation scores produced; returning identity pose.",
+        )
         return np.eye(3, dtype=np.float64), np.zeros(3, dtype=np.float64), 0.0
     _, _, R_seed, t0_seed = max(rot_scores, key=lambda x: (x[0], x[1]))
 
@@ -1355,6 +1641,10 @@ def fit_model_and_score(
             map_variant = str(best.get("map_variant", "raw"))
             msg = f"[fit_v5] map={map_variant}; VOF params: radius={r_sel:.2f} A, z={z_sel:.2f}, thr={thr_val:.4g}"
             if constrained is False:
+                _fallback_notice(
+                    "fit_vof_unconstrained",
+                    "Final VOF selection used unconstrained fallback candidate.",
+                )
                 msg += " (fallback unconstrained)"
             print(msg)
 
