@@ -30,9 +30,9 @@ except Exception:  # pragma: no cover - optional dependency at runtime
     NCBIXML = None
 
 # ----------- REQUIRED PATHS -----------
-CSV_PATH = pathlib.Path("Alphafold_fetch/ryr1_only.csv")
+CSV_PATH = pathlib.Path("Alphafold_fetch/sorted_search_pool_less_than_400aa_struct_fetch_input.csv")
 OUT_DIR  = pathlib.Path("Alphafold_fetch/fetched_structures_v3")
-MAP_PATH = pathlib.Path("Alphafold_fetch/qscore_groundtruth_run_2_10/001_RYR1/emd_38042.map")
+MAP_PATH = pathlib.Path("Alphafold_fetch/cryosparc_P164_J1425_003_volume_map_sharp.mrc")
 
 # ----------- PROCESSING LIMIT -----------
 # Number of CSV rows to process (with non-empty gene_id + sequence).
@@ -45,7 +45,7 @@ MAX_EXPERIMENTAL_TRIES: Optional[int] = None # cap for experimental clusters (No
 RECOMMENDED_CONTOUR_LEVEL: Optional[float] = None  # set to None to disable
 # Parallel candidate alignment+scoring workers (within one target).
 # Set to 1 for strict one-at-a-time candidate evaluation.
-CANDIDATE_FIT_MAX_WORKERS = 16
+CANDIDATE_FIT_MAX_WORKERS = 8
 
 # ----------- Clustering settings -----------
 # Toggle experimental clustering.
@@ -81,6 +81,14 @@ session.mount("https://", HTTPAdapter(max_retries=retries))
 session.headers.update({"User-Agent": "structure-fetcher/vof-x-meanz/2.3"})
 _set_cluster_session(session)
 
+_FALLBACK_NOTICE_SEEN: set[str] = set()
+
+def _fallback_notice(tag: str, message: str, once: bool = False) -> None:
+    if once and tag in _FALLBACK_NOTICE_SEEN:
+        return
+    _FALLBACK_NOTICE_SEEN.add(tag)
+    print(f"[struct_fetch_v4][fallback] {message}")
+
 # Simple in-memory caches to limit repeated API calls
 UNIPROT_SEQ_CACHE: Dict[str, str] = {}
 AF_META_CACHE: Dict[str, Dict[str, Any]] = {}
@@ -103,6 +111,11 @@ def _next_cursor(link_header: Optional[str]) -> Optional[str]:
 
 def blast_top_uniprot_accession(seq: str) -> Optional[str]:
     if NCBIWWW is None or NCBIXML is None:
+        _fallback_notice(
+            "blast_dependency_missing",
+            "Biopython BLAST modules unavailable; BLAST fallback cannot run.",
+            once=True,
+        )
         print("Biopython not available; install biopython to enable BLAST fallback.")
         return None
 
@@ -168,6 +181,10 @@ def uniprot_sequences_for_gene(
                 r = session.get(UNIPROT_SEARCH_URL, params=params, timeout=timeout)
                 r.raise_for_status()
             except requests.RequestException:
+                _fallback_notice(
+                    "uniprot_query_failed",
+                    f"UniProt query failed for gene '{gene_id}' (query={query!r}); returning empty result set.",
+                )
                 return [], False
             data = r.json()
             for item in data.get("results", []) or []:
@@ -192,6 +209,10 @@ def uniprot_sequences_for_gene(
     reviewed_results, reviewed_truncated = _run_query(f"{base_query} AND reviewed:true")
     if reviewed_results:
         return reviewed_results, reviewed_truncated
+    _fallback_notice(
+        "uniprot_reviewed_to_all",
+        f"Reviewed-only UniProt query returned no entries for gene '{gene_id}'; falling back to all entries.",
+    )
     return _run_query(base_query)
 
 
@@ -248,11 +269,20 @@ def pdb_ids_from_pdbe_mapping(uniprot: str, timeout: int = 15) -> List[str]:
     url = f"https://www.ebi.ac.uk/pdbe/api/mappings/uniprot/{uniprot}"
     try:
         r = session.get(url, timeout=timeout)
-        if r.status_code == 404: return []
+        if r.status_code == 404:
+            _fallback_notice(
+                "pdbe_mapping_404",
+                f"PDBe mapping returned 404 for UniProt {uniprot}; returning empty list.",
+            )
+            return []
         r.raise_for_status()
         pdb_map = r.json().get(uniprot, {}).get("PDB", {})
         return sorted({pid.upper() for pid in pdb_map.keys()})
     except requests.RequestException:
+        _fallback_notice(
+            "pdbe_mapping_failed",
+            f"PDBe mapping request failed for UniProt {uniprot}; returning empty list.",
+        )
         return []
 
 def pdb_ids_from_rcsb_search(uniprot: str, timeout: int = 15) -> List[str]:
@@ -276,6 +306,10 @@ def pdb_ids_from_rcsb_search(uniprot: str, timeout: int = 15) -> List[str]:
         result_set = r.json().get("result_set", [])
         return sorted({row["identifier"].upper() for row in result_set if "identifier" in row})
     except requests.RequestException:
+        _fallback_notice(
+            "rcsb_search_failed",
+            f"RCSB search request failed for UniProt {uniprot}; returning empty list.",
+        )
         return []
 
 def get_uniprot_sequence(accession: str, timeout: int = 15) -> Optional[str]:
@@ -320,17 +354,30 @@ def download_rcsb_model_any(
                 if path.stat().st_size > 0: return path
         except requests.RequestException:
             continue
+    _fallback_notice(
+        "download_rcsb_none",
+        f"No downloadable RCSB model found for {pdb_id} (tried assembly+CIF/PDB fallbacks).",
+    )
     return None
 
 def _alphafold_prediction_json(accession: str, timeout: int = 20) -> List[Dict[str, Any]]:
     url = f"https://alphafold.ebi.ac.uk/api/prediction/{accession}"
     try:
         r = session.get(url, timeout=timeout)
-        if r.status_code == 404: return []
+        if r.status_code == 404:
+            _fallback_notice(
+                "alphafold_prediction_missing",
+                f"AlphaFold prediction endpoint returned 404 for accession {accession}.",
+            )
+            return []
         r.raise_for_status()
         data = r.json()
         return data if isinstance(data, list) else []
     except requests.RequestException:
+        _fallback_notice(
+            "alphafold_prediction_request_failed",
+            f"AlphaFold prediction request failed for accession {accession}; returning empty list.",
+        )
         return []
 
 def alphafold_best_prediction_meta(accession: str, timeout: int = 20) -> Optional[Dict[str, Any]]:
@@ -363,6 +410,10 @@ def download_alphafold_from_meta(
     file_url = meta.get("pdbUrl") or meta.get("cifUrl")
     ext = ".pdb" if meta.get("pdbUrl") else ".cif"
     if not file_url:
+        _fallback_notice(
+            "download_af_missing_url",
+            f"AlphaFold metadata has no downloadable URL for accession {meta.get('accession')}.",
+        )
         return None
     file_name = pathlib.Path(urlparse(file_url).path).name or f"{meta.get('accession', 'AF')}{ext}"
     if not pathlib.Path(file_name).suffix:
@@ -376,12 +427,20 @@ def download_alphafold_from_meta(
             path.write_bytes(r.content)
             return path if path.stat().st_size > 0 else None
     except requests.RequestException:
+        _fallback_notice(
+            "download_af_request_failed",
+            f"AlphaFold model download failed for URL: {file_url}",
+        )
         return None
     return None
 
 def download_alphafold_latest(accession: str, out_dir: pathlib.Path, timeout: int = 30) -> Optional[pathlib.Path]:
     meta = alphafold_best_prediction_meta(accession, timeout=timeout)
     if not meta:
+        _fallback_notice(
+            "download_af_latest_no_meta",
+            f"No AlphaFold metadata found for accession {accession}.",
+        )
         return None
     return download_alphafold_from_meta(meta, out_dir, timeout=timeout)
 
@@ -419,6 +478,10 @@ def evaluate_and_record(label: str,
     }
     # If the fit failed (score is NaN), proactively remove any leftover file.
     if score is None or not fitted:
+        _fallback_notice(
+            "evaluate_fit_failed_cleanup",
+            f"Fit failed for {kind}:{id_or_acc}; cleaning up partial fitted output.",
+        )
         try: pathlib.Path(out_model).unlink(missing_ok=True)
         except Exception: pass
     return row
@@ -444,6 +507,10 @@ def _build_fit_row(
         "kept": False,
     }
     if score is None or not fitted:
+        _fallback_notice(
+            "build_fit_row_failed_cleanup",
+            f"Worker fit failed for {kind}:{id_or_acc}; cleaning up partial fitted output.",
+        )
         try:
             pathlib.Path(out_model).unlink(missing_ok=True)
         except Exception:
@@ -460,6 +527,10 @@ def _evaluate_jobs(
 
     # Sequential fallback
     if int(workers) <= 1 or len(jobs) <= 1:
+        _fallback_notice(
+            "evaluate_jobs_sequential",
+            f"Using sequential candidate evaluation (workers={int(workers)}, jobs={len(jobs)}).",
+        )
         out: List[Tuple[Dict[str, Any], Dict[str, Any], str]] = []
         for job in jobs:
             row = evaluate_and_record(
@@ -518,6 +589,10 @@ def _effective_fit_workers() -> int:
     try:
         w = int(CANDIDATE_FIT_MAX_WORKERS)
     except Exception:
+        _fallback_notice(
+            "fit_workers_default",
+            f"Invalid CANDIDATE_FIT_MAX_WORKERS={CANDIDATE_FIT_MAX_WORKERS!r}; falling back to 1 worker.",
+        )
         w = 1
     return max(1, w)
 
@@ -591,6 +666,10 @@ def process_target(gene_id: str, sequence: str):
         )
         print(f"{tag}: candidates -> {', '.join(acc_candidates)}")
     else:
+        _fallback_notice(
+            "gene_to_blast",
+            "gene_id missing; using BLAST fallback to pick top UniProt accession.",
+        )
         print("Gene id missing; running BLASTP vs Swiss-Prot to pick top UniProt...")
         acc = blast_top_uniprot_accession(sequence)
         if not acc:
@@ -701,7 +780,15 @@ def process_target(gene_id: str, sequence: str):
     print(f"[{tag}] EXP phase: collecting PDB candidates for {len(acc_candidates)} UniProt accession(s)")
     all_ids: List[str] = []
     for acc in acc_candidates:
-        ids = pdb_ids_from_pdbe_mapping(acc) or pdb_ids_from_rcsb_search(acc)
+        ids_pdbe = pdb_ids_from_pdbe_mapping(acc)
+        if ids_pdbe:
+            ids = ids_pdbe
+        else:
+            _fallback_notice(
+                "pdbe_to_rcsb",
+                f"PDBe mapping returned no PDB IDs for {acc}; falling back to RCSB search.",
+            )
+            ids = pdb_ids_from_rcsb_search(acc)
         if ids:
             print(f"[{tag}] UniProt {acc}: {len(ids)} PDB candidate(s)")
             all_ids.extend(ids)
@@ -853,12 +940,20 @@ def process_target(gene_id: str, sequence: str):
             try:
                 keep_fitted.add(pathlib.Path(fitted).resolve())
             except Exception:
+                _fallback_notice(
+                    "keep_fitted_absolute",
+                    f"Could not resolve fitted path '{fitted}'; using absolute() fallback.",
+                )
                 keep_fitted.add(pathlib.Path(fitted).absolute())
         src = row.get("source_model")
         if src:
             try:
                 keep_sources.add(pathlib.Path(src).resolve())
             except Exception:
+                _fallback_notice(
+                    "keep_source_absolute",
+                    f"Could not resolve source path '{src}'; using absolute() fallback.",
+                )
                 keep_sources.add(pathlib.Path(src).absolute())
 
     # Remove extra fitted files for this target (leave best AF + best PDB).
@@ -868,6 +963,10 @@ def process_target(gene_id: str, sequence: str):
         try:
             cand_resolved = candidate.resolve()
         except Exception:
+            _fallback_notice(
+                "candidate_absolute",
+                f"Could not resolve candidate fitted path '{candidate}'; using absolute() fallback.",
+            )
             cand_resolved = candidate.absolute()
         if cand_resolved in keep_fitted:
             continue
@@ -884,6 +983,10 @@ def process_target(gene_id: str, sequence: str):
         try:
             src_path = pathlib.Path(src).resolve()
         except Exception:
+            _fallback_notice(
+                "source_absolute",
+                f"Could not resolve source model path '{src}'; using absolute() fallback.",
+            )
             src_path = pathlib.Path(src).absolute()
         if src_path in keep_sources:
             continue
@@ -904,6 +1007,10 @@ def main():
     except FileNotFoundError:
         sys.exit(f"Input file not found: {CSV_PATH}")
     if "gene_id" not in df.columns:
+        _fallback_notice(
+            "main_missing_gene_id_column",
+            "Input CSV missing 'gene_id' column; injecting empty gene_id values.",
+        )
         df["gene_id"] = ""
     if "sequence" not in df.columns:
         sys.exit("CSV must contain a 'sequence' column.")

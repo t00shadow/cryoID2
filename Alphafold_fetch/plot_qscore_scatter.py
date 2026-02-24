@@ -10,7 +10,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 
-INPUT_CSV = Path("Alphafold_fetch/qscore_groundtruth_run_2_8_2/qscore_groundtruth_results.csv")
+INPUT_CSV = Path("Alphafold_fetch/qscore_groundtruth_run_2_23/qscore_groundtruth_results.csv")
 OUTPUT_PNG = INPUT_CSV.with_suffix(".png")
 SHOW_PLOT = True
 

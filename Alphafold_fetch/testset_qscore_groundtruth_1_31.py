@@ -3,13 +3,16 @@ from __future__ import annotations
 
 import csv
 import gzip
+import importlib
 import importlib.util
 import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from datetime import datetime
+from typing import Dict, Optional, TextIO, Tuple
 
+import numpy as np
 import requests
 from requests.adapters import HTTPAdapter, Retry
 
@@ -20,10 +23,10 @@ if str(SCRIPT_DIR) not in sys.path:
 STRUCT_FETCH_PATH = SCRIPT_DIR / "struct_fetch_v4.py"
 
 # ------------------- Hardcoded parameters -------------------
-CSV_PATH = SCRIPT_DIR / "ready_to_test_new_1_29_ok_only_copy.csv"
+CSV_PATH = SCRIPT_DIR / "ready_to_test_1_29.csv"
 QSCORE_SCRIPT = SCRIPT_DIR / "qscore_chimerax.py"
 # Output directory for all maps/models/logs produced during testing.
-OUTPUT_DIR = SCRIPT_DIR / "qscore_groundtruth_run_2_11"
+OUTPUT_DIR = SCRIPT_DIR / "qscore_groundtruth_run_2_23"
 LOG_PATH = OUTPUT_DIR / "qscore_groundtruth_results.csv"
 # Set to an integer to limit rows, or None for all rows.
 MAX_ROWS = None
@@ -33,6 +36,11 @@ EMDB_DOWNLOAD_RETRIES = 6
 EMDB_DOWNLOAD_BACKOFF_SEC = 2.0
 EMDB_DOWNLOAD_CONNECT_TIMEOUT_SEC = 20
 EMDB_DOWNLOAD_READ_TIMEOUT_SEC = 120
+
+# Test-only randomized start pose for every fetched structure (GT + candidates).
+RANDOMIZE_FETCHED_STRUCTURES = True
+RANDOMIZE_FETCHED_STRUCTURES_ATTEMPTS = 128
+RANDOMIZE_FETCHED_STRUCTURES_SEED: Optional[int] = None
 
 REQUIRED_COLUMNS = (
     "gene_id",
@@ -53,6 +61,75 @@ EXTRA_LOG_COLUMNS = (
     "error",
 )
 
+TERMINAL_LOG_BASENAME = "terminal_session"
+
+_FALLBACK_NOTICE_SEEN: set[str] = set()
+
+def _fallback_notice(tag: str, message: str, once: bool = False) -> None:
+    if once and tag in _FALLBACK_NOTICE_SEEN:
+        return
+    _FALLBACK_NOTICE_SEEN.add(tag)
+    print(f"[testset_qscore_gt][fallback] {message}")
+
+
+class _TeeStream:
+    def __init__(self, *streams: TextIO):
+        self.streams = streams
+
+    def write(self, data: str) -> int:
+        for s in self.streams:
+            s.write(data)
+        return len(data)
+
+    def flush(self) -> None:
+        for s in self.streams:
+            s.flush()
+
+    def isatty(self) -> bool:
+        for s in self.streams:
+            if hasattr(s, "isatty") and s.isatty():
+                return True
+        return False
+
+    @property
+    def encoding(self) -> str:
+        for s in self.streams:
+            enc = getattr(s, "encoding", None)
+            if enc:
+                return enc
+        return "utf-8"
+
+
+def _enable_terminal_log(output_dir: Path) -> tuple[Path, TextIO, TextIO, TextIO]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_path = output_dir / f"{TERMINAL_LOG_BASENAME}_{stamp}.log"
+    fh = log_path.open("a", encoding="utf-8", buffering=1)
+    orig_out = sys.stdout
+    orig_err = sys.stderr
+    sys.stdout = _TeeStream(orig_out, fh)  # type: ignore[assignment]
+    sys.stderr = _TeeStream(orig_err, fh)  # type: ignore[assignment]
+    return log_path, fh, orig_out, orig_err
+
+
+def _disable_terminal_log(
+    fh: TextIO,
+    orig_out: TextIO,
+    orig_err: TextIO,
+) -> None:
+    try:
+        sys.stdout.flush()
+        sys.stderr.flush()
+    except Exception:
+        pass
+    sys.stdout = orig_out  # type: ignore[assignment]
+    sys.stderr = orig_err  # type: ignore[assignment]
+    try:
+        fh.flush()
+        fh.close()
+    except Exception:
+        pass
+
 
 def _sanitize_name(text: str) -> str:
     import re as _re
@@ -70,6 +147,7 @@ def _make_session() -> requests.Session:
 def _normalize_emdb_id(emdb_id: str) -> str:
     raw = str(emdb_id or "").strip().upper()
     if not raw:
+        _fallback_notice("normalize_emdb_empty", "EMDB id is empty after normalization.")
         return ""
     if raw.startswith("EMD-"):
         return raw
@@ -85,10 +163,14 @@ def _normalize_emdb_id(emdb_id: str) -> str:
 def _emdb_numeric_id(emdb_id: str) -> Optional[str]:
     emdb_id = _normalize_emdb_id(emdb_id)
     if not emdb_id:
+        _fallback_notice("emdb_numeric_missing", "Could not extract numeric EMDB id from empty input.")
         return None
     if emdb_id.startswith("EMD-"):
         suffix = emdb_id[4:]
-        return suffix if suffix.isdigit() else None
+        if suffix.isdigit():
+            return suffix
+        _fallback_notice("emdb_numeric_invalid_suffix", f"Invalid EMDB numeric suffix in '{emdb_id}'.")
+        return None
     return None
 
 
@@ -97,6 +179,7 @@ def _download_emdb_map(
 ) -> Optional[Path]:
     num = _emdb_numeric_id(emdb_id)
     if not num:
+        _fallback_notice("download_emdb_bad_id", f"Skipping map download because EMDB id '{emdb_id}' is invalid.")
         return None
 
     base = f"https://ftp.ebi.ac.uk/pub/databases/emdb/structures/EMD-{num}/map"
@@ -130,16 +213,28 @@ def _download_emdb_map(
                     stream=True,
                 ) as resp:
                     if not resp.ok:
+                        _fallback_notice(
+                            "download_emdb_non_ok",
+                            f"EMDB download returned HTTP {resp.status_code} for {url}; trying fallback source.",
+                        )
                         return None
                     chunks: list[bytes] = []
                     for chunk in resp.iter_content(chunk_size=1024 * 1024):
                         if chunk:
                             chunks.append(chunk)
                     if not chunks:
+                        _fallback_notice(
+                            "download_emdb_empty_body",
+                            f"EMDB download body was empty for {url}; trying fallback source.",
+                        )
                         return None
                     data = b"".join(chunks)
                     # EMDB FTP can return HTML error pages.
                     if data.lstrip().startswith(b"<!DOCTYPE") or data.lstrip().startswith(b"<html"):
+                        _fallback_notice(
+                            "download_emdb_html_body",
+                            f"EMDB returned HTML instead of map content for {url}; trying fallback source.",
+                        )
                         return None
                     return data
             except requests.RequestException as exc:
@@ -159,16 +254,25 @@ def _download_emdb_map(
     for url in candidates:
         data = _download_bytes(url)
         if not data:
+            _fallback_notice(
+                "download_emdb_try_next_candidate",
+                f"EMDB candidate URL failed ({url}); trying next candidate.",
+            )
             continue
         if url.endswith(".gz"):
             try:
                 data = gzip.decompress(data)
             except OSError:
+                _fallback_notice(
+                    "download_emdb_gzip_failed",
+                    f"Failed to decompress EMDB gzip payload from {url}; trying next candidate.",
+                )
                 continue
         out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_bytes(data)
         if out_path.stat().st_size > 0:
             return out_path
+    _fallback_notice("download_emdb_all_failed", f"All EMDB download candidates failed for {emdb_id}.")
     return None
 
 
@@ -201,18 +305,34 @@ def _run_qscore(map_path: Path, model_path: Path) -> Tuple[Optional[float], str]
             timeout=QSCORE_TIMEOUT_SEC,
         )
     except subprocess.TimeoutExpired:
+        _fallback_notice(
+            "qscore_timeout",
+            f"Q-score process timed out for model '{model_path.name}'.",
+        )
         return None, "qscore_timeout"
 
     stdout = (result.stdout or "").strip()
     stderr = (result.stderr or "").strip()
     if result.returncode != 0:
+        _fallback_notice(
+            "qscore_nonzero",
+            f"Q-score process returned non-zero exit code ({result.returncode}) for '{model_path.name}'.",
+        )
         return None, stdout or stderr or "qscore_failed"
     if not stdout:
+        _fallback_notice(
+            "qscore_no_output",
+            f"Q-score process produced no stdout for '{model_path.name}'.",
+        )
         return None, stderr or "qscore_no_output"
     last_line = stdout.splitlines()[-1].strip()
     try:
         return float(last_line), ""
     except ValueError:
+        _fallback_notice(
+            "qscore_parse_failed",
+            f"Could not parse Q-score output for '{model_path.name}': {last_line!r}",
+        )
         return None, f"qscore_parse_failed: {last_line}"
 
 
@@ -220,11 +340,19 @@ def _safe_float(value: str) -> Optional[float]:
     try:
         return float(value)
     except Exception:
+        _fallback_notice(
+            "safe_float_none",
+            f"Could not parse float value {value!r}; returning None.",
+        )
         return None
 
 
 def _select_best_experimental(log_path: Path) -> Optional[Dict[str, str]]:
     if not log_path.exists():
+        _fallback_notice(
+            "select_best_log_missing",
+            f"Per-target fit log not found: {log_path}",
+        )
         return None
 
     rows: list[Dict[str, str]] = []
@@ -239,6 +367,10 @@ def _select_best_experimental(log_path: Path) -> Optional[Dict[str, str]]:
             rows.append(row)
 
     if not rows:
+        _fallback_notice(
+            "select_best_no_pdb_rows",
+            f"No experimental PDB rows found in log: {log_path}",
+        )
         return None
 
     def _score(row: Dict[str, str]) -> float:
@@ -257,9 +389,18 @@ def _select_best_experimental(log_path: Path) -> Optional[Dict[str, str]]:
         return source.is_file() and fitted.is_file()
 
     kept = [r for r in rows if r.get("_kept")]
+    if not kept:
+        _fallback_notice(
+            "select_best_kept_fallback",
+            "No rows marked kept in log; falling back to best available PDB row.",
+        )
     candidates = kept if kept else rows
     candidates = [r for r in candidates if _has_files(r)]
     if not candidates:
+        _fallback_notice(
+            "select_best_missing_files",
+            "No candidate rows had both source and fitted files on disk.",
+        )
         return None
     candidates.sort(key=_score, reverse=True)
     return candidates[0]
@@ -273,6 +414,145 @@ def _load_struct_fetch(tag: str):
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def _fit_v5_module():
+    return importlib.import_module("fit_v5")
+
+
+def _map_world_bounds_from_fit_v5(map_path: Path) -> tuple[np.ndarray, np.ndarray]:
+    fit_v5 = _fit_v5_module()
+    # Use the same map parser/coordinate system as fitting.
+    mapinfo = fit_v5._get_cached_mapinfo(Path(map_path), denoise_sigma=0.0)
+    mins = np.array([mapinfo.eff_x0, mapinfo.eff_y0, mapinfo.eff_z0], dtype=np.float64)
+    maxs = mins + np.array(
+        [
+            mapinfo.sx * (mapinfo.cx - 1),
+            mapinfo.sy * (mapinfo.cy - 1),
+            mapinfo.sz * (mapinfo.cz - 1),
+        ],
+        dtype=np.float64,
+    )
+    lo = np.minimum(mins, maxs)
+    hi = np.maximum(mins, maxs)
+    return lo, hi
+
+
+def _collect_all_atom_coords(st) -> np.ndarray:
+    coords: list[tuple[float, float, float]] = []
+    for model in st:
+        for chain in model:
+            for res in chain:
+                for atom in res:
+                    p = atom.pos
+                    coords.append((float(p.x), float(p.y), float(p.z)))
+    return np.asarray(coords, dtype=np.float64) if coords else np.empty((0, 3), dtype=np.float64)
+
+
+def _write_structure_same_format(st, model_path: Path) -> None:
+    suffix = model_path.suffix.lower()
+    if suffix in (".cif", ".mmcif"):
+        doc = st.make_mmcif_document()
+        doc.write_file(str(model_path))
+    else:
+        st.write_pdb(str(model_path))
+
+
+def _randomize_structure_pose_in_map_bounds(
+    map_path: Path,
+    model_path: Path,
+    rng: np.random.Generator,
+    *,
+    label: str = "",
+) -> bool:
+    fit_v5 = _fit_v5_module()
+    model_path = Path(model_path)
+    map_lo, map_hi = _map_world_bounds_from_fit_v5(Path(map_path))
+    eps = 1e-3
+    map_lo = map_lo + eps
+    map_hi = map_hi - eps
+    if np.any(map_hi <= map_lo):
+        _fallback_notice(
+            "randomize_bad_map_bounds",
+            f"Map bounds are invalid for randomization ({map_path}); keeping original pose for {model_path.name}.",
+        )
+        return False
+
+    st = fit_v5.gemmi.read_structure(str(model_path))
+    coords = _collect_all_atom_coords(st)
+    if coords.size == 0:
+        _fallback_notice(
+            "randomize_no_atoms",
+            f"No atoms found for randomization in {model_path.name}; keeping original pose.",
+        )
+        return False
+
+    center = coords.mean(axis=0)
+    rel = coords - center
+
+    attempts = max(1, int(RANDOMIZE_FETCHED_STRUCTURES_ATTEMPTS))
+    for attempt in range(1, attempts + 1):
+        Rm = fit_v5.R.random(random_state=rng).as_matrix()
+        rel_rot = (Rm @ rel.T).T
+        rel_min = rel_rot.min(axis=0)
+        rel_max = rel_rot.max(axis=0)
+        center_lo = map_lo - rel_min
+        center_hi = map_hi - rel_max
+        if np.any(center_hi < center_lo):
+            continue
+
+        c_new = rng.uniform(center_lo, center_hi)
+        t = c_new - (Rm @ center)
+        fit_v5.apply_transform_to_structure(st, Rm, t)
+        _write_structure_same_format(st, model_path)
+        lbl = f"{label}: " if label else ""
+        print(f"[randomize] {lbl}{model_path.name} randomized in-bounds (attempt {attempt}/{attempts})")
+        return True
+
+    _fallback_notice(
+        "randomize_in_bounds_failed",
+        f"Could not find an in-bounds random pose for {model_path.name} after {attempts} attempts; keeping original pose.",
+    )
+    return False
+
+
+def _install_randomized_fetch_wrappers(module, map_path: Path) -> None:
+    if not RANDOMIZE_FETCHED_STRUCTURES:
+        return
+    if getattr(module, "_TESTSET_RANDOMIZE_FETCH_WRAPPED", False):
+        return
+
+    seed = RANDOMIZE_FETCHED_STRUCTURES_SEED
+    rng = np.random.default_rng(seed)
+
+    orig_download_rcsb = module.download_rcsb_model_any
+    orig_download_af = module.download_alphafold_latest
+
+    def _randomize_path_if_present(p, kind: str):
+        if not p:
+            return p
+        path_obj = Path(p)
+        try:
+            _randomize_structure_pose_in_map_bounds(map_path, path_obj, rng, label=kind)
+        except Exception as exc:
+            _fallback_notice(
+                "randomize_wrapper_exception",
+                f"Randomization failed for {kind} file '{path_obj.name}': {exc}. Keeping original pose.",
+            )
+        return p
+
+    def _wrapped_download_rcsb_model_any(*args, **kwargs):
+        p = orig_download_rcsb(*args, **kwargs)
+        return _randomize_path_if_present(p, "RCSB")
+
+    def _wrapped_download_alphafold_latest(*args, **kwargs):
+        p = orig_download_af(*args, **kwargs)
+        return _randomize_path_if_present(p, "AlphaFold")
+
+    module.download_rcsb_model_any = _wrapped_download_rcsb_model_any
+    module.download_alphafold_latest = _wrapped_download_alphafold_latest
+    module._TESTSET_RANDOMIZE_FETCH_WRAPPED = True
+    print("[testset_qscore_gt] Randomized fetched-structure starts enabled for this run.")
 
 
 def _configure_struct_fetch(map_path: Path, work_dir: Path, module) -> None:
@@ -303,6 +583,10 @@ def _load_existing_log_rows(log_path: Path, input_cols: list[str]) -> list[Dict[
                 norm_row = {col: row.get(col, "") for col in expected_cols}
                 rows.append(norm_row)
     except Exception as exc:
+        _fallback_notice(
+            "load_existing_log_failed",
+            f"Failed to parse existing log '{log_path}'; starting with empty log rows.",
+        )
         print(f"Warning: failed to read existing log {log_path}: {exc}")
         return []
     return rows
@@ -319,6 +603,10 @@ def _cleanup_workdir(work_dir: Path) -> None:
             try:
                 path.unlink()
             except Exception:
+                _fallback_notice(
+                    "cleanup_file_unlink_failed",
+                    f"Failed to delete temporary file '{path}'.",
+                )
                 pass
     # Best-effort removal of empty dirs
     for path in sorted(work_dir.rglob("*"), reverse=True):
@@ -326,12 +614,20 @@ def _cleanup_workdir(work_dir: Path) -> None:
             try:
                 path.rmdir()
             except Exception:
+                _fallback_notice(
+                    "cleanup_dir_rmdir_failed",
+                    f"Failed to remove temporary directory '{path}'.",
+                )
                 pass
 
 
 def _next_run_index(out_dir: Path) -> int:
     """Return next numeric prefix for run subdirectories like '001_gene'."""
     if not out_dir.exists():
+        _fallback_notice(
+            "next_run_index_default",
+            f"Output directory '{out_dir}' does not exist; starting run index at 1.",
+        )
         return 1
     max_idx = 0
     for child in out_dir.iterdir():
@@ -377,6 +673,10 @@ def _process_row(
         if not pdb_raw:
             missing.append("fitted_pdbs")
         error = "missing_" + "_".join(missing)
+        _fallback_notice(
+            "process_row_missing_input",
+            f"Skipping row due to missing required fields: {error}",
+        )
         print(f"\n[{progress_idx}/{total}] Skipping row: {error}")
         out_row = {col: row.get(col, "") for col in input_cols}
         out_row.update(
@@ -399,6 +699,10 @@ def _process_row(
     if not emdb_norm or not pdb_id:
         status = "bad_ids"
         error = "invalid_emdb_or_pdb"
+        _fallback_notice(
+            "process_row_bad_ids",
+            f"Skipping row due to invalid identifiers: emdb_id={emdb_id!r}, fitted_pdbs={pdb_raw!r}",
+        )
         print(f"\n[{progress_idx}/{total}] Skipping row: {error}")
         out_row = {col: row.get(col, "") for col in input_cols}
         out_row.update(
@@ -427,6 +731,10 @@ def _process_row(
     if not downloaded_map:
         status = "download_failed"
         error = "emdb_map_download_failed"
+        _fallback_notice(
+            "process_row_map_download_failed",
+            f"Map download failed for {emdb_norm}; row marked as download_failed.",
+        )
     else:
         map_file = downloaded_map.name
         print(f"[{gene_id}] Map downloaded -> {downloaded_map}")
@@ -439,11 +747,16 @@ def _process_row(
         if not gt_model:
             status = "download_failed"
             error = "ground_truth_model_download_failed"
+            _fallback_notice(
+                "process_row_gt_model_download_failed",
+                f"Ground-truth model download failed for PDB {pdb_id}.",
+            )
         else:
             ground_truth_model = gt_model.name
             print(f"[{gene_id}] Ground truth model -> {gt_model}")
 
             print(f"[{gene_id}] Running struct_fetch_v4...")
+            _install_randomized_fetch_wrappers(sf, downloaded_map)
             sf.process_target(gene_id, sequence)
 
             safe_q = sf.sanitize_name(gene_id)
@@ -452,6 +765,10 @@ def _process_row(
             if not best:
                 status = "no_experimental_model"
                 error = "no_experimental_model"
+                _fallback_notice(
+                    "process_row_no_experimental",
+                    f"No experimental model selected from log: {struct_log_path}",
+                )
                 print(f"[{gene_id}] No experimental model selected.")
             else:
                 selected_pdb_id = str(best.get("id", ""))
@@ -461,12 +778,20 @@ def _process_row(
                 if not fitted_path.is_file():
                     status = "missing_fitted_model"
                     error = "selected_fitted_model_missing"
+                    _fallback_notice(
+                        "process_row_selected_fitted_missing",
+                        f"Selected fitted model is missing on disk: {fitted_path}",
+                    )
                 else:
                     print(f"[{gene_id}] Q-score (ground truth)...")
                     gt_score, gt_err = _run_qscore(downloaded_map, gt_model)
                     if gt_score is None:
                         status = "partial"
                         error = gt_err or "qscore_ground_truth_failed"
+                        _fallback_notice(
+                            "process_row_gt_qscore_failed",
+                            f"Ground-truth Q-score failed for {gene_id}: {error}",
+                        )
                         print(f"[{gene_id}] Ground truth Q-score failed: {error}")
                     else:
                         qscore_ground_truth = f"{gt_score:.3f}"
@@ -477,6 +802,10 @@ def _process_row(
                         status = "partial" if status == "ok" else status
                         err_msg = id_err or "qscore_identified_failed"
                         error = f"{error}; {err_msg}".strip("; ")
+                        _fallback_notice(
+                            "process_row_identified_qscore_failed",
+                            f"Identified-model Q-score failed for {gene_id}: {err_msg}",
+                        )
                         print(f"[{gene_id}] Identified Q-score failed: {err_msg}")
                     else:
                         qscore_identified = f"{id_score:.3f}"
@@ -513,54 +842,67 @@ def main() -> int:
         raise SystemExit(f"CSV not found: {csv_path}")
     if not QSCORE_SCRIPT.exists():
         raise SystemExit(f"qscore script not found: {QSCORE_SCRIPT}")
-
-    with csv_path.open("r", newline="") as f:
-        reader = csv.DictReader(f)
-        if not reader.fieldnames:
-            raise SystemExit("CSV is missing a header row.")
-        input_cols = reader.fieldnames
-        for required in REQUIRED_COLUMNS:
-            if required not in input_cols:
-                raise SystemExit(f"CSV missing required column: {required}")
-        rows = list(reader)
-
-    if MAX_ROWS is not None:
-        rows = rows[: max(MAX_ROWS, 0)]
-
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    log_path = Path(LOG_PATH).expanduser().resolve()
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    start_run_idx = _next_run_index(OUTPUT_DIR)
-    print(f"Starting run folder index at {start_run_idx:03d}")
+    terminal_log_path, terminal_log_fh, orig_stdout, orig_stderr = _enable_terminal_log(OUTPUT_DIR)
+    try:
+        print(f"Terminal log capture enabled -> {terminal_log_path}")
+        with csv_path.open("r", newline="") as f:
+            reader = csv.DictReader(f)
+            if not reader.fieldnames:
+                raise SystemExit("CSV is missing a header row.")
+            input_cols = reader.fieldnames
+            for required in REQUIRED_COLUMNS:
+                if required not in input_cols:
+                    raise SystemExit(f"CSV missing required column: {required}")
+            rows = list(reader)
 
-    total = len(rows)
-    log_rows = _load_existing_log_rows(log_path, input_cols)
-    if log_rows:
-        print(f"Found existing log with {len(log_rows)} row(s); new results will be appended.")
-    for progress_idx, row in enumerate(rows, start=1):
-        run_idx = start_run_idx + progress_idx - 1
-        try:
-            out_row = _process_row(run_idx, progress_idx, row, input_cols, total)
-        except Exception as exc:
-            out_row = {col: row.get(col, "") for col in input_cols}
-            out_row.update(
-                {
-                    "map_file": "",
-                    "ground_truth_model": "",
-                    "selected_pdb_id": "",
-                    "selected_fitted_model": "",
-                    "qscore_ground_truth": "nan",
-                    "qscore_identified": "nan",
-                    "qscore_diff": "nan",
-                    "status": "error",
-                    "error": str(exc),
-                }
+        if MAX_ROWS is not None:
+            _fallback_notice(
+                "main_max_rows",
+                f"MAX_ROWS is set to {MAX_ROWS}; truncating input row list accordingly.",
             )
-        log_rows.append(out_row)
-        _rewrite_log(log_path, input_cols, log_rows)
+            rows = rows[: max(MAX_ROWS, 0)]
 
-    print(f"\nLog written: {log_path}")
-    return 0
+        log_path = Path(LOG_PATH).expanduser().resolve()
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        start_run_idx = _next_run_index(OUTPUT_DIR)
+        print(f"Starting run folder index at {start_run_idx:03d}")
+
+        total = len(rows)
+        log_rows = _load_existing_log_rows(log_path, input_cols)
+        if log_rows:
+            print(f"Found existing log with {len(log_rows)} row(s); new results will be appended.")
+        for progress_idx, row in enumerate(rows, start=1):
+            run_idx = start_run_idx + progress_idx - 1
+            try:
+                out_row = _process_row(run_idx, progress_idx, row, input_cols, total)
+            except Exception as exc:
+                _fallback_notice(
+                    "main_row_processing_exception",
+                    f"Unhandled exception in row {progress_idx}/{total}; logging error row and continuing.",
+                )
+                out_row = {col: row.get(col, "") for col in input_cols}
+                out_row.update(
+                    {
+                        "map_file": "",
+                        "ground_truth_model": "",
+                        "selected_pdb_id": "",
+                        "selected_fitted_model": "",
+                        "qscore_ground_truth": "nan",
+                        "qscore_identified": "nan",
+                        "qscore_diff": "nan",
+                        "status": "error",
+                        "error": str(exc),
+                    }
+                )
+            log_rows.append(out_row)
+            _rewrite_log(log_path, input_cols, log_rows)
+
+        print(f"\nLog written: {log_path}")
+        return 0
+    finally:
+        _disable_terminal_log(terminal_log_fh, orig_stdout, orig_stderr)
+        print(f"Terminal session log written: {terminal_log_path}")
 
 
 if __name__ == "__main__":
