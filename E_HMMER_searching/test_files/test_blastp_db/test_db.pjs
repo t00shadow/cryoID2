@@ -1,0 +1,22 @@
+{
+  "version": "1.2",
+  "dbname": "test_db",
+  "dbtype": "Protein",
+  "db-version": 5,
+  "description": "test_db",
+  "number-of-letters": 11150315,
+  "number-of-sequences": 44425,
+  "last-updated": "2025-09-18T13:25:00",
+  "number-of-volumes": 1,
+  "bytes-total": 19143122,
+  "bytes-to-cache": 11550229,
+  "files": [
+    "test_db.pdb",
+    "test_db.phr",
+    "test_db.pin",
+    "test_db.pot",
+    "test_db.psq",
+    "test_db.ptf",
+    "test_db.pto"
+  ]
+}
