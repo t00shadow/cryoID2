@@ -18,12 +18,15 @@ INPUT_MRC = r"G:\.shortcut-targets-by-id\1VHPX-gidYYLEewDizIvgtImMbleuqE0r\CryoI
 # Optional: change to wherever you want the output saved
 OUTPUT_DIR = "H_Backbone_tracing/misc_outputs"
 
+# Optional: can try meanshift if agglomerative is too slow
+CLUSTERING_METHOD = "agglomerative"   # chose from ["agglomerative", "meanshift"]
+
 
 # You can leave the rest as is
 THRESHOLD = 0.9     # ranges from 0.0 to 1.0, possibility threshold for key_atoms_1_possibility.mrc
-CLUSTERING_METHOD = "agglomerative"   # chose from ["agglomerative", "meanshift"]
 emdb_id = INPUT_MRC.split("emd_")[-1].split(".")[0]
 # print(emdb_id); assert(False)
+TIMESTAMP = False     # adds a timestamp to the file if True
 if CLUSTERING_METHOD == "agglomerative":
     CONNECT_DIST = 4.0   # for agglomerative only
     OUTPUT_FILE_NAME = f"emd_{emdb_id}_agglomerative_cd_{CONNECT_DIST}"
@@ -123,11 +126,14 @@ def main():
         print(f"{tag}: {len(centroids)} centroids after local thinning")
 
         # Save PDB
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        pdb_path = os.path.join(OUTPUT_DIR, f"{OUTPUT_FILE_NAME}_{tag}_{timestamp}.pdb")
+        if TIMESTAMP:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            pdb_path = os.path.join(OUTPUT_DIR, f"{OUTPUT_FILE_NAME}_{tag}_{timestamp}.pdb")
+        else:
+            pdb_path = os.path.join(OUTPUT_DIR, f"{OUTPUT_FILE_NAME}_{tag}.pdb")
         with open(pdb_path,'w') as f:
             for i, (z,y,x) in enumerate(centroids,1):
-                f.write(f"HETATM{i:5d}  C   UNK     1    {x:8.3f}{y:8.3f}{z:8.3f}  1.00  0.00           C\n")
+                f.write(f"HETATM{i:5d}  CA  UNK     1    {x:8.3f}{y:8.3f}{z:8.3f}  1.00  0.00           C\n")
         print(f"Saved PDB with {len(centroids)} centroids for {tag} to {pdb_path}")
 
         return centroids, pdb_path
@@ -138,9 +144,9 @@ def main():
 
     return {
         "centroids": ca_centroids,
-        "connect_dist": CONNECT_DIST,
-        "output_dir": OUTPUT_DIR,
-        "output_name": all_ca_pdb_path,
+        # "connect_dist": CONNECT_DIST,
+        # "output_dir": OUTPUT_DIR,
+        "output_path": all_ca_pdb_path,
     }
 
 if __name__ == "__main__":
