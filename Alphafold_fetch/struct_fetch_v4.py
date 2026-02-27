@@ -2,27 +2,25 @@
 # File: struct_fetch_v4.py
 # =============================
 #!/usr/bin/env python3
-import pathlib, sys
-import random
 import hashlib
+import pathlib
+import random
 import re
+import sys
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import parse_qs, urlparse
+
 import pandas as pd
-import requests
-from requests.adapters import HTTPAdapter, Retry
 import parasail
-from fit_v5 import fit_model_and_score
-from cluster_utils import (
-    set_session as _set_cluster_session,
-    _fetch_json,
-    _normalize_sequence,
-    _resolution_rank,
-    _method_rank,
-    build_pdb_clusters,
-    build_af_clusters,
-)
-from urllib.parse import urlparse, parse_qs
+import requests
+from .utils.cluster_utils import (_fetch_json, _method_rank, _normalize_sequence,
+                           _resolution_rank, build_af_clusters,
+                           build_pdb_clusters)
+from .utils.cluster_utils import set_session as _set_cluster_session
+from .utils.fit_v5 import fit_model_and_score
+from requests.adapters import HTTPAdapter, Retry
+
 try:
     from Bio.Blast import NCBIWWW, NCBIXML
 except Exception:  # pragma: no cover - optional dependency at runtime
@@ -999,7 +997,7 @@ def process_target(gene_id: str, sequence: str):
     _write_log(safe_q, all_rows)
     print(f"[{tag}] Log written: {(LOGS_DIR / f'{safe_q}__fit_scores.csv')}")
 # ------------------- CLI main -------------------
-def main():
+def alphafold_fetch():
     if not MAP_PATH.exists():
         sys.exit(f"Map not found: {MAP_PATH}")
     try:
@@ -1042,4 +1040,4 @@ def main():
     print(f"Logs       -> {LOGS_DIR.resolve().as_posix()}")
 
 if __name__ == "__main__":
-    main()
+    alphafold_fetch()
