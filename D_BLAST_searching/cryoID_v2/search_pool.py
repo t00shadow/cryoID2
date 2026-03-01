@@ -22,7 +22,6 @@ Version 1.0, released in 9/1/2019
 
 import argparse
 import datetime
-import logging
 import math
 import operator
 import os
@@ -31,7 +30,7 @@ import sys
 import time
 from argparse import Namespace
 
-import search_support as search_sup
+from . import search_support as search_sup
 from Bio import SeqIO
 from matplotlib import pyplot as plt
 
@@ -74,66 +73,66 @@ class BlastSeq:
 # read and check input arguments
 #================================================================================================================================================================================================
 
-def Parser():
+# def Parser():
 
-    parser = argparse.ArgumentParser(
-        prog = 'CryoID2',
-        description = '%(prog)s translates both the segment sequences and all the candidate protein sequences of the pool into the simplified “6-letter” code \
-                                     and performs a modified blast search of the entire pool using the segment sequences as queries.', 
-        epilog = 'Example: %(prog)s -q queries.pdb -p candidate_pool.fasta',
-    )
-    parser.add_argument('-q', '--queryfile', type=argparse.FileType('r'), required=True, 
-                        help='Queries (.fasta/.pdb file) to be searched')                 #python 3.10
-    parser.add_argument('-p', '--candidate_pool', type=argparse.FileType('r'), required=True, 
-                        help='Candidate protein sequence pool file in fasta format)')     #python 3.10   # , or standard mass spetrum results (.xlsx format))')
-    parser.add_argument('-b', '--base', action='store_true', default=False,
-                        help='Use Blastn instead of Blastp to search nucleotide sequences')
-    parser.add_argument('-o', '--outfile', default=None, 
-                        help='Output file basename. Default value is the same as query file basename')
-    parser.add_argument('-od', '--outdir', default=None, 
-                        help='Output file directory. Default value is the same as query file directory')
-    parser.add_argument('-r', '--reverse', action='store_true', default=False, 
-                        help='If N/C terminal polarity of query sesquences are unknown, add -r flag')
-    parser.add_argument('-l', '--length', type=int, nargs=2, default=[1, 100000], 
-                        help='Set target sequence length filter for the final results. Note that this argument takes two parameters seperated by a space. Default value is 1 10000 for a sequence length range of 1~10000')
-    parser.add_argument('-e', '--evalue', type=float, default=1.0, 
-                        help='Expectation value (E) threshold for saving hits in blast search for each query. Default 1.0')
-    parser.add_argument('-g', '--gapscore', type=int, nargs=2, default=[32767, 32767], 
-                        help='Penalty score pairs for gapopen and gapextend. Note that this argument takes two parameters seperated by a space. Default value is 32767 32767 for ungapped searching. You may change it to 15 3 for gapped searching')
-    parser.add_argument('-n', '--num_candidate', type=int, default=100, 
-                        help='Maximum number of candidates to keep in the final result lists. Default 20')
-    parser.add_argument('-v', '--verbose', action='store_true', default=False, 
-                        help='Keep simplified query sequences files and all the significant blastp alignments')
+#     parser = argparse.ArgumentParser(
+#         prog = 'CryoID2',
+#         description = '%(prog)s translates both the segment sequences and all the candidate protein sequences of the pool into the simplified “6-letter” code \
+#                                      and performs a modified blast search of the entire pool using the segment sequences as queries.', 
+#         epilog = 'Example: %(prog)s -q queries.pdb -p candidate_pool.fasta',
+#     )
+#     parser.add_argument('-q', '--queryfile', type=argparse.FileType('r'), required=True, 
+#                         help='Queries (.fasta/.pdb file) to be searched')                 #python 3.10
+#     parser.add_argument('-p', '--candidate_pool', type=argparse.FileType('r'), required=True, 
+#                         help='Candidate protein sequence pool file in fasta format)')     #python 3.10   # , or standard mass spetrum results (.xlsx format))')
+#     parser.add_argument('-b', '--base', action='store_true', default=False,
+#                         help='Use Blastn instead of Blastp to search nucleotide sequences')
+#     parser.add_argument('-o', '--outfile', default=None, 
+#                         help='Output file basename. Default value is the same as query file basename')
+#     parser.add_argument('-od', '--outdir', default=None, 
+#                         help='Output file directory. Default value is the same as query file directory')
+#     parser.add_argument('-r', '--reverse', action='store_true', default=False, 
+#                         help='If N/C terminal polarity of query sesquences are unknown, add -r flag')
+#     parser.add_argument('-l', '--length', type=int, nargs=2, default=[1, 100000], 
+#                         help='Set target sequence length filter for the final results. Note that this argument takes two parameters seperated by a space. Default value is 1 10000 for a sequence length range of 1~10000')
+#     parser.add_argument('-e', '--evalue', type=float, default=1.0, 
+#                         help='Expectation value (E) threshold for saving hits in blast search for each query. Default 1.0')
+#     parser.add_argument('-g', '--gapscore', type=int, nargs=2, default=[32767, 32767], 
+#                         help='Penalty score pairs for gapopen and gapextend. Note that this argument takes two parameters seperated by a space. Default value is 32767 32767 for ungapped searching. You may change it to 15 3 for gapped searching')
+#     parser.add_argument('-n', '--num_candidate', type=int, default=100, 
+#                         help='Maximum number of candidates to keep in the final result lists. Default 20')
+#     parser.add_argument('-v', '--verbose', action='store_true', default=False, 
+#                         help='Keep simplified query sequences files and all the significant blastp alignments')
 
-    params = parser.parse_args()
+#     params = parser.parse_args()
 
-    # check params : query file format, candidate_pool file format, evalue, length range, gapscore, output name
-    if not (params.queryfile.name.endswith('.fasta') or params.queryfile.name.endswith('.pdb')):
-        raise ValueError('Query file must be in .fasta or .pdb format.')
+#     # check params : query file format, candidate_pool file format, evalue, length range, gapscore, output name
+#     if not (params.queryfile.name.endswith('.fasta') or params.queryfile.name.endswith('.pdb')):
+#         raise ValueError('Query file must be in .fasta or .pdb format.')
          
-    if not (params.candidate_pool.name.endswith('.fasta') or params.candidate_pool.name.endswith('.txt') or params.candidate_pool.name.endswith('.list')): # or params.candidate_pool.name.endswith('.xlsx')
-        raise ValueError('Sequence pool file format is not recognized.')
+#     if not (params.candidate_pool.name.endswith('.fasta') or params.candidate_pool.name.endswith('.txt') or params.candidate_pool.name.endswith('.list')): # or params.candidate_pool.name.endswith('.xlsx')
+#         raise ValueError('Sequence pool file format is not recognized.')
     
-    if params.evalue <= 0.0 or params.evalue >= 1000.0:
-        raise ValueError('E-value should be between 0.0 and 1000.0.')
+#     if params.evalue <= 0.0 or params.evalue >= 1000.0:
+#         raise ValueError('E-value should be between 0.0 and 1000.0.')
     
-    if not (params.length[0] > 0 and params.length[0] < params.length[1]):
-        raise ValueError('Please input a valid length range.')
+#     if not (params.length[0] > 0 and params.length[0] < params.length[1]):
+#         raise ValueError('Please input a valid length range.')
     
-    if not (params.gapscore == [32767, 32767] or params.gapscore == [15, 3] or params.gapscore == [13, 3]):
-        raise ValueError('Please input acceptable gapscores: [32767, 32767], [15, 3], or [13, 3].')
+#     if not (params.gapscore == [32767, 32767] or params.gapscore == [15, 3] or params.gapscore == [13, 3]):
+#         raise ValueError('Please input acceptable gapscores: [32767, 32767], [15, 3], or [13, 3].')
     
-    if params.num_candidate <= 0:
-        raise ValueError('The number of candidates must be a positive integer.')
+#     if params.num_candidate <= 0:
+#         raise ValueError('The number of candidates must be a positive integer.')
 
-    if params.outfile is None:
-        out_base = os.path.splitext(os.path.basename(params.queryfile.name))[0]
-        params.outfile = out_base
+#     if params.outfile is None:
+#         out_base = os.path.splitext(os.path.basename(params.queryfile.name))[0]
+#         params.outfile = out_base
 
-    if params.outdir is None:
-        params.outdir = os.path.dirname(params.queryfile.name)
+#     if params.outdir is None:
+#         params.outdir = os.path.dirname(params.queryfile.name)
 
-    return params
+#     return params
 
 
 #================================================================================================================================================================================================
@@ -168,7 +167,7 @@ def Blast(params):
         # Run blastp search
         blastp_params = Namespace(dbsize=params.dbsize, qsize=query_len, query=query_file, 
                                   outfile=blast_file, database=params.dbname, evalue=params.evalue, 
-                                  gapscore=params.gapscore, logfile=params.logfile, base=params.base)
+                                  gapscore=params.gapscore, logger=params.logger, base=params.base)
         search_sup.SeqBlast(blastp_params)
 
         # Keep the blast result files
@@ -231,7 +230,7 @@ def Filter(results, params):
 def Readfile(params):
     
     # logging setup
-    logging.basicConfig(filename=params.logfile, level=logging.INFO, format='%(message)s')
+    # logging.basicConfig(filename=params.logfile, level=logging.INFO, format='%(message)s')
     
     '''
     # first read in candidate info, including protein/gene names/length
@@ -286,7 +285,7 @@ def Readfile(params):
             # check if the file format is right
             if i == 3:
                 if line[:-1] != blastformat7:
-                    logging.exception('Error: ' + f + ' wrong format! Exiting')
+                    params.logger.exception('Error: ' + f + ' wrong format! Exiting')
                     raise OSError('Error: ' + f + ' wrong format! Exiting')
 
             # save the results in class and list
@@ -429,7 +428,7 @@ def Writefile(fields, params):
     """
 
     # logging setup
-    logging.basicConfig(filename=params.logfile, level=logging.INFO, format='%(message)s')
+    # logging.basicConfig(filename=params.logfile, level=logging.INFO, format='%(message)s')
 
 
     # create the output file    
@@ -464,8 +463,8 @@ def Writefile(fields, params):
             
             # check the best candidate to see if it satisfies the criteria
             if field.ave_identity < 0.7:
-                print('Warning: No high identity (> 70%) protein candidates identified! You may want to optimize your query sequences first, otherwise the results may not be reliable.\n', flush=True)
-                logging.warning('Warning: No high identity (> 70%) protein candidates identified! You may want to optimize your query sequences first, otherwise the results may not be reliable.\n')
+                # print('Warning: No high identity (> 70%) protein candidates identified! You may want to optimize your query sequences first, otherwise the results may not be reliable.\n', flush=True)
+                params.logger.warning('Warning: No high identity (> 70%) protein candidates identified! You may want to optimize your query sequences first, otherwise the results may not be reliable.\n')
             
             out = 'Most likely candidate:\t' + field.candidate + '\nQuery set identity:\t{0:.0%}\nSequence length:\t'.format(field.ave_identity) +\
             str(field.length) + '\nComposite E-value:\t{0:1.1e}\n'.format(field.composite_evalue) + '\n'
@@ -473,8 +472,8 @@ def Writefile(fields, params):
 top candidate and all other candidates indicates a high confidence identification. The aligned segments can be used for further verification/model building.'
                 
             # print out to screen and log file
-            print(out, flush=True)
-            logging.info(out)
+            # print(out, flush=True)
+            params.logger.info(out)
 
             #print('\nBrief summary of the top candidates:\n', file=fout2)
 
@@ -521,12 +520,14 @@ top candidate and all other candidates indicates a high confidence identificatio
     fout1.close()
     #fout2.close()
     
-    print('\nFor a brief summary of candidates\' information and their alignment details, please refer to %s and %s, respectively.' % (out_result, out_align) , flush=True)  
-    print('********************************************************************', flush=True)
+    # print('\nFor a brief summary of candidates\' information and their alignment details, please refer to %s and %s, respectively.' % (out_result, out_align) , flush=True)  
+    # print('********************************************************************', flush=True)
 
     # print to log file
-    logging.info('\nFor a brief summary of candidates\' information and their alignment details, please refer to %s and %s, respectively.', out_result, out_align)
-    
+    params.logger.info('')
+    params.logger.info('For a brief summary of candidates\' information and their alignment details, please refer to %s and %s, respectively.', out_result, out_align)
+    params.logger.info('')
+
     return brief_field
 
 
@@ -535,6 +536,12 @@ top candidate and all other candidates indicates a high confidence identificatio
 #================================================================================================================================================================================================
 
 def Plot(fields, params):
+    if len(fields) == 0:
+        params.logger.warning('No promising candidates identified! No plot will be generated.')        
+        return
+    elif len(fields) == 1:
+        params.logger.warning('Only one promising candidate identified! No plot will be generated.')
+        return
     
     # Save the data in lists
     identity_list = []
@@ -545,7 +552,10 @@ def Plot(fields, params):
 
     for _, field in enumerate(fields[:max_candidates]):
         identity_list.append(field.ave_identity * 100.0)
-        logE_list.append(math.log(field.composite_evalue, 10))
+        try:
+            logE_list.append(math.log(field.composite_evalue, 10))
+        except ValueError:
+            logE_list.append(-100)  # Append a default value if log is undefined
 
     # plot the figures to show average identity/composite E-value of promising candidates
     # set x axis based on the data lists
@@ -606,6 +616,7 @@ def Plot(fields, params):
     fig_name = params.outfile + '_results.png'
 
     plt.savefig(os.path.join(params.outdir, fig_name), dpi=300)
+    params.logger.info('The figure of the top candidates has been saved as %s in your output folder.', fig_name)
     #plt.show()
 
 
@@ -639,25 +650,32 @@ def Process(params):
 def Search(params):
     # Set up logging
     # logfile = f"{params.outdir}{params.outfile}.log"
-    logfile = os.path.join(params.outdir, f"{params.outfile}.log")
-    logging.basicConfig(filename=logfile, level=logging.INFO, format="%(message)s")
+    # logfile = os.path.join(params.outdir, f"{params.outfile}.log")
+    # logging.basicConfig(filename=logfile, level=logging.INFO, format="%(message)s")
+
+    logger = params.logger
 
     # Log the start time and command
     cmd = " ".join(sys.argv[1:])
     start_time = str(datetime.datetime.now())[:-7]
-    logging.info(f"Starting job search_pool {cmd} ({start_time}):")
-    print(f"\n********************************************************************")
-    print(f"Starting job search_pool {cmd} ({start_time}):\n")
+    logger.info('-'*75)
+    logger.info(f"Starting job search_pool {cmd} ({start_time}):")
+    logger.info('')
+    # print(f"Starting job search_pool {cmd} ({start_time}):\n")
    
     # start timing
     job_start = time.time()
     
     # Get candidate protein sequences and their length
-    if params.candidate_pool.name.endswith((".txt", ".list")):
-        retrieve_params = Namespace(candidate_pool=params.candidate_pool.name, logfile=logfile)
-        seqfile_name = search_sup.RetrievSeq(retrieve_params)
-    elif params.candidate_pool.name.endswith(".fasta"):
-        seqfile_name = params.candidate_pool.name
+    # if params.candidate_pool.name.endswith((".txt", ".list")):
+    #     retrieve_params = Namespace(candidate_pool=params.candidate_pool.name, logger=logger)
+    #     seqfile_name = search_sup.RetrievSeq(retrieve_params)
+    # elif params.candidate_pool.name.endswith(".fasta"):
+    #     seqfile_name = params.candidate_pool.name
+
+    params.outfile = str(params.outfile)
+    params.outdir = str(params.outdir)
+    seqfile_name = str(params.candidate_pool)
 
     # Get the length of each sequence
     protlen = {}
@@ -665,45 +683,48 @@ def Search(params):
         protlen[record.id] = len(record.seq)              # eg. record.id = "tr|Q8IKL5|Q8IKL5_PLAF7", record.seq = "MNIRLIKKIGINY...ESKWYSFWEENA"
  
     # Generate a local blastp database from the (degenerate) candidate sequences
-    DB_params = Namespace(seqfile=seqfile_name, logfile=logfile, base=params.base)
+    DB_params = Namespace(seqfile=seqfile_name, logger=logger, base=params.base)
     dbsize, dbname = search_sup.DBGenerate(DB_params)
     
     # Map the query sequences to files for blastp search
-    query_params = Namespace(queryfile=params.queryfile.name, reverse=params.reverse, verbose=params.verbose, logfile=logfile, base=params.base)
+    query_params = Namespace(queryfile=params.queryfile, reverse=params.reverse, verbose=params.verbose, logger=logger, base=params.base)
     query_info = search_sup.QueryMap(query_params)
 
     # Blast query sequences against local database
-    Blast_params = Namespace(query_info=query_info, dbsize=dbsize, dbname=dbname, evalue=params.evalue, gapscore=params.gapscore, logfile=logfile, base=params.base)
+    Blast_params = Namespace(query_info=query_info, dbsize=dbsize, dbname=dbname, evalue=params.evalue, gapscore=params.gapscore, logger=logger, base=params.base)
     blast_files = Blast(Blast_params)
 
     # Interpret the blast results        
     if len(blast_files):
         # Process blast results and generate the final searching results
-        process_params = Namespace(blastfiles=blast_files, candidate_pool=params.candidate_pool.name, protlen=protlen, reverse=params.reverse, length=params.length, queryfile=params.queryfile.name, outfile=params.outfile, outdir=params.outdir,
-                                   evalue=params.evalue, verbose=params.verbose, gapscore=params.gapscore, num_candidate=params.num_candidate, query_info=query_info, logfile=logfile)
+        process_params = Namespace(blastfiles=blast_files, candidate_pool=params.candidate_pool, protlen=protlen, reverse=params.reverse, length=params.length, queryfile=params.queryfile, outfile=params.outfile, outdir=params.outdir,
+                                   evalue=params.evalue, verbose=params.verbose, gapscore=params.gapscore, num_candidate=params.num_candidate, query_info=query_info, logger=logger)
         results = Process(process_params)
         
         # Log the time used for the job
         job_end = time.time()
-        logging.info(f"Job complete in {job_end - job_start:.1f} seconds!")
-        print(f"Job complete in {job_end - job_start:.1f} seconds!", flush=True)
+        logger.info(f"Job complete in {job_end - job_start:.1f} seconds!")
+        params.logger.info('')
+        # print(f"Job complete in {job_end - job_start:.1f} seconds!", flush=True)
 
         # Plot the figure
         # if params.verbose:
         try:
-            plot_params = Namespace(outfile=params.outfile, outdir=params.outdir)
+            plot_params = Namespace(outfile=params.outfile, outdir=params.outdir, logger=params.logger,)
             Plot(results, plot_params)
         except Exception:
-            logging.exception("Failed to plot final figure.")
-            print('Failed to plot final figure.', flush=True)
+            logger.exception("Failed to plot final figure.")
+            # print('Failed to plot final figure.', flush=True)
 
     else:
-        logging.error('No blast results found. Please check your input.')        
+        logger.error('No blast results found. Please check your input.')        
         raise OSError('No blast results found. Exiting.')
     
     if not params.verbose:
-        query_dir = os.path.join(os.path.dirname(params.queryfile.name), 'query_files')
+        query_dir = os.path.join(os.path.dirname(params.queryfile), 'query_files')
         shutil.rmtree(query_dir)
+
+    params.logger.info('-'*75)
 
     return results[0].candidate
 
@@ -712,13 +733,14 @@ def Search(params):
 if __name__ == "__main__":
 
     # parse command-line arguments
-    params = Parser()
+    # params = Parser()
  
     # search for best candidate
-    best_candidate = Search(params)
+    # best_candidate = Search(params)
 
     # open best candidate from alphafold in ChimeraX
     # cmd = f"ChimeraX --cmd 'open alphafold:{best_candidate}' &"
     # subprocess.run(cmd, shell=True)
+    pass
 
 

@@ -4,7 +4,7 @@ import logging
 import pathlib
 import textwrap
 
-# from D_BLAST_searching.cryoID_v2.search_pool import Search as blast_search
+from D_BLAST_searching.cryoID_v2.search_pool import Search as blast_search
 # from Alphafold_fetch.struct_fetch_v4 import alphafold_fetch
 
 
@@ -14,7 +14,7 @@ class CryoID_v2:
 
         self.config = configparser.ConfigParser()
         self.config.read('config.ini')
-        self.profile = 'DEFAULT'
+        self.profile = self.config.get('DEFAULT', 'profile')
 
         self.args = None
 
@@ -157,7 +157,7 @@ class CryoID_v2:
             default=False,
             help='Keep simplified query sequence files and all significant blast alignments'
         )
-        # blast_parser.set_defaults(func=self.blast_search)
+        blast_parser.set_defaults(func=blast_search)
 
         # -----Subparser for alphafold-----
         alphafold_fetch_parser = subparsers.add_parser(
@@ -194,7 +194,7 @@ class CryoID_v2:
             '-o',
             '-output',
             type=pathlib.Path,
-            default=self.data_dir,
+            # default=self.data_dir,
             help='Output directory',
             metavar='outdir',
             )
@@ -230,19 +230,23 @@ class CryoID_v2:
             if args.outdir is None:
                 args.outdir = args.queryfile.parent
 
+        # add logger to args 
+        args.logger = self.logger
+
         return args
     
     def run(self):
         if self.args is None:
             raise ValueError('No arguments provided.')
-        self.args.func(self.args)   
+        else:
+            self.args.func(self.args)   
 
     def load_profile(self, args):
         profile_name = args.name
         if not self.config.has_section(profile_name):
-            raise ValueError(f'Profile {profile_name} not found in config file.')
+            raise ValueError(f'Profile [{profile_name}] not found in config file.')
         self.profile = profile_name
-        self.logger.info(f'Profile {profile_name} loaded.')
+        self.logger.info(f'Profile [{profile_name}] loaded.')
 
     def _get_list(self, key:str, type_func=int):
         value = self.config.get(self.profile, key)
@@ -251,5 +255,5 @@ class CryoID_v2:
 
 if __name__ == '__main__':
     prog = CryoID_v2()
-    prog.arg = prog.parser()
+    prog.args = prog.parser()
     prog.run()

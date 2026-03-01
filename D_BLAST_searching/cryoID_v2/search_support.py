@@ -32,138 +32,138 @@ from collections import deque
 #================================================================================================================================================================================================
 
 # Retrieve/ID mapping website
-retrieve_url = 'https://www.uniprot.org/uploadlists/'
+# retrieve_url = 'https://www.uniprot.org/uploadlists/'
 
 #================================================================================================================================================================================================
 # connect to uniprot.org and do the retrieving job automatically and return the fasta files (#info)
 # params.candidate_pool = candidate_pool_name (a file containing candidate protein names)
 #================================================================================================================================================================================================
 
-def RetrievSeq(params):
+# def RetrievSeq(params):
     
-    # logging setup
-    logging.basicConfig(filename=params.logfile, level=logging.INFO, format='%(message)s')
+#     # logging setup
+#     # logging.basicConfig(filename=params.logfile, level=logging.INFO, format='%(message)s')
  
-    # get the filename
-    file_dir = os.path.dirname(params.candidate_pool)
-    file_name = os.path.basename(params.candidate_pool)   # os.path.basename is used to get the base name (item after the last slash) in specified path
-    file_base, file_exten = os.path.splitext(file_name)
-    fasta_outfile = file_dir + file_base + '.fasta'
+#     # get the filename
+#     file_dir = os.path.dirname(params.candidate_pool)
+#     file_name = os.path.basename(params.candidate_pool)   # os.path.basename is used to get the base name (item after the last slash) in specified path
+#     file_base, file_exten = os.path.splitext(file_name)
+#     fasta_outfile = file_dir + file_base + '.fasta'
      
-    # check if outputfiles already exist
-    if os.path.exists(fasta_outfile): # and os.path.exists(info_outfile):
-        #print('Previous sequence pool files found. Use them for current run.', flush=True)
-        pass
-    else:
-        print('Retreving/ID mapping from Uniprot...\n', flush=True)
-        logging.info('Retreving/ID mapping from Uniprot...\n')
+#     # check if outputfiles already exist
+#     if os.path.exists(fasta_outfile): # and os.path.exists(info_outfile):
+#         #print('Previous sequence pool files found. Use them for current run.', flush=True)
+#         pass
+#     else:
+#         print('Retreving/ID mapping from Uniprot...\n', flush=True)
+#         params.logger.info('Retreving/ID mapping from Uniprot...\n')
         
-        # read all the gene name			
-        proteins = []
+#         # read all the gene name			
+#         proteins = []
 
-        # treat .txt/.list files
-        if file_name.endswith(('.txt','.list')):
-            with open(params.candidate_pool, 'r') as f0:
-                for protein in f0:
-                    if protein != '\n' and protein[0] != '#':
-                        proteins.append(protein[:-1])
+#         # treat .txt/.list files
+#         if file_name.endswith(('.txt','.list')):
+#             with open(params.candidate_pool, 'r') as f0:
+#                 for protein in f0:
+#                     if protein != '\n' and protein[0] != '#':
+#                         proteins.append(protein[:-1])
 
-        '''
-        # treat .xlsx files
-        if file_name.endswith('.xlsx'):
-            # import openpyxl for reading and writing .xlsx file
-            from openpyxl import load_workbook # Workbook        
+#         '''
+#         # treat .xlsx files
+#         if file_name.endswith('.xlsx'):
+#             # import openpyxl for reading and writing .xlsx file
+#             from openpyxl import load_workbook # Workbook        
                 
-            # load the .xlsx file and read the sheet	
-            wb = load_workbook(params.candidate_pool)	
-            sheet = wb[wb.sheetnames[0]]
+#             # load the .xlsx file and read the sheet	
+#             wb = load_workbook(params.candidate_pool)	
+#             sheet = wb[wb.sheetnames[0]]
                 
-            # read the header and find the column of gene name
-            header = []	
-            for col in sheet.iter_cols():
-                header.append(col[0].value)
+#             # read the header and find the column of gene name
+#             header = []	
+#             for col in sheet.iter_cols():
+#                 header.append(col[0].value)
                 
-            try:	
-                target = header.index('Protein')
-            except ValueError:
-                logging.exception('Cannot find Protein list in the sequence pool file. Exiting...')
-                raise ValueError('Cannot find Protein list in the sequence pool file. Exiting...')
+#             try:	
+#                 target = header.index('Protein')
+#             except ValueError:
+#                 logging.exception('Cannot find Protein list in the sequence pool file. Exiting...')
+#                 raise ValueError('Cannot find Protein list in the sequence pool file. Exiting...')
                         
-            for row in sheet.iter_rows(row_offset=1):
-                proteins.append(row[target].value)		
+#             for row in sheet.iter_rows(row_offset=1):
+#                 proteins.append(row[target].value)		
                 
-            proteins.pop()   
-        '''
+#             proteins.pop()   
+#         '''
 
-        # the following code is modified from www.uniprot.org
-        '''
-        info_retrieve = {
-        #'from': 'GENENAME',
-        'from': 'ACC+ID',
-         # 'from': 'ACC',
-        'to': 'ACC',
-        'format': 'tab',
-        'query': ' '.join(str(e) for e in proteins),
-        'columns': 'id%2Cgenes%2Clength'
-        }
-        '''
+#         # the following code is modified from www.uniprot.org
+#         '''
+#         info_retrieve = {
+#         #'from': 'GENENAME',
+#         'from': 'ACC+ID',
+#          # 'from': 'ACC',
+#         'to': 'ACC',
+#         'format': 'tab',
+#         'query': ' '.join(str(e) for e in proteins),
+#         'columns': 'id%2Cgenes%2Clength'
+#         }
+#         '''
         
-        fasta_retrieve = {
-        #'from': 'GENENAME',
-        'from': 'ACC+ID',
-         # 'from': 'ACC',
-        'to': 'ACC',
-        'format': 'FASTA',
-        'query': ' '.join(str(e) for e in proteins)       	
-        }
+#         fasta_retrieve = {
+#         #'from': 'GENENAME',
+#         'from': 'ACC+ID',
+#          # 'from': 'ACC',
+#         'to': 'ACC',
+#         'format': 'FASTA',
+#         'query': ' '.join(str(e) for e in proteins)       	
+#         }
 
-        # get the mapping results. Codes modified from https://www.uniprot.org/help/api_idmapping
-        try:
+#         # get the mapping results. Codes modified from https://www.uniprot.org/help/api_idmapping
+#         try:
             
-            # to get rid of urllib and “SSL: CERTIFICATE_VERIFY_FAILED” Error
-            # https://stackoverflow.com/questions/27835619/urllib-and-ssl-certificate-verify-failed-error
-            # gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
-            '''
-            info_data = urllib.urlencode(info_retrieve)
+#             # to get rid of urllib and “SSL: CERTIFICATE_VERIFY_FAILED” Error
+#             # https://stackoverflow.com/questions/27835619/urllib-and-ssl-certificate-verify-failed-error
+#             # gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
+#             '''
+#             info_data = urllib.urlencode(info_retrieve)
 
-            info_response = urllib.request.urlopen(retrieve_url, info_data) #, context=gcontext)    #python3
+#             info_response = urllib.request.urlopen(retrieve_url, info_data) #, context=gcontext)    #python3
 
-            # info_request = urllib2.Request(retrieve_url, info_data)                               #python2.7
-            # info_response = urllib2.urlopen(info_request) #, context=gcontext)                    #python3
+#             # info_request = urllib2.Request(retrieve_url, info_data)                               #python2.7
+#             # info_response = urllib2.urlopen(info_request) #, context=gcontext)                    #python3
             
-            info_lines = info_response.read()
+#             info_lines = info_response.read()
                         
-            if info_lines:
-                # write the database file  
-                f1 = open(info_outfile, "w")
+#             if info_lines:
+#                 # write the database file  
+#                 f1 = open(info_outfile, "w")
             
-                for line in info_lines.split('\n'):
-                    if line:
-                        line = line.split('\t')[0:3]
-                        f1.write(line[0] + '\t' + line[1] + '\t' + line[2] + '\n')          
-                #f1.write(tab_response.read()) 
-                f1.close()
-            else:
-                logging.exception('')
-                raise RuntimeError
-            '''    
+#                 for line in info_lines.split('\n'):
+#                     if line:
+#                         line = line.split('\t')[0:3]
+#                         f1.write(line[0] + '\t' + line[1] + '\t' + line[2] + '\n')          
+#                 #f1.write(tab_response.read()) 
+#                 f1.close()
+#             else:
+#                 logging.exception('')
+#                 raise RuntimeError
+#             '''    
             
-            fasta_data = urllib.urlencode(fasta_retrieve)
-            fasta_response = urllib.request.urlopen(retrieve_url, fasta_data) #, context=gcontext)      #python3
-            fasta_lines = fasta_response.read()
+#             fasta_data = urllib.urlencode(fasta_retrieve)
+#             fasta_response = urllib.request.urlopen(retrieve_url, fasta_data) #, context=gcontext)      #python3
+#             fasta_lines = fasta_response.read()
             
-            if fasta_lines:
-                with open(fasta_outfile, "w") as f2:
-                    f2.write(fasta_lines)
-            else:
-                raise RuntimeError
+#             if fasta_lines:
+#                 with open(fasta_outfile, "w") as f2:
+#                     f2.write(fasta_lines)
+#             else:
+#                 raise RuntimeError
                     
-        except RuntimeError:
-            logging.exception('Error when retrieving/mapping the candate protein sequences!')
-            raise RuntimeError('Error when retrieving/mapping the candate protein sequences!')
+#         except RuntimeError:
+#             params.logger.exception('Error when retrieving/mapping the candate protein sequences!')
+#             raise RuntimeError('Error when retrieving/mapping the candate protein sequences!')
 
-    # return the output filenames
-    return fasta_outfile
+#     # return the output filenames
+#     return fasta_outfile
 
 
 
@@ -315,7 +315,7 @@ def DBGenerate(params):
                 try:
                     dbsize = int(line.split('\t')[1])
                 except TypeError:
-                    logging.exception('Error when getting database size from' + dbname + '.txt. Check the file!')
+                    params.logger.exception('Error when getting database size from' + dbname + '.txt. Check the file!')
                     raise TypeError('Error when getting database size from' + dbname + '.txt. Check the file!')
         else:    
             dbsize = 0
@@ -332,7 +332,7 @@ def DBGenerate(params):
             if not params.base:
                 os.remove(mapped_seqfile)
         except OSError:
-            logging.exception('Could not find makeblastdb. Make sure you include it in PATH!')
+            params.logger.exception('Could not find makeblastdb. Make sure you include it in PATH!')
             raise OSError('Could not find makeblastdb. Make sure you include it in PATH!')
         # if error:
         #     logging.exception('Error when calling makeblastdb to generate local database.\n' + error)
@@ -343,7 +343,7 @@ def DBGenerate(params):
             f1.write('database size:'+'\t'+str(dbsize))
 
     # logging setup
-    logging.basicConfig(filename=params.logfile, level=logging.INFO, format='%(message)s')
+    # logging.basicConfig(filename=params.logfile, level=logging.INFO, format='%(message)s')
     
     # get database name
     file_dir = os.path.dirname(params.seqfile)
@@ -352,7 +352,7 @@ def DBGenerate(params):
         # dbname = file_dir + '/database/' + file_name[:-6] + '_db'
         dbname = os.path.join(file_dir, file_name + '_db', file_name + '_db')
     else:
-        logging.exception('Seqfile '+ params.seqfile +' is not of .fasta format! Exiting')
+        params.logger.exception('Seqfile '+ params.seqfile +' is not of .fasta format! Exiting')
         raise TypeError('Seqfile '+ params.seqfile +' is not of .fasta format! Exiting')
         
     # by default the database subfolder is located in the same directory as the .fasta file
@@ -362,7 +362,7 @@ def DBGenerate(params):
             dbsize = read_dbsize(dbname, params.seqfile)   
         else:
             # map the sequences and get database size
-            map_params = Namespace(seqfile=params.seqfile, reverse=False, logfile=params.logfile, base=params.base)
+            map_params = Namespace(seqfile=params.seqfile, reverse=False, logger=params.logger, base=params.base)
             dbsize, mapped_seqfile = SeqMap(map_params)
         
             # run makeblastdb to build the local database
@@ -388,7 +388,7 @@ def DBGenerate(params):
 def SeqMap(params):             # params.seqfile = queryfile (query file name), params.reverse = True/False (whether include the reverse sequence)
 
     # logging and outfile setup
-    logging.basicConfig(filename=params.logfile, level=logging.INFO, format='%(message)s')
+    # logging.basicConfig(filename=params.logfile, level=logging.INFO, format='%(message)s')
 
     f1 = open(params.seqfile, 'r')
     outfile = os.path.splitext(params.seqfile)[0] + '_mapped.fasta'
@@ -409,7 +409,7 @@ def SeqMap(params):             # params.seqfile = queryfile (query file name), 
                 try:
                     seq = ''.join(aaMapping[e] for e in seq[:-1])
                 except KeyError as error:
-                    logging.exception('Unrecognized amino acid ' + str(error) + ' in line ' + seq[:-1] + ' of ' + params.seqfile)
+                    params.logger.exception('Unrecognized amino acid ' + str(error) + ' in line ' + seq[:-1] + ' of ' + params.seqfile)
                     raise KeyError('Unrecognized amino acid ' + str(error) + ' in line ' + seq[:-1] + ' of ' + params.seqfile)
                 
             seq += '\n'
@@ -442,35 +442,35 @@ def SeqMap(params):             # params.seqfile = queryfile (query file name), 
 # Group the amino acids and yield degenearete sequences for user inspection
 #================================================================================================================================================================================================
 
-def SeqGroup(params):       # params.seqfile = queryfile (query file name)
+# def SeqGroup(params):       # params.seqfile = queryfile (query file name)
 
-    # logging and outfile setup
-    logging.basicConfig(filename=params.logfile, level=logging.INFO, format='%(message)s')
-    outfile = os.path.join(params.query_dir, os.path.splitext(params.seqfile)[0] + '_simplified.fasta')
+#     # logging and outfile setup
+#     # logging.basicConfig(filename=params.logfile, level=logging.INFO, format='%(message)s')
+#     outfile = os.path.join(params.query_dir, os.path.splitext(params.seqfile)[0] + '_simplified.fasta')
 
-    # count the sequence number/length
-    seq_num = 0
-    seq_len = 0
-    with open(params.seqfile,'r') as f1:        
-        for seq in f1:
-            if seq and seq[0][0] != '>' and seq[0][0] != '#':            
-                try:
-                    seq = ''.join(aaMapping[e] for e in seq[:-1])
-                    #seq = ''.join(aaRevMapping[e] for e in seq)
+#     # count the sequence number/length
+#     seq_num = 0
+#     seq_len = 0
+#     with open(params.seqfile,'r') as f1:        
+#         for seq in f1:
+#             if seq and seq[0][0] != '>' and seq[0][0] != '#':            
+#                 try:
+#                     seq = ''.join(aaMapping[e] for e in seq[:-1])
+#                     #seq = ''.join(aaRevMapping[e] for e in seq)
                     
-                    # count the query number/length
-                    seq_num += 1
-                    seq_len += len(seq)
-                except KeyError as error:
-                    logging.exception('Unrecognized amino acid ' + str(error) + ' in line ' + seq[:-1] + ' of ' + params.seqfile)
-                    raise KeyError('Unrecognized amino acid ' + str(error) + ' in line ' + seq[:-1] + ' of ' + params.seqfile)
+#                     # count the query number/length
+#                     seq_num += 1
+#                     seq_len += len(seq)
+#                 except KeyError as error:
+#                     params.logger.exception('Unrecognized amino acid ' + str(error) + ' in line ' + seq[:-1] + ' of ' + params.seqfile)
+#                     raise KeyError('Unrecognized amino acid ' + str(error) + ' in line ' + seq[:-1] + ' of ' + params.seqfile)
                     
-                seq += '\n'
+#                 seq += '\n'
 
-            with open(outfile, 'w') as o1:
-                o1.write('%s' %(seq))
+#             with open(outfile, 'w') as o1:
+#                 o1.write('%s' %(seq))
 
-    #return seq_num, seq_len, outfile
+#     #return seq_num, seq_len, outfile
 
     
 
@@ -484,38 +484,38 @@ def SeqGroup(params):       # params.seqfile = queryfile (query file name)
 def QueryMap(params):
     
     # logging setup
-    logging.basicConfig(filename=params.logfile, level=logging.INFO, format='%(message)s')
+    # logging.basicConfig(filename=params.logfile, level=logging.INFO, format='%(message)s')
     
     # if pdb file is provided, print the sequences from the pdb model with phenix.print_sequence. Note that mse represents X in coot.
-    if params.queryfile.endswith('.pdb'):
-        print_seq = ['phenix.print_sequence', params.queryfile, '--letter_for_mse=X']
+    # if params.queryfile.endswith('.pdb'):
+    #     print_seq = ['phenix.print_sequence', params.queryfile, '--letter_for_mse=X']
         
-        # call phenix.print_sequence as subprocess and get the output/error message
-        try:
-            proc = subprocess.Popen(print_seq, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
-            (out, error) = proc.communicate()
-        except OSError:
-            logging.exception('Could not find command phenix.print_sequence. Make sure you include it in your PATH!')
-            raise OSError('Could not find command phenix.print_sequence. Make sure you include it in your PATH!')
+    #     # call phenix.print_sequence as subprocess and get the output/error message
+    #     try:
+    #         proc = subprocess.Popen(print_seq, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
+    #         (out, error) = proc.communicate()
+    #     except OSError:
+    #         params.logger.exception('Could not find command phenix.print_sequence. Make sure you include it in your PATH!')
+    #         raise OSError('Could not find command phenix.print_sequence. Make sure you include it in your PATH!')
             
-        if error:
-            logging.exception('Error when calling phenix.print_sequence to convert pdb file to fasta file\n' + error)
-            raise OSError('Error when calling phenix.print_sequence to convert pdb file to fasta file\n' + error)
+    #     if error:
+    #         params.logger.exception('Error when calling phenix.print_sequence to convert pdb file to fasta file\n' + error)
+    #         raise OSError('Error when calling phenix.print_sequence to convert pdb file to fasta file\n' + error)
             
-        # create the .fasta file
-        queryfile = params.queryfile.split('.pdb')[0] + '.fasta'
-        # f0 = open(queryfile, 'w')
-        # # print >> f0, out
-        # print(out, file=f0)
-        # f0.close()
-        # ====TypeError: unsupported operand type(s) for >>: 'builtin_function_or_method' and '_io.TextIOWrapper'. Did you mean "print(<message>, file=<output_stream>)"?
+    #     # create the .fasta file
+    #     queryfile = params.queryfile.split('.pdb')[0] + '.fasta'
+    #     # f0 = open(queryfile, 'w')
+    #     # # print >> f0, out
+    #     # print(out, file=f0)
+    #     # f0.close()
+    #     # ====TypeError: unsupported operand type(s) for >>: 'builtin_function_or_method' and '_io.TextIOWrapper'. Did you mean "print(<message>, file=<output_stream>)"?
 
-        with open(queryfile, 'w') as f0:
-            f0.write(out)
+    #     with open(queryfile, 'w') as f0:
+    #         f0.write(out)
         
-    # if fasta file provided, directly use it
-    elif params.queryfile.endswith('.fasta'):
-        queryfile = params.queryfile
+    # # if fasta file provided, directly use it
+    # elif params.queryfile.endswith('.fasta'):
+    queryfile = params.queryfile
     
     # make query directory
     query_dir = os.path.join(os.path.dirname(queryfile), 'query_files')
@@ -544,7 +544,7 @@ def QueryMap(params):
         # loop over all queries
         f1_lines = f1.readlines()
         line_num = 0
-        print(len(f1_lines))
+        # print(len(f1_lines))
         while line_num < len(f1_lines):
         # while True:
             while f1_lines[line_num][0] != '>':
@@ -589,7 +589,7 @@ def QueryMap(params):
             # o1.close()
             
             # tranform query and return length
-            map_params = Namespace(seqfile=query_split, reverse=params.reverse, base=params.base, logfile=params.logfile)
+            map_params = Namespace(seqfile=query_split, reverse=params.reverse, base=params.base, logger=params.logger)
             query_len, query_file = SeqMap(map_params)
             
             # add current query length
@@ -615,14 +615,14 @@ def QueryMap(params):
         query_num = iquery - 1    
     
     if not query_num:
-        logging.exception('No query found. Check your input! Exiting')
+        params.logger.exception('No query found. Check your input! Exiting')
         raise OSError('No query found. Check your input! Exiting')
     elif query_num > 10:
-        logging.warning('The number of queries are more than 10! Make sure you selected the right query file!')
-        print('Warning: The number of queries are more than 10! Make sure you selected the right query file!')
+        params.logger.warning('The number of queries are more than 10! Make sure you selected the right query file!')
+        # print('Warning: The number of queries are more than 10! Make sure you selected the right query file!')
         sys.stdout.flush()
     elif query_num > 50:
-        logging.exception('The number of queries are more than 50! Check your input query file again! Exiting...')
+        params.logger.exception('The number of queries are more than 50! Check your input query file again! Exiting...')
         raise OSError('The number of queries are more than 50! Check your input query file again! Exiting...')
     
     
@@ -637,13 +637,13 @@ def QueryMap(params):
 
     # print the query set info
     #print '\n####################################################################'
-    print('********************************************************************')
-    print('QUERY SEQUENCE SUMMARY\n\tNumber of query sequences used:  '+str(query_num)+'\n\tNumber of identifiable residues per query:  '+str(ave_aa_num)+\
-    '\n\tNumber of unidentifiable residues per query:  '+'{0:.2g}'.format(ave_x_num)) #+' ({0:.1%})'.format(x_num_percent) 
-    sys.stdout.flush()
+    # print('********************************************************************')
+    # print('QUERY SEQUENCE SUMMARY\n\tNumber of query sequences used:  '+str(query_num)+'\n\tNumber of identifiable residues per query:  '+str(ave_aa_num)+\
+    # '\n\tNumber of unidentifiable residues per query:  '+'{0:.2g}'.format(ave_x_num)) #+' ({0:.1%})'.format(x_num_percent) 
+    # sys.stdout.flush()
 
     # print these info to log file too
-    logging.info('QUERY SEQUENCE SUMMARY\n\tNumber of query sequences used:  '+str(query_num)+'\n\tNumber of identifiable residues per query:  '+str(ave_aa_num)+\
+    params.logger.info('QUERY SEQUENCE SUMMARY\n\tNumber of query sequences used:  '+str(query_num)+'\n\tNumber of identifiable residues per query:  '+str(ave_aa_num)+\
     '\n\tNumber of unidentifiable residues per query:  '+'{0:.2g}'.format(ave_x_num)) #+' ({0:.1%})'.format(x_num_percent)
     
     
@@ -654,14 +654,13 @@ def QueryMap(params):
         cutoff = query_set[query_num]
     
     if ave_aa_num < cutoff:
-        print('Warning: query length is short! You may consider extending your queries, or the final results may be not reliable!')
+        # print('Warning: query length is short! You may consider extending your queries, or the final results may be not reliable!')
         sys.stdout.flush()
-        logging.warning('Warning: query length is short! You may consider extending your queries, or the final results may be not reliable!')
+        params.logger.warning('Warning: query length is short! You may consider extending your queries, or the final results may be not reliable!')
         
-    print('')
+    # print('')
     sys.stdout.flush()
-    logging.info('')
-        
+    params.logger.info('')
     return query_info
 
 
@@ -699,7 +698,7 @@ word_size = '2'			# Word size for wordfinder algorithm
 def SeqBlast(params):
     
     # logging setup
-    logging.basicConfig(filename=params.logfile, level=logging.INFO, format='%(message)s')
+    # logging.basicConfig(filename=params.logfile, level=logging.INFO, format='%(message)s')
 
     # Calculate the search space
     searchsp = str(params.dbsize * params.qsize)
@@ -729,11 +728,11 @@ def SeqBlast(params):
         out, error = proc.communicate()
         
     except OSError:
-        logging.exception('Could not find blastp. Make sure you include it in PATH!')
+        params.logger.exception('Could not find blastp. Make sure you include it in PATH!')
         raise OSError('Could not find blastp. Make sure you include it in PATH!')
         
     if error:
-        logging.exception('Error when calling blastp to search local database.\n' + error) # type: ignore
+        params.logger.exception('Error when calling blastp to search local database.\n' + error) # type: ignore
         raise OSError('Error when calling blastp to search local database.\n' + error) # type: ignore
 
 
