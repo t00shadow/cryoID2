@@ -4,6 +4,7 @@ import logging
 import pathlib
 import textwrap
 
+from H_Backbone_tracing.A1_clustering import main as clustering
 from D_BLAST_searching.cryoID_v2.search_pool import Search as blast_search
 # from Alphafold_fetch.struct_fetch_v4 import alphafold_fetch
 
