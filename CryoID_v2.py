@@ -12,12 +12,14 @@ class CryoID_v2:
     def __init__(self):
         self.prog = 'CryoID_v2'
 
+        # load config file and default profile
         self.config = configparser.ConfigParser()
         self.config.read('config.ini')
         self.profile = self.config.get('DEFAULT', 'profile')
 
         self.args = None
 
+        # default data directory
         self.data_dir = pathlib.Path() / 'Data'
 
         # configure logger
@@ -31,7 +33,7 @@ class CryoID_v2:
         self.logger.addHandler(std_out_hdlr)
         self.logger.addHandler(file_hdlr)
 
-    def parser(self):
+    def parser(self) -> argparse.Namespace:
         mainparser = argparse.ArgumentParser(
                     prog=self.prog,
                     description='%(prog)s: description here',
@@ -59,9 +61,9 @@ class CryoID_v2:
             aliases=['p'],
         )
         profile_parser.add_argument(
-            'name',
+            'pname',
             type=str,
-            help='Load user config profile',
+            help='User config profile name',
             metavar='profile',
         )
         profile_parser.set_defaults(func=self.load_profile)
@@ -235,20 +237,36 @@ class CryoID_v2:
 
         return args
     
-    def run(self):
+    def run(self) -> None:
+        """Run the program with the provided arguments."""
         if self.args is None:
             raise ValueError('No arguments provided.')
         else:
             self.args.func(self.args)   
 
-    def load_profile(self, args):
-        profile_name = args.name
-        if not self.config.has_section(profile_name):
-            raise ValueError(f'Profile [{profile_name}] not found in config file.')
-        self.profile = profile_name
-        self.logger.info(f'Profile [{profile_name}] loaded.')
+    def load_profile(self, args) -> None:
+        '''Load user config profile.'''
+        profile_name = args.pname
 
-    def _get_list(self, key:str, type_func=int):
+        # Load default profile 
+        # This allows user to reset to default profile after loading other profiles
+        default_names = ['DEFAULT', 'default', 'd', 'D', 'Default', 'def', 'Def']
+        if profile_name in default_names:
+            self.profile = 'DEFAULT'
+            self.config.set('DEFAULT', 'profile', 'DEFAULT')
+            self.logger.info('Default profile loaded.')
+            return
+        
+        if not self.config.has_section(profile_name):
+            raise configparser.NoSectionError(f'Profile [{profile_name}] not found in config file.')
+        else:
+            self.profile = profile_name
+            self.config.set('DEFAULT', 'profile', profile_name)
+            self.logger.info(f'Profile [{profile_name}] loaded.')
+
+    def _get_list(self, key:str, type_func=int) -> list:
+        '''Helper function to get list of values from config file given a key.
+        The values in the config file should be separated by commas.'''
         value = self.config.get(self.profile, key)
         return [type_func(x) for x in value.split(',')]
 
