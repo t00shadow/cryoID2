@@ -718,14 +718,14 @@ VOF_SCORE_ATOMS = "backbone"  # "rep", "backbone", or "heavy"
 GLOBAL_SEARCH_MAX_DIM = 64
 GLOBAL_SEARCH_Z = 1.5
 GLOBAL_SEARCH_RADIUS_A = 3.5
-GLOBAL_SEARCH_ROTATIONS = 32
+GLOBAL_SEARCH_ROTATIONS = 24  # fixed PCA-aligned cube-rotation sampler size (kept for API compatibility)
 GLOBAL_SEARCH_TRANS_RANGE = 1
 GLOBAL_SEARCH_TRANS_STEP_SCALE = 1.0
 GLOBAL_SEARCH_USE_PCA_SEED = True
 GLOBAL_SEARCH_COARSE_TRANSLATION = False
 GLOBAL_SEARCH_COARSE_MULT = 4.0
 GLOBAL_SEARCH_COARSE_RANGE = 2
-GLOBAL_SEARCH_SEED = 0
+GLOBAL_SEARCH_SEED = 0  # legacy (unused by fixed 24-rotation sampler; kept for API compatibility)
 GLOBAL_SEARCH_SELF_SPIN_STEPS = 1  # 1 => disable extra self-spin sweep
 
 # --- Joint local refinement (replaces greedy_refine in fit_model_and_score) ---
@@ -1195,29 +1195,8 @@ def compute_vof_optimized(
         )
     return float(chosen["vof"]), details
 
-def _fib_axes_angles(n: int) -> tuple[np.ndarray, np.ndarray]:
-    if n <= 1:
-        _fallback_notice(
-            "fib_single_rotation",
-            "Fibonacci rotation count <= 1; falling back to single identity-like axis.",
-        )
-        return (
-            np.array([[0.0, 0.0, 1.0]], dtype=np.float64),
-            np.array([0.0], dtype=np.float64),
-        )
-    phi = (1.0 + math.sqrt(5.0)) / 2.0
-    axes = []
-    angles = []
-    for k in range(n):
-        i = k + 0.5
-        z = 1.0 - 2.0 * (i / n)
-        r = math.sqrt(max(0.0, 1.0 - z * z))
-        theta = 2.0 * math.pi * (i / phi)
-        axis = np.array([r * math.cos(theta), r * math.sin(theta), z], dtype=np.float64)
-        angle = 2.0 * math.pi * ((k + 1) / phi % 1.0)
-        axes.append(axis)
-        angles.append(angle)
-    return np.asarray(axes, dtype=np.float64), np.asarray(angles, dtype=np.float64)
+_CUBE24_ROTATIONS_BASE: Optional[np.ndarray] = None
+_CUBE24_AXES_ANGLES_BASE: Optional[tuple[np.ndarray, np.ndarray]] = None
 
 
 def _rotation_from_a_to_b(a: np.ndarray, b: np.ndarray) -> np.ndarray:
@@ -1244,7 +1223,7 @@ def _rotation_from_a_to_b(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     return R.from_rotvec(axis * ang).as_matrix()
 
 
-def _align_fib_axes_to_target(axes: np.ndarray, target_axis: np.ndarray) -> np.ndarray:
+def _align_rotation_axes_to_target(axes: np.ndarray, target_axis: np.ndarray) -> np.ndarray:
     axes = np.asarray(axes, dtype=np.float64)
     if axes.size == 0:
         return axes
@@ -1252,16 +1231,69 @@ def _align_fib_axes_to_target(axes: np.ndarray, target_axis: np.ndarray) -> np.n
     tn = np.linalg.norm(t)
     if not np.isfinite(tn) or tn < 1e-12:
         _fallback_notice(
-            "align_fib_target_invalid",
-            "Target axis for Fibonacci alignment is invalid; leaving sphere orientation unchanged.",
+            "align_rotset_target_invalid",
+            "Target axis for coarse rotation-set alignment is invalid; leaving rotation set orientation unchanged.",
         )
         return axes
     t = t / tn
-    idx = int(np.argmax(axes @ t))  # nearest dot/axis to target
+    idx = int(np.argmax(axes @ t))
     Q = _rotation_from_a_to_b(axes[idx], t)
     out = (Q @ axes.T).T
     out /= (np.linalg.norm(out, axis=1, keepdims=True) + 1e-12)
     return out
+
+
+def _cube24_rotation_axis_angles() -> tuple[np.ndarray, np.ndarray]:
+    global _CUBE24_AXES_ANGLES_BASE
+    if _CUBE24_AXES_ANGLES_BASE is not None:
+        return _CUBE24_AXES_ANGLES_BASE
+
+    mats = _cube24_rotation_matrices()
+    axes: list[np.ndarray] = []
+    angles: list[float] = []
+    for M in mats:
+        rv = R.from_matrix(M).as_rotvec()
+        ang = float(np.linalg.norm(rv))
+        if ang < 1e-12:
+            axes.append(np.array([0.0, 0.0, 1.0], dtype=np.float64))
+            angles.append(0.0)
+        else:
+            axes.append(np.asarray(rv / ang, dtype=np.float64))
+            angles.append(ang)
+    _CUBE24_AXES_ANGLES_BASE = (np.stack(axes, axis=0), np.asarray(angles, dtype=np.float64))
+    return _CUBE24_AXES_ANGLES_BASE
+
+
+def _cube24_rotation_matrices() -> np.ndarray:
+    """
+    Return the 24 proper signed-permutation rotations (cube rotation group).
+
+    These are applied as perturbations around the PCA seed frame (R_delta @ R_base),
+    which gives a deterministic PCA-aligned coarse rotation search without Fibonacci
+    sampling.
+    """
+    global _CUBE24_ROTATIONS_BASE
+    if _CUBE24_ROTATIONS_BASE is not None:
+        return _CUBE24_ROTATIONS_BASE
+
+    mats: list[np.ndarray] = []
+    I = np.eye(3, dtype=np.float64)
+    for perm in itertools.permutations(range(3)):
+        P = I[:, perm]
+        for signs in itertools.product([-1.0, 1.0], repeat=3):
+            M = P * np.asarray(signs, dtype=np.float64)[None, :]
+            if np.linalg.det(M) > 0.5:  # proper rotations only (det=+1)
+                mats.append(np.asarray(M, dtype=np.float64))
+    if len(mats) != 24:
+        _fallback_notice(
+            "cube24_count_unexpected",
+            f"Expected 24 cube rotations, got {len(mats)}; falling back to identity only.",
+        )
+        _CUBE24_ROTATIONS_BASE = np.eye(3, dtype=np.float64).reshape(1, 3, 3)
+        return _CUBE24_ROTATIONS_BASE
+
+    _CUBE24_ROTATIONS_BASE = np.stack(mats, axis=0)
+    return _CUBE24_ROTATIONS_BASE
 
 
 def global_rotation_align(
@@ -1277,7 +1309,7 @@ def global_rotation_align(
     Coarse global alignment (single method):
       - Downsample map to max_dim
       - Threshold map in Z-score space (>= z_thresh)
-      - Sample rotations; for each, translate by map/model COM
+      - Sample 24 PCA-aligned cube rotations; for each, translate by map/model COM
       - Choose best base rotation by coarse score on the downsampled grid
       - Spin this base around the model's own PCA axis at model COM
       - Refine translation around the best spun seed
@@ -1314,12 +1346,12 @@ def global_rotation_align(
     map_frame: Optional[np.ndarray] = None
     model_frame: Optional[np.ndarray] = None
     model_pc1_local: Optional[np.ndarray] = None
-    fib_target_axis: Optional[np.ndarray] = None
+    rotset_target_axis: Optional[np.ndarray] = None
     R_base = np.eye(3, dtype=np.float64)
     try:
         map_frame, map_center = _build_signed_pca_frame(map_pts, weights=map_wts)
         map_com = map_center
-        fib_target_axis = map_frame[:, 0].copy()
+        rotset_target_axis = map_frame[:, 0].copy()
     except Exception:
         _fallback_notice(
             "global_align_map_pca_failed",
@@ -1354,22 +1386,18 @@ def global_rotation_align(
     elif GLOBAL_SEARCH_USE_PCA_SEED:
         _fallback_notice(
             "global_align_seed_identity",
-            "PCA seeding enabled but unavailable; using identity base rotation before Fibonacci perturbations.",
+            "PCA seeding enabled but unavailable; using identity base rotation before cube-rotation perturbations.",
         )
 
-    # Rotation sampling (deterministic Fibonacci sphere), then perturb around PCA seed.
-    n_eff = max(1, int(n_rot))
-    fib_axes, fib_angles = _fib_axes_angles(n_eff)
-    if GLOBAL_SEARCH_USE_PCA_SEED and n_eff > 1 and fib_target_axis is not None:
-        # Rotate sphere so nearest fib axis aligns with +PC1.
-        fib_axes = _align_fib_axes_to_target(fib_axes, fib_target_axis)
-    if (not GLOBAL_SEARCH_USE_PCA_SEED) and n_eff > 1:
-        shift = int(seed) % n_eff
-        if shift:
-            fib_axes = np.roll(fib_axes, shift=shift, axis=0)
-            fib_angles = np.roll(fib_angles, shift=shift, axis=0)
+    # Fixed 24 signed-permutation rotations (cube rotation group), oriented to map PCA PC1
+    # and applied around the PCA seed. This preserves deterministic coarse coverage while
+    # matching the previous PCA-oriented rotation-set behavior.
+    # `n_rot`/`seed` are retained in the signature for API compatibility but are no longer used.
+    cube_axes, cube_angles = _cube24_rotation_axis_angles()
+    if GLOBAL_SEARCH_USE_PCA_SEED and rotset_target_axis is not None:
+        cube_axes = _align_rotation_axes_to_target(cube_axes, rotset_target_axis)
     rotations_delta = np.stack(
-        [R.from_rotvec(axis * angle).as_matrix() for axis, angle in zip(fib_axes, fib_angles)],
+        [R.from_rotvec(axis * angle).as_matrix() for axis, angle in zip(cube_axes, cube_angles)],
         axis=0,
     )
 
