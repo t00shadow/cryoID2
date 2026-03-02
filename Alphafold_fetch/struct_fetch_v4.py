@@ -997,7 +997,7 @@ def process_target(gene_id: str, sequence: str):
     _write_log(safe_q, all_rows)
     print(f"[{tag}] Log written: {(LOGS_DIR / f'{safe_q}__fit_scores.csv')}")
 # ------------------- CLI main -------------------
-def alphafold_fetch():
+def main():
     if not MAP_PATH.exists():
         sys.exit(f"Map not found: {MAP_PATH}")
     try:
@@ -1040,4 +1040,4 @@ def alphafold_fetch():
     print(f"Logs       -> {LOGS_DIR.resolve().as_posix()}")
 
 if __name__ == "__main__":
-    alphafold_fetch()
+    main()

@@ -6,7 +6,7 @@ import textwrap
 
 from H_Backbone_tracing.A1_clustering import main as clustering
 from D_BLAST_searching.cryoID_v2.search_pool import Search as blast_search
-# from Alphafold_fetch.struct_fetch_v4 import alphafold_fetch
+# from Alphafold_fetch.struct_fetch_v4 import main as alphafold_fetch
 
 
 class CryoID_v2:
@@ -211,9 +211,15 @@ class CryoID_v2:
         if args.subcommand == 'blast' or args.subcommand == 'b':
             if not (args.queryfile.suffix == '.fasta' or args.queryfile.suffix == '.pdb'):
                 raise ValueError('Query file must be in .fasta or .pdb format.')
-                
+            
+            if not args.queryfile.exists(): 
+                raise FileNotFoundError(f'Query file {args.queryfile} does not exist.')
+                    
             if not (args.candidate_pool.suffix == '.fasta'):
                 raise ValueError('Sequence pool file format is not recognized.')
+            
+            if not args.candidate_pool.exists():
+                raise FileNotFoundError(f'Sequence pool file {args.candidate_pool} does not exist.')
             
             if args.evalue <= 0.0 or args.evalue >= 1000.0:
                 raise ValueError('E-value should be between 0.0 and 1000.0.')
@@ -232,6 +238,14 @@ class CryoID_v2:
 
             if args.outdir is None:
                 args.outdir = args.queryfile.parent
+
+        # -----Alphafold args-----
+        if args.subcommand == 'alphafold' or args.subcommand == 'a':
+            if not args.file.exists():
+                raise FileNotFoundError(f'CSV file {args.file} does not exist.')
+            
+            if not args.map.exists():
+                raise FileNotFoundError(f'Map file {args.map} does not exist.')
 
         # add logger to args 
         args.logger = self.logger
