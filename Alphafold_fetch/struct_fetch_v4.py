@@ -28,9 +28,9 @@ except Exception:  # pragma: no cover - optional dependency at runtime
     NCBIXML = None
 
 # ----------- REQUIRED PATHS -----------
-CSV_PATH = pathlib.Path("Alphafold_fetch/sorted_search_pool_less_than_400aa_struct_fetch_input.csv")
+CSV_PATH = pathlib.Path("Alphafold_fetch/identifier/all_hits_v2.csv")
 OUT_DIR  = pathlib.Path("Alphafold_fetch/fetched_structures_v3")
-MAP_PATH = pathlib.Path("Alphafold_fetch/cryosparc_P164_J1425_003_volume_map_sharp.mrc")
+MAP_PATH = pathlib.Path("Alphafold_fetch/test_files/emd_27572_ACTB.map")
 
 # ----------- PROCESSING LIMIT -----------
 # Number of CSV rows to process (with non-empty gene_id + sequence).
