@@ -2,53 +2,96 @@ import argparse
 import configparser
 import logging
 import pathlib
+import sys
 import textwrap
 
-from H_Backbone_tracing.A1_clustering import main as clustering
-from D_BLAST_searching.cryoID_v2.search_pool import Search as blast_search
+# from H_Backbone_tracing.A1_clustering import main as clustering
+from .BLAST.search_pool import Search as blast_search
 # from Alphafold_fetch.struct_fetch_v4 import main as alphafold_fetch
 
+from . import __version__
+
+CONFIG_FILE: pathlib.Path = pathlib.Path(__file__).resolve().parent / 'config.ini'
+
+
+def get_list(configparser: configparser.ConfigParser, profile: str, key: str, type: type = int) -> list:
+    '''Helper function to get list of values from config file given a key.
+    The values in the config file should be separated by commas.'''
+    value = configparser.get(profile, key)
+    return [type(x) for x in value.split(',')]
 
 class CryoID_v2:
+
+    __instance = None
+
+    # program name
+    prog: str = 'CryoID'
+
+    # version info
+    version: str = __version__
+
+    @staticmethod
+    def get_instance():
+        if CryoID_v2.__instance is None:
+            CryoID_v2()
+        return CryoID_v2.__instance
+    
     def __init__(self):
-        self.prog = 'CryoID_v2'
+        # singleton pattern to ensure only one instance of the program is created
+        if CryoID_v2.__instance is not None:
+            raise Exception("Only one instance of CryoID_v2 is allowed.")
+        else:
+            CryoID_v2.__instance = self
 
         # load config file and default profile
-        self.config = configparser.ConfigParser()
-        self.config.read('config.ini')
-        self.profile = self.config.get('DEFAULT', 'profile')
+        self.configparser: configparser.ConfigParser = configparser.ConfigParser()
+        self.configparser.read(CONFIG_FILE)
+        self.profile: str = self.configparser.get('DEFAULT', 'profile', fallback='DEFAULT')
 
-        self.args = None
+        # parsing command line arguments
+        # subparsers
+        self.subparsers_info: dict[str, str] = {
+            'profile': 'Load user config profile',
+            'predict': 'Predict protein seqs from map',
+            'blast': 'Perform BLAST search',
+            'alphafold': 'Fetch Alphafold structures'
+        }
+        self.parser: argparse.ArgumentParser = self.create_parser()
+        self.args: argparse.Namespace = None
 
         # default data directory
-        self.data_dir = pathlib.Path() / 'Data'
+        # self.data_dir: pathlib.Path = pathlib.Path() / 'Data'
 
         # configure logger
-        self.logger = logging.getLogger()
+        self.logger: logging.Logger = logging.getLogger()
         self.logger.setLevel(logging.INFO)  
-        std_out_hdlr = logging.StreamHandler()
+        std_out_hdlr: logging.StreamHandler = logging.StreamHandler()
         std_out_hdlr.setLevel(logging.INFO)
-        file_hdlr = logging.FileHandler(self.prog+'.log')
+        file_hdlr: logging.FileHandler = logging.FileHandler(self.prog+'.log')
         file_hdlr.setLevel(logging.INFO)
         file_hdlr.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p'))
         self.logger.addHandler(std_out_hdlr)
         self.logger.addHandler(file_hdlr)
 
-    def parser(self) -> argparse.Namespace:
+    def create_parser(self) -> argparse.ArgumentParser:
         mainparser = argparse.ArgumentParser(
                     prog=self.prog,
                     description='%(prog)s: description here',
                     usage='%(prog)s <subcommand> [options]',
                     formatter_class=argparse.RawDescriptionHelpFormatter,
                     )
+        mainparser.add_argument(
+            '-v',
+            '--version',
+            action='version',
+            version=f'%(prog)s {self.version}',
+            help='Show program version and exit',
+        )
         subparsers = mainparser.add_subparsers(
             title='subcommands',
-            description=textwrap.dedent('''
-                profile: Load user config profile
-                predict: Predict protein seqs from map
-                blast: Perform BLAST search
-                alphafold: Fetch Alphafold structures
-            '''),
+            description=textwrap.dedent(
+                '\n'.join([f'{k}: {v}' for k, v in self.subparsers_info.items()])
+                ),
             help='Use %(prog)s <subcommand> -h for more information on a specific subcommand',
             dest='subcommand',
         )
@@ -123,16 +166,16 @@ class CryoID_v2:
             '--length',
             type=int,
             nargs=2,
-            default=self._get_list('blast_length'),
+            default=get_list(self.configparser, self.profile, 'blast_length'),
             help='Set target sequence length filter for the final results. Note that this \
     argument takes two parameters seperated by a space. Default value is %(default)s for a \
-    sequence length range of 1~10000'
+    sequence length range of 1~%(default)s'
         )
         blast_parser.add_argument(
             '-e',
             '--evalue',
             type=float,
-            default=self.config.getfloat(self.profile, 'blast_evalue'),
+            default=self.configparser.getfloat(self.profile, 'blast_evalue'),
             help='Expectation value (E) threshold for saving hits in blast search for \
     each query. Default %(default)s'
         )
@@ -141,16 +184,17 @@ class CryoID_v2:
             '--gapscore',
             type=int,
             nargs=2,
-            default=self._get_list('blast_gapscore'),
+            choices=[[32767, 32767], [15, 3], [13, 3]],
+            default=get_list(self.configparser, self.profile,'blast_gapscore'),
             help='Penalty score pairs for gapopen and gapextend. Note that this argument \
     takes two parameters seperated by a space. Default value is %(default)s for ungapped \
-    searching. You may change it to 15 3 for gapped searching'
+    searching. You may change it to 15 3 or 13 3 for gapped searching'
         )
         blast_parser.add_argument(
             '-n',
             '--num_candidate',
             type=int,
-            default=self.config.getint(self.profile, 'blast_candidate_num'),
+            default=self.configparser.getint(self.profile, 'blast_candidate_num'),
             help='Maximum number of candidates in the final result lists. Default %(default)s',
         )
         blast_parser.add_argument(
@@ -203,7 +247,10 @@ class CryoID_v2:
             )
         # alphafold_fetch_parser.set_defaults(func=alphafold_fetch)
 
-        args = mainparser.parse_args()
+        return mainparser
+    
+    def parse(self, argv: list[str]) -> argparse.Namespace:
+        args = self.parser.parse_args(argv)
 
         # Check args
         # -----BLAST args-----
@@ -227,8 +274,8 @@ class CryoID_v2:
             if not (args.length[0] > 0 and args.length[0] < args.length[1]):
                 raise ValueError('Please input a valid length range.')
             
-            if not (args.gapscore == [32767, 32767] or args.gapscore == [15, 3] or args.gapscore == [13, 3]):
-                raise ValueError('Please input acceptable gapscores: [32767, 32767], [15, 3], or [13, 3].')
+            # if not (args.gapscore == [32767, 32767] or args.gapscore == [15, 3] or args.gapscore == [13, 3]):
+            #     raise ValueError('Please input acceptable gapscores: [32767, 32767], [15, 3], or [13, 3].')
             
             if args.num_candidate <= 0:
                 raise ValueError('The number of candidates must be a positive integer.')
@@ -250,14 +297,7 @@ class CryoID_v2:
         # add logger to args 
         args.logger = self.logger
 
-        return args
-    
-    def run(self) -> None:
-        """Run the program with the provided arguments."""
-        if self.args is None:
-            raise ValueError('No arguments provided.')
-        else:
-            self.args.func(self.args)   
+        self.args = args 
 
     def load_profile(self, args) -> None:
         '''Load user config profile.'''
@@ -268,25 +308,25 @@ class CryoID_v2:
         default_names = ['DEFAULT', 'default', 'd', 'D', 'Default', 'def', 'Def']
         if profile_name in default_names:
             self.profile = 'DEFAULT'
-            self.config.set('DEFAULT', 'profile', 'DEFAULT')
+            self.configparser.set('DEFAULT', 'profile', 'DEFAULT')
             self.logger.info('Default profile loaded.')
             return
         
-        if not self.config.has_section(profile_name):
+        if not self.configparser.has_section(profile_name):
             raise configparser.NoSectionError(f'Profile [{profile_name}] not found in config file.')
         else:
             self.profile = profile_name
-            self.config.set('DEFAULT', 'profile', profile_name)
+            self.configparser.set('DEFAULT', 'profile', profile_name)
             self.logger.info(f'Profile [{profile_name}] loaded.')
 
-    def _get_list(self, key:str, type_func=int) -> list:
-        '''Helper function to get list of values from config file given a key.
-        The values in the config file should be separated by commas.'''
-        value = self.config.get(self.profile, key)
-        return [type_func(x) for x in value.split(',')]
+    def run(self) -> None:
+        """Run the program with the provided arguments."""
+        if self.args is None:
+            raise ValueError('No arguments provided.')
+        else:
+            self.args.func(self.args)  
 
-
-if __name__ == '__main__':
+def main():
     prog = CryoID_v2()
-    prog.args = prog.parser()
+    prog.parse(sys.argv[1:])
     prog.run()
