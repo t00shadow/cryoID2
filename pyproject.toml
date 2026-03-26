@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "viztracer"
+authors = []
+description = ""
+readme = "README.md"
+requires-python = ""
+license = ""
+dynamic = ["version"]
+dependencies = [
+]
+classifiers = []
+
+[project.urls]
+Homepage = ""
+Documentation = ""
+
+[project.scripts]
+CryoID = "CryoID_v2.main:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "CryoID_v2.__version__"}

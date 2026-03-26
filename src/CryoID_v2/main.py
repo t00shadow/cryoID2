@@ -116,7 +116,7 @@ class CryoID_v2:
         blast_parser = subparsers.add_parser('blast',
                                             prog=self.prog+' blast',
                                             description='Perform BLAST search',
-                                            usage='%(prog)s -q queries.pdb -p candidate_pool.fasta',
+                                            usage='%(prog)s -q queries.fasta -p candidate_pool.fasta',
                                             aliases=['b'],
                                             )
         blast_parser.add_argument(
@@ -168,8 +168,7 @@ class CryoID_v2:
             nargs=2,
             default=get_list(self.configparser, self.profile, 'blast_length'),
             help='Set target sequence length filter for the final results. Note that this \
-    argument takes two parameters seperated by a space. Default value is %(default)s for a \
-    sequence length range of 1~%(default)s'
+    argument takes two parameters seperated by a space. Default value is %(default)s.'
         )
         blast_parser.add_argument(
             '-e',
@@ -184,8 +183,10 @@ class CryoID_v2:
             '--gapscore',
             type=int,
             nargs=2,
-            choices=[[32767, 32767], [15, 3], [13, 3]],
+            choices=((32767, 32767), (15, 3), (13, 3)),
             default=get_list(self.configparser, self.profile,'blast_gapscore'),
+            dest='gapscore',
+            metavar=('GAPOPEN', 'GAPEXTEND'),
             help='Penalty score pairs for gapopen and gapextend. Note that this argument \
     takes two parameters seperated by a space. Default value is %(default)s for ungapped \
     searching. You may change it to 15 3 or 13 3 for gapped searching'
@@ -299,9 +300,9 @@ class CryoID_v2:
 
         self.args = args 
 
-    def load_profile(self, args) -> None:
+    def load_profile(self) -> None:
         '''Load user config profile.'''
-        profile_name = args.pname
+        profile_name = self.args.pname
 
         # Load default profile 
         # This allows user to reset to default profile after loading other profiles
