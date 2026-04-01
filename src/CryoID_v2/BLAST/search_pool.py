@@ -174,7 +174,8 @@ def Blast(params):
         blast_files.append(blast_file)
         
         # Remove the mapped query file
-        os.remove(query_file)
+        if not params.verbose:
+            os.remove(query_file)
     
     return blast_files
 
@@ -387,6 +388,7 @@ def Calculate(results, params):
                 #candidate_evalue[icandidate] *= 1.0
             
             # if there are segments aligned to query
+            # print(tem_identity[icandidate])
             if tem_identity[icandidate] >= 1.0:
                 candidate_ave_identity[icandidate] += tem_identity[icandidate]
             # if there is no aligned alignments, use half of the query length (exclude X) instead (usually blastp would fail if there is only 50% identity)
@@ -683,7 +685,7 @@ def Search(params):
         protlen[record.id] = len(record.seq)              # eg. record.id = "tr|Q8IKL5|Q8IKL5_PLAF7", record.seq = "MNIRLIKKIGINY...ESKWYSFWEENA"
  
     # Generate a local blastp database from the (degenerate) candidate sequences
-    DB_params = Namespace(seqfile=seqfile_name, logger=logger, base=params.base)
+    DB_params = Namespace(seqfile=seqfile_name, logger=logger, base=params.base, verbose=params.verbose)
     dbsize, dbname = search_sup.DBGenerate(DB_params)
     
     # Map the query sequences to files for blastp search
@@ -691,7 +693,7 @@ def Search(params):
     query_info = search_sup.QueryMap(query_params)
 
     # Blast query sequences against local database
-    Blast_params = Namespace(query_info=query_info, dbsize=dbsize, dbname=dbname, evalue=params.evalue, gapscore=params.gapscore, logger=logger, base=params.base)
+    Blast_params = Namespace(query_info=query_info, dbsize=dbsize, dbname=dbname, evalue=params.evalue, gapscore=params.gapscore, logger=logger, base=params.base, verbose=params.verbose)
     blast_files = Blast(Blast_params)
 
     # Interpret the blast results        

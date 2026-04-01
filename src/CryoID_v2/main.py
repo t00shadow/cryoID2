@@ -183,12 +183,11 @@ class CryoID_v2:
             '--gapscore',
             type=int,
             nargs=2,
-            choices=((32767, 32767), (15, 3), (13, 3)),
             default=get_list(self.configparser, self.profile,'blast_gapscore'),
             dest='gapscore',
             metavar=('GAPOPEN', 'GAPEXTEND'),
             help='Penalty score pairs for gapopen and gapextend. Note that this argument \
-    takes two parameters seperated by a space. Default value is %(default)s for ungapped \
+    takes two parameters separated by a space. Default value is %(default)s for ungapped \
     searching. You may change it to 15 3 or 13 3 for gapped searching'
         )
         blast_parser.add_argument(
@@ -275,11 +274,11 @@ class CryoID_v2:
             if not (args.length[0] > 0 and args.length[0] < args.length[1]):
                 raise ValueError('Please input a valid length range.')
             
-            # if not (args.gapscore == [32767, 32767] or args.gapscore == [15, 3] or args.gapscore == [13, 3]):
-            #     raise ValueError('Please input acceptable gapscores: [32767, 32767], [15, 3], or [13, 3].')
-            
             if args.num_candidate <= 0:
                 raise ValueError('The number of candidates must be a positive integer.')
+
+            if args.gapscore not in ([32767, 32767], [15, 3], [13, 3]):
+                raise ValueError('Please input acceptable gapscores: [32767, 32767], [15, 3], or [13, 3].')
             
             if args.outfile is None:
                 args.outfile = args.queryfile.stem

@@ -329,7 +329,7 @@ def DBGenerate(params):
         try:
             proc = subprocess.Popen(mkdb_arg, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
             out, error = proc.communicate()
-            if not params.base:
+            if not params.verbose:
                 os.remove(mapped_seqfile)
         except OSError:
             params.logger.exception('Could not find makeblastdb. Make sure you include it in PATH!')
