@@ -14,9 +14,10 @@ from A0_config_loader import load_sample_paths, load_config_section
 
 config_file = "H_Backbone_tracing/A0_config.yaml"
 
-# FILE_TOGGLE = "emd_34843"
+FILE_TOGGLE = "emd_34843"
+FILE_TOGGLE = "meeting_figure"
 # FILE_TOGGLE = "emd_38402"
-FILE_TOGGLE = "real_malaria_1"
+# FILE_TOGGLE = "real_malaria_1"
 # FILE_TOGGLE = "emd_42791"
 
 paths_cfg = load_sample_paths(config_file, FILE_TOGGLE)
@@ -29,7 +30,9 @@ ORIGINAL_MAP_PATH = paths_cfg["original_map"]    # bruh ts isnt even used
 clustering_cfg = load_config_section(config_file, "clustering")
 OUTPUT_DIR = clustering_cfg["output_dir"]
 THRESHOLD = clustering_cfg["threshold"]
+MASK_THRESHOLD = clustering_cfg["mask_threshold"]
 CLUSTERING_METHOD = clustering_cfg["method"]
+CONNECT_DIST = clustering_cfg["connect_dist"]
 if CLUSTERING_METHOD == "agglomerative":
     CONNECT_DIST = clustering_cfg["connect_dist"]
     OUTPUT_FILE_NAME = f"{FILE_TOGGLE}_agglomerative_cd_{CONNECT_DIST}"
@@ -62,6 +65,10 @@ x_slice = (0, 50)
 # x_slice = (104, 999)    # 10/3/25 sending more results to Grayson, just undo these changes after
 
 # x_slice = (0, 100)    # 10/8/25 just use like half cuz holy shit are there too many voxels for the malaria samples
+
+z_slice = (0, 999)
+y_slice = (0, 999)
+x_slice = (0, 999)
 
 # ----------------------------- Helper functions -----------------------------
 
@@ -134,6 +141,7 @@ def main():
     output_files = []
 
     # Load voxel size and shape from INPUT_MRC header
+    print(INPUT_MRC)
     with mrcfile.open(INPUT_MRC, permissive=True) as mrc:
         voxel_size = float(mrc.voxel_size.x)
         data_shape = mrc.data.shape
@@ -218,8 +226,9 @@ def main():
         print(f"\nProcessing data + {name} mask, path: {path} ...")
 
         # Load and threshold mask chunk
-        mask_coords = load_thresholded_coords(path, THRESHOLD, z_slice, y_slice, x_slice)
-        print(f"Mask '{name}' voxels above threshold: {len(mask_coords)}")
+        # mask_coords = load_thresholded_coords(path, THRESHOLD, z_slice, y_slice, x_slice)
+        mask_coords = load_thresholded_coords(path, MASK_THRESHOLD, z_slice, y_slice, x_slice)
+        print(f"Mask '{name}' voxels above threshold ({MASK_THRESHOLD}): {len(mask_coords)}")
 
         # Intersect mask coords with volume coords to keep only voxels present in both
         volume_set = set(map(tuple, volume_coords))

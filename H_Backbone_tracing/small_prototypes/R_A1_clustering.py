@@ -17,6 +17,7 @@ from R_A0_utils import (
 )
 
 # ----------------------------- Configuration -----------------------------
+# consider putting this in a function
 from A0_config_loader import load_sample_paths, load_config_section
 
 config_file = "H_Backbone_tracing/small_prototypes/A0_config.yaml"
@@ -30,6 +31,7 @@ clustering_cfg = load_config_section(config_file, "clustering")
 OUTPUT_DIR = clustering_cfg["output_dir"]
 THRESHOLD = clustering_cfg["threshold"]
 CLUSTERING_METHOD = clustering_cfg["method"]
+CONNECT_DIST = clustering_cfg["connect_dist"]
 if CLUSTERING_METHOD == "agglomerative":
     CONNECT_DIST = clustering_cfg["connect_dist"]
     OUTPUT_FILE_NAME = f"{FILE_TOGGLE}_agglomerative_cd_{CONNECT_DIST}"
@@ -80,6 +82,11 @@ def main():
     # ----------------- Load thresholded coordinates -----------------
     print("Loading volume coords (chunked)...")
     volume_coords = load_thresholded_coords(INPUT_MRC, THRESHOLD, z_slice, y_slice, x_slice)
+    ### generating pdb of the voxels
+    # with open("figure.pdb",'w') as f:
+    #     for i, (z,y,x) in enumerate(volume_coords,1):
+    #         f.write(f"HETATM{i:5d}  C   UNK     1    {x:8.3f}{y:8.3f}{z:8.3f}  1.00  0.00           C\n")
+    # assert(False)
     print(f"Volume voxels above threshold: {len(volume_coords)}")
 
     def cluster_and_get_centroids(coords, tag):

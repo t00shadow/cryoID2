@@ -2,6 +2,7 @@ import numpy as np
 import mrcfile
 from sklearn.neighbors import NearestNeighbors
 from scipy.sparse.csgraph import connected_components
+from Bio.PDB import PDBParser, MMCIFParser, DSSP
 
 # ----------------------------- File I/O / helper functions -----------------------------
 
@@ -9,6 +10,7 @@ def load_thresholded_coords(path, threshold, z_slice=None, y_slice=None, x_slice
     """
     Load MRC volume, threshold it, and return coordinates above threshold.
     """
+    print(path)
     with mrcfile.open(path, permissive=True) as mrc:
         data = np.squeeze(mrc.data)      # removes singleton dimension
         z_slice = z_slice or (0, data.shape[0])
@@ -74,3 +76,70 @@ def remove_duplicates(coords, voxel_size, tol=1.0):
         members = coords[labels == comp_id]
         deduped.append(members.mean(axis=0))  # replace cluster of duplicates with average
     return np.array(deduped)
+
+
+
+
+# ----------------------------- PDB file I/O -----------------------------
+def parse_calpha_PDB(pdb_file):
+    parser = PDBParser()
+    structure = parser.get_structure("structure_id", pdb_file)
+    
+    ca_coords = []
+    for atom in structure.get_atoms():
+        if atom.get_name() == "CA":
+            ca_coords.append(atom.get_coord())
+
+    return np.array(ca_coords, dtype=np.float32)
+
+# ----------------------------- CIF file I/O -----------------------------
+def parse_calpha_CIF(cif_file):
+    parser = MMCIFParser()
+    structure = parser.get_structure("structure_id", cif_file)
+
+    ca_coords = []
+    for model in structure:
+        for chain in model:
+            for residue in chain:
+                for atom in residue:
+                    if atom.get_name() == "CA":
+                        ca_coords.append(atom.get_coord())
+
+    return np.array(ca_coords, dtype=np.float32)
+
+
+#! NEED DSSP (SEPARATE SOFTWARE) INSTALLED FOR THIS, althought recommended linux, it's doable on Windows
+def parse_calpha_CIF_ss_filter(cif_file, ss_filter=None):
+    '''
+    ss_filter: "H" for alpha helix, "E" for strand
+    '''
+    parser = MMCIFParser()
+    structure = parser.get_structure("structure_id", cif_file)
+
+    # If filtering by secondary structure, compute DSSP
+    dssp = None
+    if ss_filter is not None:
+        model = structure[0]
+        dssp = DSSP(model, cif_file)
+
+    ca_coords = []
+
+    for model in structure:
+        for chain in model:
+            for residue in chain:
+                # Skip non-standard residues
+                if residue.id[0] != " ":
+                    continue
+
+                if ss_filter is not None:
+                    key = (chain.id, residue.id)
+                    if key not in dssp:
+                        continue
+                    ss = dssp[key][2]  # DSSP secondary structure code
+                    if ss != ss_filter:
+                        continue
+
+                if "CA" in residue:
+                    ca_coords.append(residue["CA"].get_coord())
+
+    return np.array(ca_coords, dtype=np.float32)

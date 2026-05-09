@@ -27,10 +27,10 @@ def load_sample_paths(config_path="config.yaml", sample_toggle=None):
         raise NotADirectoryError(f"Base path is not a directory: {base_dir}")
 
     files_to_find = {
-        "CA_mrc": base_dir / "possibility" / f"*map_key_atoms_1_possibility.mrc",   # CA = c alpha
-        "mask_helix_mrc": base_dir / "possibility" / f"*map_secondary_strctures_1_possibility.mrc",
-        "mask_sheet_mrc": base_dir / "possibility" / f"*map_secondary_strctures_2_possibility.mrc",
-        "mask_ring_mrc": base_dir / "possibility" / f"*map_secondary_strctures_3_possibility.mrc",
+        "CA_mrc": base_dir / "possibility" / f"*_key_atoms_1_possibility.mrc",   # CA = c alpha
+        "mask_helix_mrc": base_dir / "possibility" / f"*_secondary_strctures_1_possibility.mrc",
+        "mask_sheet_mrc": base_dir / "possibility" / f"*_secondary_strctures_2_possibility.mrc",
+        "mask_ring_mrc": base_dir / "possibility" / f"*_secondary_strctures_3_possibility.mrc",
         "original_map": base_dir / f"{sample_toggle}.map",    # added sample_toggle here just in case there's multiple map files in the base_dir
     }
 

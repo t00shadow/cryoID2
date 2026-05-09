@@ -136,8 +136,14 @@ def sample_residue_types(
 
     # ---------------- Collect residue maps ----------------
     residue_files = sorted(
-        f for f in os.listdir(residue_mrc_dir) if f.endswith(".mrc")
+        # f for f in os.listdir(residue_mrc_dir) if f.endswith(".mrc")
+        # added regex checker to include only certain files
+        #TODO: lowk phase out regex. Although checked it on an online regex checker, in general it can be hard to predict edge cases that'll slip through.
+        f for f in os.listdir(residue_mrc_dir) if f.endswith(".mrc") and re.search(r"residue_types_([1-9]|1[0-9]|20)_possibility\.mrc$", f)
     )
+
+    print(residue_files)
+    assert(len(residue_files) == 20)  #! There should always be exactly 20 matches. If not, something is wrong
 
     if not residue_files:
         raise ValueError(f"No .mrc files found in {residue_mrc_dir}")
@@ -198,6 +204,7 @@ def sample_residue_types(
                             residue_scores[r_idx] += val
 
         best_idx = int(np.argmax(residue_scores))
+        # print("best_idx", best_idx)
         atom.exp_res = RESIDUE_ORDER[best_idx]
 
 
@@ -255,7 +262,9 @@ def evaluate_degenerate_group_coverage(
             continue
 
         # extract residue index from filename
-        m = re.search(r"_([0-9]+)_possibility\.mrc$", fname)
+        # m = re.search(r"_([0-9]+)_possibility\.mrc$", fname)
+        m = re.search(r"residue_types_([1-9]|1[0-9]|20)_possibility\.mrc$", fname)   # verfied regex works with online regex
+        # print(m)
         if not m:
             continue
 
@@ -354,11 +363,63 @@ def evaluate_degenerate_group_coverage(
 
 
 # ----------------------------- Main Pipeline -----------------------------
-def main():
+def main(CA_INPUT_FILE, RESIDUE_MRC_DIR, MAIN_MRC_MAP, SAVE_GT_PDB, SAVE_EXP_PDB, VOXEL_NEIGHBOR_RADIUS, DEGENERATE_GROUPS):
+
+    print("Reading C-alpha atoms...")
+    calpha_atoms = read_calpha_from_pdb(
+        CA_INPUT_FILE, 
+        save_pdb=SAVE_GT_PDB
+    )
+    print(f"Found {len(calpha_atoms)} C-alpha atoms.")
+    # assert(False)
+    print("1)")
+
+    print("Sampling residue types from MRC maps...")
+    sample_residue_types(    # modifies calpha_atoms in place
+        calpha_atoms,
+        residue_mrc_dir=RESIDUE_MRC_DIR,
+        main_mrc_path=MAIN_MRC_MAP,
+        radius=VOXEL_NEIGHBOR_RADIUS,
+        save_pdb=SAVE_EXP_PDB
+    )
+    print(len(calpha_atoms))  # number of atoms sampled
+    print("2)")
+
+    # assert(False)
+
+    print("Comparing experimental vs ground truth residues...")
+    print("Evaluating degenerate group coverage...")
+    results, overall_accuracy = evaluate_degenerate_group_coverage(
+        calpha_atoms,
+        residue_mrc_dir=RESIDUE_MRC_DIR,
+        main_mrc_path=MAIN_MRC_MAP,
+        degenerate_groups=DEGENERATE_GROUPS,
+        radius=VOXEL_NEIGHBOR_RADIUS,
+        density_threshold=0.8,
+    )
+
+    print("\nDegenerate Group Results:")
+    print(f"(using voxel sampling radius = {VOXEL_NEIGHBOR_RADIUS})")
+    # for group, r in results.items():
+    for i, (group, r) in enumerate(results.items(), start=1):
+        print(
+            # f"  Group {group}: "
+            f"  Group {i} ({group}): "
+            f"recall = {r['accuracy']:.4f}, "    # TODO: should rename the metric in the code too, change 'accuracy' to 'recall' in the code above
+            f"count = {r['total']}"
+        )
+
+    print(f"\nOverall weighted accuracy: {overall_accuracy:.4f}")
+
+    print("3)")
+
+
+if __name__ == "__main__":
     # ----------------------------- User Config -----------------------------
     # Input files
     CA_INPUT_FILE = r"C:\Users\noelu\programming\python_projects\cryoID_v2\H_Backbone_tracing\small_prototypes\8HK3.pdb"    # i actually have a cif file parsing function, so can imtegrate that too later
-    RESIDUE_MRC_DIR = r"C:\Users\noelu\programming\python_projects\cryoID_v2_DATA\UnetPrediction\EMD-34843_re_3.2\possibility_residue_only"
+    # RESIDUE_MRC_DIR = r"C:\Users\noelu\programming\python_projects\cryoID_v2_DATA\UnetPrediction\EMD-34843_re_3.2\possibility_residue_only"
+    RESIDUE_MRC_DIR = r"G:\.shortcut-targets-by-id\1VHPX-gidYYLEewDizIvgtImMbleuqE0r\CryoID2\WorkFolder\BackboneTracing\UnetPrediction\EMD-34843_re_3.2\possibility"
     MAIN_MRC_MAP = r"C:\Users\noelu\programming\python_projects\cryoID_v2_DATA\UnetPrediction\EMD-34843_re_3.2\possibility\emd_34843.map_key_atoms_1_possibility.mrc"
 
     # (Optional) Intermediate outputs (file names up to you)
@@ -387,56 +448,4 @@ def main():
     }
     # -----------------------------------------------------------------------
 
-
-
-    print("Reading C-alpha atoms...")
-    calpha_atoms = read_calpha_from_pdb(
-        CA_INPUT_FILE, 
-        save_pdb=SAVE_GT_PDB
-    )
-    print(f"Found {len(calpha_atoms)} C-alpha atoms.")
-    # assert(False)
-    print("1) ✅")
-
-    print("Sampling residue types from MRC maps...")
-    sample_residue_types(    # modifies calpha_atoms in place
-        calpha_atoms,
-        residue_mrc_dir=RESIDUE_MRC_DIR,
-        main_mrc_path=MAIN_MRC_MAP,
-        radius=VOXEL_NEIGHBOR_RADIUS,
-        save_pdb=SAVE_EXP_PDB
-    )
-    print(len(calpha_atoms))  # number of atoms sampled
-    print("2) ✅")
-
-    # assert(False)
-
-    print("Comparing experimental vs ground truth residues...")
-    print("Evaluating degenerate group coverage...")
-    results, overall_accuracy = evaluate_degenerate_group_coverage(
-        calpha_atoms,
-        residue_mrc_dir=RESIDUE_MRC_DIR,
-        main_mrc_path=MAIN_MRC_MAP,
-        degenerate_groups=DEGENERATE_GROUPS,
-        radius=VOXEL_NEIGHBOR_RADIUS,
-        density_threshold=0.8,
-    )
-
-    print("\nDegenerate Group Results:")
-    print(f"(using voxel sampling radius = {VOXEL_NEIGHBOR_RADIUS})")
-    # for group, r in results.items():
-    for i, (group, r) in enumerate(results.items(), start=1):
-        print(
-            # f"  Group {group}: "
-            f"  Group {i} ({group}): "
-            f"recall = {r['accuracy']:.4f}, "    # TODO: should rename the metric in the code too, change 'accuracy' to 'recall' in the code above
-            f"count = {r['total']}"
-        )
-
-    print(f"\nOverall weighted accuracy: {overall_accuracy:.4f}")
-
-    print("3) ✅")
-
-
-if __name__ == "__main__":
-    main()
+    main(CA_INPUT_FILE, RESIDUE_MRC_DIR, MAIN_MRC_MAP, SAVE_GT_PDB, SAVE_EXP_PDB, VOXEL_NEIGHBOR_RADIUS, DEGENERATE_GROUPS)
