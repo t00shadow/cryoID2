@@ -17,6 +17,10 @@ residue_sequence*.txt
 z_segmentation.mrc
 sphere_mesh.obj
 Large_Error_PDBOUT.pdb
+*.pdb
+*.png
+profile.svg
+/H_Backbone_tracing/misc_outputs
 
 # local files
 /zzz_local_files
@@ -36,3 +40,6 @@ Large_Error_PDBOUT.pdb
 !H_Backbone_tracing/small_prototypes/R_A1_clustering_2stages_v2.py
 !H_Backbone_tracing/small_prototypes/R_A2_superset_graph.py
 !H_Backbone_tracing/small_prototypes/R_A3_limit_degree.py
+!H_Backbone_tracing/small_prototypes/R_A8_zNEW_A1_5_masking_CA.py
+!H_Backbone_tracing/small_prototypes/R_A3_limit_degree_skipclustering_SAVEconnectedcomponents.py
+!H_Backbone_tracing/small_prototypes/R_B8_batch_bb_tracing.py

@@ -84,6 +84,15 @@ def save_graph_pdb(coords, edges, filename):
                 f"HETATM{i:5d}  C   UNK     1    "
                 f"{x:8.3f}{y:8.3f}{z:8.3f}  1.00  0.00           C\n"
             )
+            #! save a version that uses above HETATM and below ATOM. HETATM so can use CONECT records to visualize traced connections
+            # atom_serial = i
+            # resseq = (i - 1) % 9999 + 1
+            # chain_id = "A"
+            # f.write(
+            #     f"ATOM  {atom_serial:5d}  CA  UNK {chain_id}{resseq:4d}    "
+            #     f"{x:8.3f}{y:8.3f}{z:8.3f}"
+            #     f"  1.00  0.00           C\n"
+            # )
 
         # Write connectivity
         for edge in edges:

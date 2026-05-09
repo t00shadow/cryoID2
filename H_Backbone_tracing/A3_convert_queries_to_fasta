@@ -1,0 +1,69 @@
+import os
+
+
+def extract_chars_from_pdb(pdb_path):
+    chars = []
+
+    with open(pdb_path, "r") as f:
+        for line in f:
+            if line.startswith("HETATM"):
+                if len(line) > 19:          # safety check
+                    chars.append(line[19])
+
+    return "".join(chars)
+
+
+def process_directory(directory, fasta_output):
+    # Get files starting with "component"
+    files = [
+        f for f in os.listdir(directory)
+        # if f.startswith("component") and os.path.isfile(os.path.join(directory, f))
+        if f.startswith("cc") and os.path.isfile(os.path.join(directory, f))
+    ]
+
+    # Sort by file size descending
+    files.sort(
+        key=lambda f: os.path.getsize(os.path.join(directory, f)),
+        reverse=True
+    )
+    print(files)
+
+    with open(fasta_output, "w") as fasta:
+        for file in files:
+            full_path = os.path.join(directory, file)
+            size_kb = os.path.getsize(full_path) / 1024
+
+            # Stop when file is below 3 KB
+            #! toggle this off, dont need it rn, since filtered b4 hand
+            # if size_kb < 3:
+            #     break
+
+            result = extract_chars_from_pdb(full_path)
+
+            print(f"{file} ({size_kb:.2f} KB)")
+            print(result)
+            print("-" * 40)
+
+            # Write FASTA entry
+            fasta.write(f">{os.path.splitext(file)[0]}\n")
+            fasta.write(f"{result}\n\n")
+
+    print("Queries saved to:", fasta_output)
+
+
+
+if __name__ == "__main__":
+    # result = extract_chars_from_pdb(r"C:\Users\noelu\programming\python_projects\cryoID_v2\H_Backbone_tracing\small_prototypes\results_3_26_26\assigned_residues\component_5_updated_residues.pdb")
+    # result = extract_chars_from_pdb(r"C:\Users\noelu\programming\python_projects\cryoID_v2\H_Backbone_tracing\small_prototypes\results_3_26_26\assigned_residues\superset_graph_degree_limited_updated_residues.pdb")
+    # result = extract_chars_from_pdb(r"H_Backbone_tracing/outputs/clustering_v2/10_7_25\meeting_figure_meanshift_bw_1.9_component_001_label273_size20_20260428_171034.pdb")
+    # print(result)
+
+    # process_directory(
+    #     directory=r"C:\Users\noelu\programming\python_projects\cryoID_v2\H_Backbone_tracing\small_prototypes\results_3_26_26\assigned_residues",
+    #     fasta_output=r"C:\Users\noelu\programming\python_projects\cryoID_v2\H_Backbone_tracing\small_prototypes\results_3_26_26\converted_to_fasta\queries.fasta"
+    # )
+
+    process_directory(
+        directory=r"C:\Users\noelu\programming\python_projects\cryoID_v2\H_Backbone_tracing\misc_outputs\cc_minsize_w_residues",
+        fasta_output=r"C:\Users\noelu\programming\python_projects\cryoID_v2\H_Backbone_tracing\misc_outputs\queries\queries.fasta"
+    )
