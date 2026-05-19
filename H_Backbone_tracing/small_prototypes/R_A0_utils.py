@@ -10,7 +10,6 @@ def load_thresholded_coords(path, threshold, z_slice=None, y_slice=None, x_slice
     """
     Load MRC volume, threshold it, and return coordinates above threshold.
     """
-    print(path)
     with mrcfile.open(path, permissive=True) as mrc:
         data = np.squeeze(mrc.data)      # removes singleton dimension
         z_slice = z_slice or (0, data.shape[0])

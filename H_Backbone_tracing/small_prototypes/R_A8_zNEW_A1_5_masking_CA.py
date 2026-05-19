@@ -6,7 +6,7 @@ from Bio.PDB import PDBParser
 from scipy.spatial import cKDTree
 from R_A0_utils import parse_calpha_PDB, load_thresholded_coords
 
-def mask_pdb_with_mrc(pdb_file, mrc_file, mask_threshold, radius, percent):
+def mask_pdb_with_mrc(pdb_file, mrc_file, mask_threshold, radius, percent, verbose=False):
     """
     Mask PDB CA atoms based on nearby MRC voxel density.
 
@@ -23,7 +23,8 @@ def mask_pdb_with_mrc(pdb_file, mrc_file, mask_threshold, radius, percent):
 
     # --- load CA atoms ---
     ca_coords = parse_calpha_PDB(pdb_file)
-    print(len(ca_coords))
+    if verbose:
+        print(len(ca_coords))
 
     # --- load thresholded voxel indices ---
     voxel_indices = load_thresholded_coords(mrc_file, mask_threshold)
@@ -45,9 +46,10 @@ def mask_pdb_with_mrc(pdb_file, mrc_file, mask_threshold, radius, percent):
     sphere_volume = (4/3) * np.pi * radius**3
     voxel_volume = np.prod(voxel_size)
     expected_voxels = sphere_volume / voxel_volume
-    print(sphere_volume)
-    print(voxel_volume)
-    print(expected_voxels)
+    if verbose:
+        print(sphere_volume)
+        print(voxel_volume)
+        print(expected_voxels)
 
     kept_atoms = []
 
@@ -58,7 +60,8 @@ def mask_pdb_with_mrc(pdb_file, mrc_file, mask_threshold, radius, percent):
         if count / expected_voxels >= percent:
             kept_atoms.append(coord)
 
-    print(len(kept_atoms))
+    if verbose:
+        print(len(kept_atoms))
     return np.array(kept_atoms, dtype=np.float32)
 
 
@@ -93,7 +96,7 @@ def save_pdb(centroids, output_dir, filename, timestamp=False):
     return path
 
 
-def mask_and_save_pdb(pdb_file, mrc_file, output_dir, output_name, mask_threshold, radius, percent, timestamp=False):
+def mask_and_save_pdb(pdb_file, mrc_file, output_dir, output_name, mask_threshold, radius, percent, timestamp=False, verbose=False):
     """
     Runs masking and saves result as a new PDB.
 
@@ -128,7 +131,8 @@ def mask_and_save_pdb(pdb_file, mrc_file, output_dir, output_name, mask_threshol
         timestamp=timestamp,
     )
 
-    print(output_path)
+    if verbose:
+        print(output_path)
     return output_path
 
 
@@ -151,4 +155,5 @@ if __name__ == "__main__":
         radius=radius,
         percent=percent,
         timestamp=False,
+        verbose=True,
     )
