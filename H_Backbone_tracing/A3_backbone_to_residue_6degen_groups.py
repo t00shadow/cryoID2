@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import os
 
-def get_voxel_size(mrc_path):
+def get_voxel_size(mrc_path, verbose=False):
     with mrcfile.open(mrc_path, permissive=True) as mrc:
         header = mrc.header
         # box dimensions in Angstroms
@@ -14,8 +14,9 @@ def get_voxel_size(mrc_path):
             cella.y / ny,
             cella.z / nz
         )
-        print(f"Main map dimensions: {nx} x {ny} x {nz}")
-        print(f"Voxel size: {voxel_size}")
+        if verbose:
+            print(f"Main map dimensions: {nx} x {ny} x {nz}")
+            print(f"Voxel size: {voxel_size}")
         return voxel_size, (nx, ny, nz)
 
 def read_pdb_coords(pdb_file):
@@ -51,7 +52,7 @@ def coords_to_voxels(coords, voxel_size, radius=1):
     return voxel_dict
 
 # TODO: this part is fine, but could also rewrite with Pathlib glob and my util fxns i just maed today (10/9/25). But wtv, gonna do a full refactor this weekend anyways.
-def sample_residue_maps(voxel_dict, residue_dir, shape):    # TODO: maybe rename this fxn
+def sample_residue_maps(voxel_dict, residue_dir, shape, verbose=False):    # TODO: maybe rename this fxn
     """
     For each atom (from voxel_dict), sample values from all residue_type .mrc maps.
 
@@ -72,13 +73,15 @@ def sample_residue_maps(voxel_dict, residue_dir, shape):    # TODO: maybe rename
     ]
 
     for res_file in residue_files:
-        print("-", res_file)
+        if verbose:
+            print("-", res_file)
         res_path = os.path.join(residue_dir, res_file)
         with mrcfile.open(res_path, permissive=True) as mrc:
             data = mrc.data
             data = np.squeeze(data)
-            print(f"{res_file}: {data.shape}")
-            print("shape 1:", data.shape, ", shape 2:", shape)
+            if verbose:
+                print(f"{res_file}: {data.shape}")
+                print("shape 1:", data.shape, ", shape 2:", shape)
             assert data.shape == shape, "Residue map shape mismatch!"
 
             for atom_id, voxels in voxel_dict.items():
@@ -92,7 +95,8 @@ def sample_residue_maps(voxel_dict, residue_dir, shape):    # TODO: maybe rename
 
     return results
 
-def average_residues(results, save_file=False, file_name="residue_sequence.txt"):
+# not using this fxn rn
+def average_residues(results, save_file=False, file_name="residue_sequence.txt", verbose=False):
     """
     For each atom, average the probabilities from each residue_type map,
     print the averages, and return the predicted residue sequence.
@@ -111,17 +115,19 @@ def average_residues(results, save_file=False, file_name="residue_sequence.txt")
             avg_probs[res_file] = np.mean(vals) if vals else 0.0
 
         # Print averaged probabilities for debugging
-        print(f"Residue {atom_id + 1}:")
-        for res_file, avg in avg_probs.items():
-            print(f"  {res_file}: {avg:.4f}")
+        if verbose:
+            print(f"Residue {atom_id + 1}:")
+            for res_file, avg in avg_probs.items():
+                print(f"  {res_file}: {avg:.4f}")
 
         # Choose residue with highest average probability
         best_residue = max(avg_probs, key=avg_probs.get)
         sequence.append(best_residue)
 
     seq_str = "-".join(sequence)
-    print("\nPredicted residue sequence:")
-    print(seq_str)
+    if verbose:
+        print("\nPredicted residue sequence:")
+        print(seq_str)
 
     # Optionally save to file
     if save_file:
@@ -159,7 +165,7 @@ def map_residue_file_to_code(res_file):
     else:
         raise ValueError(f"Index {idx} out of range for known residues")
 
-def average_residues_AND_USE_RESIDUE_NAMES(results):
+def average_residues_AND_USE_RESIDUE_NAMES(results, verbose=False):
     """
     For each atom, average the probabilities from residue maps,
     print the averages, and return the predicted residue sequence
@@ -172,10 +178,11 @@ def average_residues_AND_USE_RESIDUE_NAMES(results):
             avg_probs[res_file] = np.mean(vals) if vals else 0.0
 
         # Print averaged probabilities for debugging
-        print(f"Residue {atom_id + 1}:")
-        for res_file, avg in avg_probs.items():
-            code = map_residue_file_to_code(res_file)
-            print(f"  {code}: {avg:.4f}")
+        if verbose:
+            print(f"Residue {atom_id + 1}:")
+            for res_file, avg in avg_probs.items():
+                code = map_residue_file_to_code(res_file)
+                print(f"  {code}: {avg:.4f}")
 
         # Choose residue with highest average probability
         best_file = max(avg_probs, key=avg_probs.get)
@@ -183,8 +190,9 @@ def average_residues_AND_USE_RESIDUE_NAMES(results):
         sequence.append(best_residue)
 
     seq_str = "-".join(sequence)
-    print("\nPredicted residue sequence:")
-    print(seq_str)
+    if verbose:
+        print("\nPredicted residue sequence:")
+        print(seq_str)
 
     # Save to file
     with open("residue_sequence.txt", "w") as f:
@@ -192,7 +200,7 @@ def average_residues_AND_USE_RESIDUE_NAMES(results):
 
     return sequence
 
-def average_residues_matrix(results):
+def average_residues_matrix(results, verbose=False):
     residues = degen_groups_protein + degen_groups_RNA
     n_atoms = len(results)
     
@@ -211,12 +219,13 @@ def average_residues_matrix(results):
     
     # Predicted sequence
     pred_sequence = [residues[np.argmax(matrix[i])] for i in range(n_atoms)]
-    print("Predicted residue sequence:")
-    print(pred_sequence)
+    if verbose:
+        print("Predicted residue sequence:")
+        print(pred_sequence)
     
     return df, pred_sequence
 
-def update_pdb_residues(input_pdb, output_pdb, residue_sequence):
+def update_pdb_residues(input_pdb, output_pdb, residue_sequence, verbose=False):
     """
     Update residue types in a PDB file for CA atoms only.
 
@@ -246,11 +255,12 @@ def update_pdb_residues(input_pdb, output_pdb, residue_sequence):
     with open(output_pdb, 'w') as f:
         f.writelines(updated_lines)
 
-    print(f"Updated PDB saved to {output_pdb}")
+    if verbose:
+        print(f"Updated PDB saved to {output_pdb}")
 
 
 
-def main(input_file_path = None, main_map_path = None, residue_dir_path = None, output_dir_path = None):
+def main(input_file_path=None, main_map_path=None, residue_dir_path=None, output_dir_path=None, verbose=False):
     # main_map = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-21887_re_3.2\possibility\emd_21887.map_key_atoms_1_possibility.mrc"
     # TODO: rename main_map to smth else because it is NOT a map. Also just fyi, this file is only for getting the dimensions (assumes all unet possiblity mrcs have same dimensions, for the same sample).
     main_map = "C:/Users/noelu/programming/python_projects/cryoID_v2_DATA/UnetPrediction/EMD-34843_re_3.2/possibility/emd_34843.map_key_atoms_1_possibility.mrc"
@@ -270,9 +280,10 @@ def main(input_file_path = None, main_map_path = None, residue_dir_path = None, 
     if main_map_path:
         main_map = main_map_path
     coords = read_pdb_coords(pdb_file)
-    print("Read", len(coords), "CA coordinates:")
-    for i, (x, y, z) in enumerate(coords, start=1):
-        print(f"{i:3d}: {x:.3f}, {y:.3f}, {z:.3f}")
+    if verbose:
+        print("Read", len(coords), "CA coordinates:")
+        for i, (x, y, z) in enumerate(coords, start=1):
+            print(f"{i:3d}: {x:.3f}, {y:.3f}, {z:.3f}")
     # assert(False)
     # residue_dir = r"D:\NEW_TEST_DATA\UnetPrediction\EMD-21887_re_3.2\possibility"
     # BUG: bruh
@@ -284,9 +295,9 @@ def main(input_file_path = None, main_map_path = None, residue_dir_path = None, 
     if residue_dir_path:
         residue_dir = residue_dir_path
 
-    voxel_size, shape = get_voxel_size(main_map)
+    voxel_size, shape = get_voxel_size(main_map, verbose=verbose)
     voxel_dict = coords_to_voxels(coords, voxel_size, radius=1)
-    residue_dict = sample_residue_maps(voxel_dict, residue_dir, shape)
+    residue_dict = sample_residue_maps(voxel_dict, residue_dir, shape, verbose=verbose)
 
     ###! These are OLD versions of the average_residues function with dif output formats. Comment out so code runs faster (redundant anyways).
     # # print residue possibilities for each atom
@@ -296,27 +307,28 @@ def main(input_file_path = None, main_map_path = None, residue_dir_path = None, 
     #         print(f"  {res_file}: {vals[:5]} ...")
 
     # residue_sequence = average_residues(residue_dict, save_file=True, file_name="residue_sequence_OLD.txt")
-    residue_sequence = average_residues_AND_USE_RESIDUE_NAMES(residue_dict)
-    print(residue_sequence)
+    residue_sequence = average_residues_AND_USE_RESIDUE_NAMES(residue_dict, verbose=verbose)
+    if verbose:
+        print(residue_sequence)
 
 
     ###^ NEW OUTPUT FORMAT
     # === Replace old average_residues calls with matrix version ===
-    df_matrix, residue_sequence = average_residues_matrix(residue_dict)
+    df_matrix, residue_sequence = average_residues_matrix(residue_dict, verbose=verbose)
 
-    print("\nResidue probabilities matrix:")
-    print(df_matrix)
-
-    print("\nPredicted residue sequence:")
-    print(residue_sequence)
-
-    print("\nFormatted as a string:")
-    seq_str = "-".join(residue_sequence)
-    print(seq_str)
+    if verbose:
+        print("\nResidue probabilities matrix:")
+        print(df_matrix)
+        print("\nPredicted residue sequence:")
+        print(residue_sequence)
+        print("\nFormatted as a string:")
+        seq_str = "-".join(residue_sequence)
+        print(seq_str)
 
     # Optional: save probability matrix to CSV
     df_matrix.to_csv("z_residue_prob_matrix.csv")
-    print("\nResidue probability matrix saved to residue_prob_matrix.csv")
+    if verbose:
+        print("\nResidue probability matrix saved to residue_prob_matrix.csv")
 
 
     ###^ Update the input pdb file to the correct residues (only need to change residue column)
@@ -338,4 +350,4 @@ def main(input_file_path = None, main_map_path = None, residue_dir_path = None, 
 
 
 if __name__ == "__main__":
-    main()
+    main(verbose=True)
