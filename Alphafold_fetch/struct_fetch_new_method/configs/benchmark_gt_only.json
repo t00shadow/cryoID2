@@ -1,0 +1,18 @@
+{
+  "_description": "GT-only StructFetch benchmark. Aligns only each row's deposited ground-truth model with rawfield_ss_dominant, then computes Q-scores and plots.",
+  "csv": "test_data/ready_to_test_1_29.csv",
+  "entries": 0,
+  "run_dir": "runs/gt_only_benchmark_current",
+  "run_alignment": true,
+  "compute_qscore": true,
+  "generate_plot": true,
+  "chimerax": "",
+  "alignment_workers": 4,
+  "qscore_workers": 2,
+  "qscore_timeout_sec": 1800,
+  "randomize_candidate_start": true,
+  "random_start_margin_A": 4.0,
+  "reuse_existing": true,
+  "reuse_run_dirs": [],
+  "reuse_qscore_csvs": []
+}

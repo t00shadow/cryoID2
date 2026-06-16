@@ -1,0 +1,13 @@
+.venv/
+archive/
+runs/
+tmp/
+_raw_mrc_cache/
+src/*.egg-info/
+__pycache__/
+*.py[cod]
+aligned_qscore_results.csv
+
+# Large local benchmark assets are kept outside git.
+test_data/*/densities/
+test_data/*/models/

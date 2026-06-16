@@ -1,0 +1,12 @@
+{
+  "_description": "Production struct-fetch settings. This runs candidate fetching and rawfield alignment only. Empty run_dir creates a timestamped runs/struct_fetch_rawfield_<timestamp> directory. It does not randomize candidate starts, compute Q-scores, or generate plots.",
+  "csv": "test_data/ready_to_test_1_29.csv",
+  "entries": 1,
+  "run_dir": "",
+  "max_experimental_tries": null,
+  "include_alphafold": true,
+  "recommended_contour_level": null,
+  "randomize_candidate_start": false,
+  "random_start_margin_A": 4.0,
+  "keep_only_best_models": true
+}

@@ -1,0 +1,17 @@
+{
+  "_description": "Default full benchmark settings. Benchmark random starts match new_method: EMDB-number seed with a 4 A simple in-bounds margin.",
+  "csv": "test_data/ready_to_test_1_29.csv",
+  "entries": 0,
+  "run_dir": "",
+  "max_experimental_tries": null,
+  "include_alphafold": true,
+  "run_pipeline": true,
+  "compute_qscore": true,
+  "generate_plot": true,
+  "chimerax": "",
+  "qscore_workers": 1,
+  "qscore_timeout_sec": 1800,
+  "randomize_candidate_start": true,
+  "random_start_margin_A": 4.0,
+  "keep_only_best_models": true
+}
