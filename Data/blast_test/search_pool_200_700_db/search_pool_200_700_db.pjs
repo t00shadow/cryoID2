@@ -1,0 +1,24 @@
+{
+  "version": "1.2",
+  "dbname": "search_pool_200_700_db",
+  "dbtype": "Protein",
+  "db-version": 5,
+  "description": "../Data/blast_test/search_pool_200_700_mapped.fasta",
+  "number-of-letters": 23688,
+  "number-of-sequences": 59,
+  "last-updated": "2026-04-01T11:57:00",
+  "number-of-volumes": 1,
+  "bytes-total": 88378,
+  "bytes-to-cache": 24372,
+  "files": [
+    "search_pool_200_700_db.pdb",
+    "search_pool_200_700_db.phr",
+    "search_pool_200_700_db.pin",
+    "search_pool_200_700_db.pog",
+    "search_pool_200_700_db.pos",
+    "search_pool_200_700_db.pot",
+    "search_pool_200_700_db.psq",
+    "search_pool_200_700_db.ptf",
+    "search_pool_200_700_db.pto"
+  ]
+}

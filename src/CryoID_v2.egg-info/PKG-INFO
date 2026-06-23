@@ -1,0 +1,13 @@
+Metadata-Version: 2.4
+Name: CryoID_v2
+Version: 2.0.0
+License-Expression: MIT
+Project-URL: Homepage, https://github.com/t00shadow/cryoID_v2
+Project-URL: Documentation, https://github.com/t00shadow/cryoID_v2
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Dynamic: license-file
+
+# cryoID_v2
+Identify RNA in cryogenic electron microscopy (cryo-EM) maps using deep learning method

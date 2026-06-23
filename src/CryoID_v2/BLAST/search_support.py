@@ -293,6 +293,14 @@ aaMapping = {
     # 'O':'M', 'o':'M'
 }
 
+ntMapping = {
+    'A' : 'A',
+    'G' : 'A',
+    'C' : 'U',
+    'T' : 'U',
+    'U' : 'U',
+}
+
 # reference query table/dictionary based on the simulation. assume 10% tolerance error.
 # if query length is shorter than specified, print warning infomation
 # query_num: cutoff_query_length. O for query_num > 6
@@ -329,6 +337,7 @@ def DBGenerate(params):
         try:
             proc = subprocess.Popen(mkdb_arg, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
             out, error = proc.communicate()
+            print(error)
             if not params.verbose:
                 os.remove(mapped_seqfile)
         except OSError:
@@ -373,9 +382,12 @@ def DBGenerate(params):
         if os.path.exists(dbname + '.pin'):
             dbsize = read_dbsize(dbname, params.seqfile)
         else:
+            # map the sequences and get database size
+            map_params = Namespace(seqfile=params.seqfile, reverse=False, logger=params.logger, base=params.base)
+            dbsize, mapped_seqfile = SeqMap(map_params)
+
             # run makeblastdb to build the local database
-            mkdb_arg = ['makeblastdb', '-in', params.seqfile, '-out', dbname, '-dbtype', 'nucl', '-parse_seqids']
-            dbsize = read_dbsize(dbname, params.seqfile)
+            mkdb_arg = ['makeblastdb', '-in', mapped_seqfile, '-out', dbname, '-dbtype', 'nucl', '-parse_seqids']
             makeblastdb(mkdb_arg, dbname, mapped_seqfile)
     
     return [dbsize, dbname]
@@ -411,6 +423,12 @@ def SeqMap(params):             # params.seqfile = queryfile (query file name), 
                 except KeyError as error:
                     params.logger.exception('Unrecognized amino acid ' + str(error) + ' in line ' + seq[:-1] + ' of ' + params.seqfile)
                     raise KeyError('Unrecognized amino acid ' + str(error) + ' in line ' + seq[:-1] + ' of ' + params.seqfile)
+            else:
+                try:
+                    seq = ''.join(ntMapping[e] for e in seq[:-1])
+                except KeyError as error:
+                    params.logger.exception('Unrecognized nucleotide ' + str(error) + ' in line ' + seq[:-1] + ' of ' + params.seqfile)
+                    raise KeyError('Unrecognized nucleotide ' + str(error) + ' in line ' + seq[:-1] + ' of ' + params.seqfile)
                 
             seq += '\n'
                 
@@ -721,7 +739,7 @@ def SeqBlast(params):
     '-dbsize', str(params.dbsize), '-searchsp', searchsp, '-word_size', word_size,'-gapopen', str(params.gapscore[0]), '-gapextend', str(params.gapscore[1]),  '-outfmt', outfmt, '-max_target_seqs', str(max_seq)]
     else:
         blast_arg = ['blastn', '-task', 'blastn-short', '-db', params.database, '-query', params.query, '-out', output, '-evalue', str(params.evalue), 
-    '-dbsize', str(params.dbsize), '-searchsp', searchsp, '-outfmt', outfmt, '-max_target_seqs', str(max_seq)]
+    '-dbsize', str(params.dbsize), '-searchsp', searchsp, '-gapopen', '32767', '-gapextend', '32767', '-outfmt', outfmt, '-max_target_seqs', str(max_seq)]
     
     try:
         proc = subprocess.Popen(blast_arg)

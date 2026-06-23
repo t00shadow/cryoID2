@@ -29,6 +29,7 @@ import shutil
 import sys
 import time
 from argparse import Namespace
+import re
 
 from . import search_support as search_sup
 from Bio import SeqIO
@@ -294,8 +295,10 @@ def Readfile(params):
                 field = BlastSeq(line[:-1])
                 
                 # add length to class BlastSeq
-                if field.candidate in params.protlen:
-                    field.set_prot_len(params.protlen[field.candidate])
+                pattern = re.compile(re.escape(field.candidate), flags=re.IGNORECASE)
+                match_key = next((k for k in params.protlen if pattern.fullmatch(k)), None)
+                if match_key is not None:
+                    field.set_prot_len(params.protlen[match_key])
                 else:
                     field.set_prot_len('-1')
                 
@@ -728,7 +731,7 @@ def Search(params):
 
     params.logger.info('-'*75)
 
-    return results[0].candidate
+    return results[0].candidate if results else None
 
 
 #================================================================================================================================================================================================

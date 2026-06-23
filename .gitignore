@@ -19,4 +19,4 @@ D_BLAST_searching/test_files/fasta
 D_BLAST_searching/test_files/results
 CryoID_v2.log
 CryoID.log
-Data/*
+# Data/*

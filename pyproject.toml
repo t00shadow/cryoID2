@@ -3,20 +3,20 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "viztracer"
+name = "CryoID_v2"
 authors = []
 description = ""
 readme = "README.md"
-requires-python = ""
-license = ""
+requires-python = ">=3.8"
+license = "MIT"
 dynamic = ["version"]
 dependencies = [
 ]
 classifiers = []
 
 [project.urls]
-Homepage = ""
-Documentation = ""
+Homepage = "https://github.com/t00shadow/cryoID_v2"
+Documentation = "https://github.com/t00shadow/cryoID_v2"
 
 [project.scripts]
 CryoID = "CryoID_v2.main:main"
