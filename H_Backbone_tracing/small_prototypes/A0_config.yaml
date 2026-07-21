@@ -1,0 +1,56 @@
+sample_toggle: meeting_figure   # choose from [emd_15905, emd_20256, emd_21887, emd_27018, emd_34843]      # EDIT: it gets toggled in the python file not here, maybe rename this to default_sample_toggle and have this be the default if NOT specified in python
+
+
+samples:
+  emd_15905:
+    base_dir: "D:/NEW_TEST_DATA/UnetPrediction/EMD-15905_re_3.0"
+  emd_20256:
+    base_dir: "D:/NEW_TEST_DATA/UnetPrediction/EMD-20256_re_3.1"
+  emd_21887:
+    base_dir: "D:/NEW_TEST_DATA/UnetPrediction/EMD-21887_re_3.2"
+  emd_27018:
+    base_dir: "D:/NEW_TEST_DATA/UnetPrediction/EMD-27018_re_3.0"
+  # smaller files (Gproteins)
+  emd_34843:
+    base_dir: "C:/Users/noelu/programming/python_projects/cryoID_v2_DATA/UnetPrediction/EMD-34843_re_3.2"
+  emd_38402:
+    base_dir: "D:/NEW_TEST_DATA/UnetPrediction/EMD-38402_re_3.06"
+  emd_42791:
+    base_dir: "D:/NEW_TEST_DATA/UnetPrediction/EMD-42791_re_3.2"
+
+  real_malaria_1:    # this name can be anything (cryosparc_P164_J166_006_volume_map)
+    base_dir: "C:/Users/noelu/programming/python_projects/cryoID_v2_DATA/UnetPrediction/real_malaria/1"
+  real_malaria_2:    # this name can be anything (cryosparc_P164_J166_006_volume_map_sharp)
+    base_dir: "/mnt/h/.shortcut-targets-by-id/17Waw1mhPX-18joolWDdxszEDKngDgzgV/Projects/CryoID2/WorkFolder/BackboneTracing/UnetPrediction/real_malaria/2"
+  real_malaria_4:
+    base_dir: "C:/Users/noelu/programming/python_projects/cryoID_v2_DATA/UnetPrediction/real_malaria/4"
+
+  test:
+    base_dir: "G:/.shortcut-targets-by-id/1VHPX-gidYYLEewDizIvgtImMbleuqE0r/CryoID2/WorkFolder/BackboneTracing/TestSet/Raw/EMD-63067_re_2.58"
+
+  meeting_figure:
+    base_dir: "G:/.shortcut-targets-by-id/1VHPX-gidYYLEewDizIvgtImMbleuqE0r/CryoID2/WorkFolder/BackboneTracing/UnetPrediction/real_malaria/3-E1_D3"
+
+  meeting_figure2:
+    base_dir: "G:/.shortcut-targets-by-id/1VHPX-gidYYLEewDizIvgtImMbleuqE0r/CryoID2/WorkFolder/BackboneTracing/TestSet/Raw/EMD-46970_re_2.81"
+
+  low_res1:
+    base_dir: "G:/.shortcut-targets-by-id/1VHPX-gidYYLEewDizIvgtImMbleuqE0r/CryoID2/WorkFolder/BackboneTracing/TestSet/Raw/EMD-6553_re_7.06"
+
+
+  # real_malaria_1:    # this name can be anything (cryosparc_P164_J166_006_volume_map)
+  #   base_dir: "D:/NEW_TEST_DATA/UnetPrediction/real_malaria/1"
+  # real_malaria_2:    # this name can be anything (cryosparc_P164_J166_006_volume_map_sharp)
+  #   base_dir: "D:/NEW_TEST_DATA/UnetPrediction/real_malaria/2"
+
+clustering:
+  # output_dir: "H_Backbone_tracing/outputs/clustering_v2/10_7_25"   # intermediate results
+  # output_dir: "H_Backbone_tracing/small_prototypes/compare_dif_versions"   # intermediate results
+  # output_dir: "H_Backbone_tracing/small_prototypes/results_3_26_26"   # intermediate results
+  output_dir: "H_Backbone_tracing/small_prototypes/results_3_26_26/clustering_figure_only"   # intermediate results
+  threshold: 0.9
+  method: "meanshift"   # chose from ["agglomerative", "meanshift"]
+  connect_dist: 4.0   # for agglomerative only
+  bandwidth: 1.9      # for meanshift only
+  min_cluster_size: 5
+  min_cc_size: 20    # min connected component size (essentially minimum atom sequence length)
