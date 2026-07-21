@@ -44,6 +44,7 @@ def load_sample_paths(config_path="config.yaml", sample_toggle=None):
             print(f"Too many matches. Check {pattern.parent} to resolve ambiguity.")    #! could consider raising an Exception here
         found_files[key] = matches[0] if matches else None
 
+    print(found_files)   # debugging
     return found_files
 
 # Use this to load any other section
