@@ -4,6 +4,7 @@
 
 import numpy as np
 from R_A0_utils import parse_calpha_CIF, parse_calpha_PDB
+from parse_PDB_file__FINAL import extract_ca_and_ss
 from scipy.spatial import cKDTree
 from scipy.spatial.distance import cdist
 from scipy.optimize import linear_sum_assignment
@@ -146,7 +147,9 @@ if __name__ == "__main__":
     clustered_CA_file = r"C:\Users\noelu\programming\python_projects\cryoID_v2\H_Backbone_tracing\misc_outputs\refactor2_meanshift_bw_1.9_CA_only.pdb"
     
     ca_coords_gt = parse_calpha_CIF(cif_file)
-    ca_coords_pred = parse_calpha_PDB(clustered_CA_file)
+    ca_coords_pred_oldmethod = parse_calpha_PDB(clustered_CA_file)
+    ca_coords_pred, _ = extract_ca_and_ss(clustered_CA_file)
+    print("Does new pdb parsing method parse the same as old?", np.array_equal(ca_coords_pred, ca_coords_pred_oldmethod))
     
     print("ground truth:")
     # print(ca_coords_gt)

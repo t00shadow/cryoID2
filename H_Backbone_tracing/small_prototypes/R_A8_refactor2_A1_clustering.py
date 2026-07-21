@@ -40,6 +40,9 @@ def load_volume_metadata(input_mrc):
     with mrcfile.open(input_mrc, permissive=True) as mrc:
         voxel_size = float(mrc.voxel_size.x)
         shape = mrc.data.shape
+        # new: consider origin offset? (if any)
+        origin = mrc.header.origin
+        print(origin)
     return voxel_size, shape
 
 # ----------------------------- Util: save pdb -----------------------------

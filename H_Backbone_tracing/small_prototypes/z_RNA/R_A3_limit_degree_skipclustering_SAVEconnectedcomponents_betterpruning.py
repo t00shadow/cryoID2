@@ -5,6 +5,7 @@ and adds a degree-limiting post-processing step.
 Supports skipping clustering by reading coordinates directly
 from an already-clustered PDB file.
 """
+# TODO: consider applying some of these techniques to the protein clustering script (compare before v after performance, have both script easily hotswappable)
 
 import numpy as np
 from collections import defaultdict
@@ -437,10 +438,11 @@ if __name__ == "__main__":
     # TODO create dictionaries or classes so can toggle between dif versions just by toggling a single thing
     max_dist = 5.5   # sugar AND phos
     max_degree = 2
-    min_component_size = 18  # tune this
+    # min_component_size = 18  # tune this
+    min_component_size = 10  # tune this
     ### graph_output_dir is OPTIONAL, if not given, will default to dir of clustered_pdb_path
     graph_output_dir = r"C:\Users\noelu\programming\python_projects\cryoID_v2\H_Backbone_tracing\misc_outputs\rna_cc"
-    components_output_dir = graph_output_dir
+    components_output_dir = graph_output_dir + "\cc_minsize"
     
 
     # TODO: might want to 1-index the cc names instead of 0-index

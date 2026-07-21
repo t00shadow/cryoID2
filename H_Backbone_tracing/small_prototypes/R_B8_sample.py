@@ -29,7 +29,7 @@ class Sample:
 
     def to_dict(self) -> dict:
         return {
-            "emdb_id": self.emdb_id,
+            "name": self.name,
             "inputs": {
                 "unet_possibility_mrc_dir": str(self.unet_possibility_mrc_dir) if self.unet_possibility_mrc_dir else None,
                 "key_atom_ca_mrc": str(self.key_atom_ca_mrc) if self.key_atom_ca_mrc else None,

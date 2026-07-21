@@ -414,12 +414,12 @@ if __name__ == "__main__":
     # CONFIG
     # -------------------------------
     use_clustered_pdb = True   # <-- toggle this
-    # no masking needed for RNA prior to tracing btw
+    # no masking needed prior to this tracer btw, b/c this one does a soft mask (more like a soft edge-priority scoring map) using the guardrail file (hard mask would be too limiting since Unet helix prediction is far from perfect)
     ca_clustered_pdb_path = r"C:\Users\noelu\programming\python_projects\cryoID_v2\H_Backbone_tracing\misc_outputs\clustering_figure\emd_52422_meanshift_bw_1.9_CA_only.pdb"
     guardrail_scaffold_file=r"G:\.shortcut-targets-by-id\1VHPX-gidYYLEewDizIvgtImMbleuqE0r\CryoID2\WorkFolder\BackboneTracing\TestSet\Raw\EMD-52422_re_3.07\possibility\emd_52422.map_secondary_strctures_1_possibility.mrc"
     guardrail_threshold=0.97
     guardrail_cylinder_radius=1.0    # dont need a radius as large as 2
-    # TODO create dictionaries or classes so can toggle between dif versions just by toggling a single thing  (i think this is referering to using same tracer for RNA and protein?)
+    # TODO create dictionaries or classes so can toggle between dif versions just by toggling a single thing  (i think this is referering to using same tracer for RNA and protein? would need to change more things tho since RNA both sugar and phos vs just CA for protein, tho ends up combining sugar and phos immediately, so could pull that logic outside of the main fxn, and then could truly make them use the same fxn)
     max_dist = 5.0   # CA
     max_degree = 2
     min_component_size = 18  # tune this

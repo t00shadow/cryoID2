@@ -20,7 +20,7 @@ output_dir_fasta = output_dir_base + r"\fasta"
 This script assumes clustering has already been done (there's another script to batch cluster)
 Lowk should have a batch script for each step separately? Or a wrapper to let it run on individual files or folders/lists of files
 
-1. masking helix regions:
+1. masking helix regions:     # NOTE: in the RNA version, this is baked into step 2
     - H_Backbone_tracing\small_prototypes\R_A8_zNEW_A1.5_masking_CA.py
 2. bb tracing:
     - H_Backbone_tracing\small_prototypes\R_A3_limit_degree_skipclustering_SAVEconnectedcomponents.py

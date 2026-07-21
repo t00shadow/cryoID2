@@ -2,7 +2,6 @@ import os
 import datetime
 import numpy as np
 import mrcfile
-from Bio.PDB import PDBParser
 from scipy.spatial import cKDTree
 from R_A0_utils import parse_calpha_PDB, load_thresholded_coords
 
@@ -144,8 +143,10 @@ if __name__ == "__main__":
     radius = 1.5
     percent = 0.5
     
+    # gets called internally by mask_and_save_pdb, does NOT flip to z,y,x nor save anything
     # result = mask_pdb_with_mrc(pdb_file=pdb_file, mrc_file=mrc_file, mask_threshold=mask_threshold, radius=radius, percent=percent)
 
+    # DOES flip to z,y,x and saves files
     out_path = mask_and_save_pdb(
         pdb_file=pdb_file,
         mrc_file=mrc_file,

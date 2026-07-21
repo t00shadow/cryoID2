@@ -13,7 +13,7 @@ def extract_chars_from_pdb(pdb_path):
     return "".join(chars)
 
 
-def process_directory(directory, fasta_output):
+def process_directory(directory, fasta_output, verbose=False):
     # Get files starting with "component"
     files = [
         f for f in os.listdir(directory)
@@ -26,7 +26,8 @@ def process_directory(directory, fasta_output):
         key=lambda f: os.path.getsize(os.path.join(directory, f)),
         reverse=True
     )
-    print(files)
+    if verbose:
+        print(files)
 
     with open(fasta_output, "w") as fasta:
         for file in files:
@@ -40,14 +41,16 @@ def process_directory(directory, fasta_output):
 
             result = extract_chars_from_pdb(full_path)
 
-            print(f"{file} ({size_kb:.2f} KB)")
-            print(result)
-            print("-" * 40)
+            if verbose:
+                print(f"{file} ({size_kb:.2f} KB)")
+                print(result)
+                print("-" * 40)
 
             # Write FASTA entry
             fasta.write(f">{os.path.splitext(file)[0]}\n")
             fasta.write(f"{result}\n\n")
 
+    # if verbose:   # TODO: add a return value then toggle this on
     print("Queries saved to:", fasta_output)
 
 
@@ -65,5 +68,6 @@ if __name__ == "__main__":
 
     process_directory(
         directory=r"C:\Users\noelu\programming\python_projects\cryoID_v2\H_Backbone_tracing\misc_outputs\cc_minsize_w_residues",
-        fasta_output=r"C:\Users\noelu\programming\python_projects\cryoID_v2\H_Backbone_tracing\misc_outputs\queries\queries.fasta"
+        fasta_output=r"C:\Users\noelu\programming\python_projects\cryoID_v2\H_Backbone_tracing\misc_outputs\queries\queries.fasta",
+        verbose=False
     )

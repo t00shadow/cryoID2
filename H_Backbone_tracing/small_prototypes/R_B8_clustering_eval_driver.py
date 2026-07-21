@@ -7,6 +7,8 @@ import numpy as np
 
 # ============================================================
 # UTIL FXN
+# TODO: use pandas or builtin csv module instead: https://www.geeksforgeeks.org/pandas/reading-csv-files-in-python/
+# easier to discard the unneeded columns than have to read in columns one by one and pair them together later (ie if realize that u need emdbid and fittedpdbs)
 # ============================================================
 def get_column_values(csv_file_path, column_name):
     values = []
@@ -29,10 +31,12 @@ def find_emdb_dirs(base_dir: str, id_list: list) -> dict[str, str | None]:
     """
     base_dir: some directory to start searching at
     id_list: iterable of ints or strings
-    returns: dict {id: full_path_or_None}
+    returns: dict {id: full_path or None}
     """
     # Convert IDs to strings
-    id_list = {str(i) for i in id_list}
+    id_list = [str(i) for i in id_list]
+    # Fast membership checks, prolly unnecessary since the number of folders likely won't be too big
+    id_set = set(id_list)
     # Build the dictionary
     results = {i: None for i in id_list}
 
@@ -51,7 +55,7 @@ def find_emdb_dirs(base_dir: str, id_list: list) -> dict[str, str | None]:
 
         emd_id = match.group(1)
 
-        if emd_id in id_list:
+        if emd_id in id_set:
             results[emd_id] = full_path
 
     return results
@@ -76,7 +80,7 @@ def find_cif_file(base_dir: str) -> str | None:
 # ============================================================
 # UTIL FXN    find if a clustering result file exists, helps with the "caching" logic
 # ============================================================
-def clustering_result_exists(cache_dir: str, emdb_id: int) -> bool:     # TODO: consider renaming to find_clustering_file to match above fxns naming scheme
+def clustering_result_exists(cache_dir: str, emdb_id: str) -> bool:     # TODO: consider renaming to find_clustering_file to match above fxns naming scheme
     target = f"_{emdb_id}_"
     for name in os.listdir(cache_dir):
         path = os.path.join(cache_dir, name)
@@ -136,6 +140,7 @@ def run_analysis_driver(sample_list: str | list[int], base_input_dir: str, clust
     # from R_A8_refactor1_A1_clustering import main, ClusteringConfig
     from R_A8_refactor2_A1_clustering import run_clustering, ClusteringConfig
     from R_A0_utils import parse_calpha_CIF, parse_calpha_PDB
+    from parse_PDB_file__FINAL import extract_ca_and_ss
     from R_B8_clustering_eval import compute_metrics_optimal
 
     with open(log_file, log_mode) as file:
@@ -171,7 +176,8 @@ def run_analysis_driver(sample_list: str | list[int], base_input_dir: str, clust
 
         # Call the function that compares the clustering output with the corresponding cif file
         ca_gt = parse_calpha_CIF(ca_input_file)
-        ca_pred = parse_calpha_PDB(clustered_file)
+        # ca_pred = parse_calpha_PDB(clustered_file)    # uses PDB module
+        ca_pred = extract_ca_and_ss(clustered_file)   # my own custom fxn
         metrics = compute_metrics_optimal(gt_coords=ca_gt, pred_coords=ca_pred, radius=tolerance_radius)
         print(metrics)
 
@@ -196,6 +202,8 @@ if __name__ == "__main__":
     use_cache = True   # set to False if change threshold, since theyll still have the same file name
     # output_dir = "H_Backbone_tracing/misc_outputs/test_DELETE_THESE2"
     output_dir = "H_Backbone_tracing/misc_outputs/clustering_figure"
+    output_dir = "H_Backbone_tracing/misc_outputs/DEBUG/clustering_eval"
+    os.makedirs(output_dir, exist_ok=True)
     cache_dir = output_dir
     log_file = output_dir + "/clustering_eval_log2.txt"
     log_mode = "a"

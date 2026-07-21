@@ -1,6 +1,7 @@
 import os
 from A3_backbone_to_residue_6degen_groups import main
 
+# TODO: replace this with the slightly improved version in R_B8_batch_bb_tracing_REFACTOR.py
 
 # =========================================================
 # USER SETTINGS
@@ -11,10 +12,15 @@ from A3_backbone_to_residue_6degen_groups import main
 # residue_dir_path = r"G:\.shortcut-targets-by-id\1VHPX-gidYYLEewDizIvgtImMbleuqE0r\CryoID2\WorkFolder\BackboneTracing\UnetPrediction\real_malaria\3-E1_D3\possibility"
 # output_dir_path = r"C:\Users\noelu\programming\python_projects\cryoID_v2\H_Backbone_tracing\small_prototypes\results_3_26_26\TEST_STDOUT_to_file"
 
-pdb_folder = r"C:\Users\noelu\programming\python_projects\cryoID_v2\H_Backbone_tracing\misc_outputs\cc_minsize"
-main_map_path = r"G:\.shortcut-targets-by-id\1VHPX-gidYYLEewDizIvgtImMbleuqE0r\CryoID2\WorkFolder\BackboneTracing\UnetPrediction\real_malaria\3-E1_D3\possibility\E1_D3_2_7A_cryosparc_P8_J562_008_volume_map_sharp_key_atoms_1_possibility.mrc"
-residue_dir_path = r"G:\.shortcut-targets-by-id\1VHPX-gidYYLEewDizIvgtImMbleuqE0r\CryoID2\WorkFolder\BackboneTracing\UnetPrediction\real_malaria\3-E1_D3\possibility"
-output_dir_path = r"C:\Users\noelu\programming\python_projects\cryoID_v2\H_Backbone_tracing\misc_outputs\cc_minsize_w_residues"
+# pdb_folder = r"C:\Users\noelu\programming\python_projects\cryoID_v2\H_Backbone_tracing\misc_outputs\cc_minsize"
+# main_map_path = r"G:\.shortcut-targets-by-id\1VHPX-gidYYLEewDizIvgtImMbleuqE0r\CryoID2\WorkFolder\BackboneTracing\UnetPrediction\real_malaria\3-E1_D3\possibility\E1_D3_2_7A_cryosparc_P8_J562_008_volume_map_sharp_key_atoms_1_possibility.mrc"
+# residue_dir_path = r"G:\.shortcut-targets-by-id\1VHPX-gidYYLEewDizIvgtImMbleuqE0r\CryoID2\WorkFolder\BackboneTracing\UnetPrediction\real_malaria\3-E1_D3\possibility"
+# output_dir_path = r"C:\Users\noelu\programming\python_projects\cryoID_v2\H_Backbone_tracing\misc_outputs\cc_minsize_w_residues"
+
+pdb_folder = r"C:\Users\noelu\Downloads\paper_figure_assets\fig1 emd_52422 chimerax images\data\fix3_improvecyclerepairing\cc_minsize"
+main_map_path = r"G:\.shortcut-targets-by-id\1VHPX-gidYYLEewDizIvgtImMbleuqE0r\CryoID2\WorkFolder\BackboneTracing\TestSet\Raw\EMD-52422_re_3.07\possibility\emd_52422.map_key_atoms_1_possibility.mrc"
+residue_dir_path = r"G:\.shortcut-targets-by-id\1VHPX-gidYYLEewDizIvgtImMbleuqE0r\CryoID2\WorkFolder\BackboneTracing\TestSet\Raw\EMD-52422_re_3.07\possibility"
+output_dir_path = r"C:\Users\noelu\Downloads\paper_figure_assets\fig1 emd_52422 chimerax images\data\fix3_improvecyclerepairing\cc_minsize_residues"
 
 
 # =========================================================
