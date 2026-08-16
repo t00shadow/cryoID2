@@ -1,2 +1,0 @@
-target_name,query_name,accession,E-value,score,bias,description
-EMD-3552|5MRE_1|Chain,<HMM alphabet=Alphabet.amino() M=19 name=b'test_hmm'>,,6884.0,-1153.3504638671875,1337.18212890625,A|21S ribosomal RNA|Saccharomyces cerevisiae (4932)

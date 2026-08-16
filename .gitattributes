@@ -1,0 +1,9 @@
+* text=auto
+
+*.sh text eol=lf
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+
+# Preserve scientific FASTA fixtures byte-for-byte across platforms so their
+# recorded provenance hashes remain stable.
+tests/fixtures/rna_emd47655/*.fasta -text

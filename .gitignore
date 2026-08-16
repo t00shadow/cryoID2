@@ -1,22 +1,61 @@
-/.vscode
-/__pycache__
-/test
-/wget-log
-/cryoID2
-/ZZZZZZZZZZ
-/T_AttnPacker/AttnPackerPlusRotPTM
-.venv/
-venv/
+# Editors and local tooling
+/.vscode/
+/.codex_tmp/
 
-# Local archive/backup folders (do not version)
-**/archive/
-**/backup/
-**/backups/
+# Python environments, bytecode, and builds
+/.venv/
+/venv/
+/.pytest_cache/
 __pycache__/
-.vscode/
-E_HMMER_searching/test_files/fasta_files
-D_BLAST_searching/test_files/fasta
-D_BLAST_searching/test_files/results
-CryoID_v2.log
+*.py[cod]
+*.egg-info/
+/build/
+/dist/
+
+# Runtime projects and generated outputs
+/cryoid_output/
+/cryoid_results/
+/runs/
+/best_overall/
+/unetpredictions/
+/Data/
+/test_data/
 CryoID.log
-# Data/*
+CryoID_v2.log
+
+# Large scientific inputs and generated databases
+*.mrc
+*.map
+*.map.gz
+*.ccp4
+*.pth
+*.pth.tar
+*.pt
+*.ckpt
+*.nhr
+*.nin
+*.nsq
+*.ndb
+*.not
+*.ntf
+*.nto
+*.phr
+*.pin
+*.psq
+*.pdb.gz
+*.cif.gz
+
+# Stage-I transient caches
+/I_Structure_fitting/protein/tmp/
+/I_Structure_fitting/protein/_raw_mrc_cache/
+/I_Structure_fitting/protein/.mapinfo_local_cache/
+
+# Local recovery folders must stay outside source history
+/archive/
+/backup/
+/backups/
+
+# Local-only project material
+/docs/
+/experiments/
+/tests/

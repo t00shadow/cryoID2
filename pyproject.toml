@@ -1,25 +1,86 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=68,<82", "wheel>=0.41,<1"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "CryoID_v2"
-authors = []
-description = ""
+name = "cryoid-v2-combination"
+version = "1.0.0"
+description = "CryoID v2 command-line and GUI pipeline integration."
 readme = "README.md"
-requires-python = ">=3.8"
-license = "MIT"
-dynamic = ["version"]
+# Production is tested on Python 3.10 (Linux/CUDA) and Python 3.13 (Windows).
+requires-python = ">=3.10,<3.14"
 dependencies = [
+    "biopython>=1.81,<2",
+    "gemmi>=0.6.7,<0.8",
+    "matplotlib>=3.7.5,<4",
+    "mrcfile>=1.5.4,<2",
+    "numpy>=1.23.5,<3",
+    "pandas>=1.5.3,<4",
+    "parasail>=1.3.4,<2",
+    "requests>=2.32.3,<3",
+    "scikit-learn>=1.3.2,<2",
+    "scipy>=1.10.1,<2",
+    "torch>=1.11,<3",
+    "tomli>=2,<3; python_version < '3.11'",
 ]
-classifiers = []
-
-[project.urls]
-Homepage = "https://github.com/t00shadow/cryoID_v2"
-Documentation = "https://github.com/t00shadow/cryoID_v2"
 
 [project.scripts]
-CryoID = "CryoID_v2.main:main"
+cryoid = "cryoid_pipeline.cli:main"
+cryoid-gui = "G_GUI.launcher:main"
 
-[tool.setuptools.dynamic]
-version = {attr = "CryoID_v2.__version__"}
+[project.optional-dependencies]
+dev = [
+    "build>=1.2.2,<2",
+    "pytest>=8.3.5,<10",
+]
+gui = [
+    "PyQt6>=6.7,<7",
+]
+gui-pyqt5 = [
+    "PyQt5>=5.15.11,<6",
+]
+gui-pyqt6 = [
+    "PyQt6>=6.7,<7",
+]
+all = [
+    "PyQt6>=6.7,<7",
+    "pytest>=8.3.5,<10",
+]
+
+[tool.setuptools]
+include-package-data = false
+packages = [
+    "cryoid_pipeline",
+    "G_GUI",
+    "C_Unet_model_predicting",
+    "D_BLAST_searching",
+    "D_BLAST_searching.reduced_alphabet",
+    "H_Backbone_tracing",
+    "H_Backbone_tracing.common",
+    "H_Backbone_tracing.protein",
+    "H_Backbone_tracing.rna",
+    "I_Structure_fitting",
+    "I_Structure_fitting.protein",
+    "I_Structure_fitting.protein.core",
+    "I_Structure_fitting.rna",
+]
+
+[tool.setuptools.package-data]
+G_GUI = ["*.ui", "README.md", "svg_assets/*"]
+"I_Structure_fitting.protein" = ["README.md"]
+
+[tool.setuptools.exclude-package-data]
+"*" = [
+    "test_data/*",
+    "test_data/**/*",
+    "*.mrc",
+    "*.map",
+    "*.map.gz",
+    "*.pt",
+    "*.pth",
+    "*.ckpt",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

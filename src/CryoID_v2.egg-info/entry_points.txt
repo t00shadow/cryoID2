@@ -1,2 +1,0 @@
-[console_scripts]
-CryoID = CryoID_v2.main:main
