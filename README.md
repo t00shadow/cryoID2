@@ -1,9 +1,7 @@
 # CryoID v2
 
-CryoIDv2 identifies protein or RNA sequences from cryo-EM density maps,
-ranks every sequence in an input FASTA pool, and fits available public
-structures into the map. The desktop GUI and command line run the same
-pipeline.
+CryoIDv2 identifies protein or RNA sequences from cryo-EM density maps and fits available public
+structures into the map
 
 ## Requirements
 
