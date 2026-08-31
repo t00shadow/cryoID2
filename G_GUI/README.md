@@ -24,10 +24,12 @@ and shows only the first 20 rows even though the TSV contains the complete
 input pool. The table displays the full candidate ID without elision, sequence
 length, and primary score; all other TSV fields remain saved but are hidden
 from this compact view. The action remains available before a run and shows an
-empty state when the current project has no ranking. The dialog is
-display-only, has no buttons, and automatically loads only the ranking found
-at the expected run location. It is closed with the window X. No ranking
-toolbar or ranking table is shown at startup. Advanced Settings uses one flat form with path
+empty state when the current project has no ranking. The dialog defaults to the
+newest available run and includes a run selector; an explicit selection is
+saved with the other GUI configuration and reused until another run is chosen.
+The ranking table is display-only, has no buttons, and is closed with the
+window X. No ranking toolbar or ranking table is shown at startup. Advanced
+Settings uses one flat form with path
 configuration first. Protein minimum trace length, structure candidates, and
 RCL use matching text fields with explicit default placeholders and no arrow
 controls; RCL is formatted to three decimal places. **Help > GitHub** opens the

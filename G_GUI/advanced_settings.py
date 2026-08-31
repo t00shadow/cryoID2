@@ -126,12 +126,13 @@ class AdvancedSettingsWindow(QtWidgets.QDialog):
         self.structure_selection_edit.setObjectName("structure_selection_edit")
         self.structure_selection_edit.setText(str(structure_selection or ""))
         self.structure_selection_edit.setPlaceholderText(
-            "Default: protein 1; RNA 0.25"
+            "Default: protein 1; RNA 1.0 (100%)"
         )
         self.structure_selection_edit.setToolTip(
             "Select from the top of sequence_ranking.tsv before structure lookup. "
             "Use a positive integer for a count (1 means one sequence), or a decimal "
-            "from 0 to 1 for a fraction (0.2 means 20%; 1.0 means 100%)."
+            "from 0 to 1 for a fraction (0.2 means 20%; 1.0 means 100%). "
+            "The defaults are protein 1 and RNA 1.0 (all ranked sequences)."
         )
 
         self.keep_tmp_checkbox = QtWidgets.QCheckBox("Keep temporary files and tested models", self)

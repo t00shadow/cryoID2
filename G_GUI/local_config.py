@@ -16,6 +16,7 @@ from cryoid_pipeline.user_config import (
 DEFAULT_LOCAL_CONFIG: dict[str, str] = {
     "project_dir": "",
     "last_run_dir": "",
+    "sequence_ranking_run_dir": "",
     "weights_path": "",
     "rcl": "0",
     "protein_min_trace_length": "10",
@@ -33,6 +34,7 @@ def _gui_view(config: Mapping[str, Any]) -> dict[str, str]:
     return {
         "project_dir": str(config.get("project_dir") or ""),
         "last_run_dir": str(config.get("last_run_dir") or ""),
+        "sequence_ranking_run_dir": str(config.get("sequence_ranking_run_dir") or ""),
         "weights_path": str(config.get("weights_dir") or ""),
         "rcl": str(config.get("rcl") or "0"),
         "protein_min_trace_length": str(config.get("protein_min_trace_length") or "10"),
@@ -56,6 +58,7 @@ def save_local_config(config: Mapping[str, Any], path: Path | None = None) -> di
         {
             "project_dir": config.get("project_dir", ""),
             "last_run_dir": config.get("last_run_dir", ""),
+            "sequence_ranking_run_dir": config.get("sequence_ranking_run_dir", ""),
             "weights_dir": config.get("weights_path", config.get("weights_dir", "")),
             "rcl": config.get("rcl", "0"),
             "protein_min_trace_length": config.get("protein_min_trace_length", "10"),

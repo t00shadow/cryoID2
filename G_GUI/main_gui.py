@@ -51,7 +51,8 @@ try:
         find_project_dir_from_path,
         find_run_dir_from_path,
         flatten_chimerax_session_files,
-        latest_sequence_ranking,
+        selected_sequence_ranking,
+        sequence_ranking_files,
     )
 except ImportError:  # Allows `python -m G_GUI.main_gui` from the repo root.
     from G_GUI.session_files import (
@@ -62,7 +63,8 @@ except ImportError:  # Allows `python -m G_GUI.main_gui` from the repo root.
         find_project_dir_from_path,
         find_run_dir_from_path,
         flatten_chimerax_session_files,
-        latest_sequence_ranking,
+        selected_sequence_ranking,
+        sequence_ranking_files,
     )
 
 try:
@@ -456,14 +458,75 @@ class SequenceRankingLoader(QtCore.QObject):
             self.failed.emit(str(exc))
 
 
+def _ranking_run_label(path: Path) -> str:
+    run_dir = path.parent
+    details: list[str] = []
+    try:
+        import json
+
+        payload = json.loads((run_dir / "run_config.json").read_text(encoding="utf-8"))
+        mode = str(payload.get("effective_mode") or "").upper()
+        status = str(payload.get("status") or "").lower()
+        if mode:
+            details.append(mode)
+        if status:
+            details.append(status)
+    except (OSError, ValueError):
+        pass
+    suffix = f" | {' | '.join(details)}" if details else ""
+    return f"{run_dir.name}{suffix}"
+
+
 class SequenceRankingDialog(QtWidgets.QDialog):
-    def __init__(self, path: Path | None, parent=None) -> None:
+    run_selected = QtCore.pyqtSignal(str)
+
+    def __init__(
+        self,
+        path: Path | None,
+        parent=None,
+        *,
+        ranking_paths: list[Path] | None = None,
+    ) -> None:
         super().__init__(parent)
-        self.path = path.expanduser().resolve() if path is not None else None
+        initial_path = path.expanduser().resolve() if path is not None else None
+        candidates = [candidate.expanduser().resolve() for candidate in (ranking_paths or [])]
+        if initial_path is not None and initial_path.is_file() and initial_path not in candidates:
+            candidates.append(initial_path)
+        self.ranking_paths = sorted(
+            {candidate for candidate in candidates if candidate.is_file()},
+            key=lambda candidate: candidate.parent.name,
+            reverse=True,
+        )
+        self.path = (
+            initial_path
+            if initial_path is not None and initial_path in self.ranking_paths
+            else (self.ranking_paths[0] if self.ranking_paths else None)
+        )
         self.setWindowTitle("Sequence Ranking")
         self.setModal(True)
         self.resize(700, 650)
         layout = QtWidgets.QVBoxLayout(self)
+        run_layout = QtWidgets.QFormLayout()
+        self.run_combo = QtWidgets.QComboBox(self)
+        self.run_combo.setObjectName("sequence_ranking_run_combo")
+        self.run_combo.setToolTip(
+            "Choose which run's sequence_ranking.tsv to view. The saved choice is reused "
+            "until another run is selected."
+        )
+        if self.ranking_paths:
+            self.run_combo.blockSignals(True)
+            for ranking_path in self.ranking_paths:
+                self.run_combo.addItem(_ranking_run_label(ranking_path), str(ranking_path))
+            selected_index = self.ranking_paths.index(self.path) if self.path is not None else 0
+            self.run_combo.setCurrentIndex(selected_index)
+            self.run_combo.blockSignals(False)
+            self.run_combo.setEnabled(len(self.ranking_paths) > 1)
+        else:
+            self.run_combo.addItem("No runs with sequence rankings")
+            self.run_combo.setEnabled(False)
+        self.run_combo.currentIndexChanged.connect(self._ranking_changed)
+        run_layout.addRow("Run", self.run_combo)
+        layout.addLayout(run_layout)
         self.status_label = QtWidgets.QLabel("", self)
         layout.addWidget(self.status_label)
         self.table = QtWidgets.QTableView(self)
@@ -487,9 +550,24 @@ class SequenceRankingDialog(QtWidgets.QDialog):
         else:
             self._start_loading()
 
+    def _ranking_changed(self, index: int) -> None:
+        if self._thread is not None or index < 0:
+            return
+        raw_path = self.run_combo.itemData(index)
+        if not raw_path:
+            return
+        selected = Path(str(raw_path)).expanduser().resolve()
+        if not selected.is_file() or selected == self.path:
+            return
+        self.path = selected
+        self.model.set_table([], [])
+        self.run_selected.emit(str(selected.parent))
+        self._start_loading()
+
     def _start_loading(self) -> None:
         if self.path is None:
             return
+        self.run_combo.setEnabled(False)
         self.setWindowTitle(f"Sequence Ranking - {self.path.parent.name}")
         self.status_label.setText(f"Loading {self.path}...")
         self._thread = QtCore.QThread(self)
@@ -507,6 +585,7 @@ class SequenceRankingDialog(QtWidgets.QDialog):
     def _loading_finished(self) -> None:
         self._loader = None
         self._thread = None
+        self.run_combo.setEnabled(len(self.ranking_paths) > 1)
 
     def _loaded(self, headers: list[str], rows: list[list[str]]) -> None:
         self.model.set_table(headers, rows)
@@ -724,7 +803,9 @@ def main() -> None:
         "loaded_project_dir": None,
     }
     sequence_ranking_action = QtGui.QAction("Sequence Ranking", window)
-    sequence_ranking_action.setToolTip("Open the latest run's sequence ranking in a separate window")
+    sequence_ranking_action.setToolTip(
+        "Open a run's sequence ranking and choose which run to keep viewing"
+    )
     detected_chimerax = _detect_chimerax_path()
     configured_weights = resolve_weights_dir(None, shared_config_state)
     configured_chimerax = resolve_chimerax_path(shared_config_state)
@@ -770,18 +851,12 @@ def main() -> None:
 
     def current_sequence_ranking() -> Path | None:
         project = current_project_dir()
-        result = state.get("last_result")
-        result_ranking = getattr(result, "ranking_path", None)
-        if result_ranking is not None and Path(result_ranking).is_file():
-            result_project = find_project_dir_from_path(Path(result_ranking))
-            if project is not None and result_project == project.resolve():
-                return Path(result_ranking).resolve()
-        last_run = str(local_config_state.get("last_run_dir") or "").strip()
-        if last_run:
-            ranking = Path(last_run).expanduser() / "sequence_ranking.tsv"
-            if ranking.is_file() and project is not None and find_project_dir_from_path(ranking) == project.resolve():
-                return ranking.resolve()
-        return latest_sequence_ranking(project) if project is not None else None
+        if project is None:
+            return None
+        return selected_sequence_ranking(
+            project,
+            local_config_state.get("sequence_ranking_run_dir"),
+        )
 
     def refresh_ranking_action() -> None:
         # Keep this command usable like Advanced Settings. The dialog reports
@@ -789,11 +864,21 @@ def main() -> None:
         sequence_ranking_action.setEnabled(True)
 
     def open_sequence_ranking(path: Path | None = None) -> None:
-        ranking = path or current_sequence_ranking()
+        project = current_project_dir()
+        rankings = sequence_ranking_files(project) if project is not None else []
+        ranking = path.expanduser().resolve() if path is not None else current_sequence_ranking()
         if ranking is None or not ranking.is_file():
             append_log("No run-specific sequence ranking is available.")
             ranking = None
-        dialog = SequenceRankingDialog(ranking, window)
+        elif path is not None:
+            persist_config(sequence_ranking_run_dir=ranking.parent)
+        dialog = SequenceRankingDialog(ranking, window, ranking_paths=rankings)
+
+        def remember_selected_run(run_dir: str) -> None:
+            persist_config(sequence_ranking_run_dir=run_dir)
+            append_log(f"Sequence ranking run selected: {Path(run_dir).name}")
+
+        dialog.run_selected.connect(remember_selected_run)
         _exec_dialog(dialog)
 
     def populate_results(paths: list[Path], project_dir: Path | None = None) -> None:
@@ -1065,6 +1150,7 @@ def main() -> None:
         persist_config(
             project_dir=project,
             last_run_dir="",
+            sequence_ranking_run_dir="",
             last_density_map="",
             last_candidate_pool="",
             weights_path=settings_state.get("weights_path", ""),
@@ -1097,7 +1183,13 @@ def main() -> None:
             state["last_result"] = None
             selected_outputs: list[Path] = []
             if selected_run is not None:
-                persist_config(project_dir=project, last_run_dir=selected_run)
+                config_updates: dict[str, object] = {
+                    "project_dir": project,
+                    "last_run_dir": selected_run,
+                }
+                if (selected_run / "sequence_ranking.tsv").is_file():
+                    config_updates["sequence_ranking_run_dir"] = selected_run
+                persist_config(**config_updates)
             else:
                 persist_config(project_dir=project, last_run_dir="")
             populate_project_results(project, selected_outputs)
@@ -1209,7 +1301,7 @@ def main() -> None:
                 f"{settings_state['structure_selection']}."
             )
         else:
-            append_log("Structure candidate selection uses mode defaults: protein 1; RNA 0.25.")
+            append_log("Structure candidate selection uses mode defaults: protein 1; RNA 1.0 (100%).")
 
     def open_selected_result_location(item: QtWidgets.QListWidgetItem) -> None:
         path = _item_path(item)

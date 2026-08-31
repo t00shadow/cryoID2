@@ -278,7 +278,7 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Top ranked sequences sent to structure retrieval/fitting. A positive integer "
             "selects a count (1 means one); a decimal from 0 to 1 selects a fraction "
-            "(1.0 means 100%%). Defaults to 1 for protein and 0.25 for RNA."
+            "(1.0 means 100%%). Defaults to 1 for protein and 1.0 for RNA."
         ),
     )
     run_parser.add_argument(

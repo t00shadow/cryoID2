@@ -101,7 +101,7 @@ cryoid config path
 | `mode` | `auto`, `protein`, or `rna` | `auto` |
 | `rcl` | Recommended contour level used for U-Net normalization | `0.000` |
 | `protein-min-trace-length` | Minimum connected C-alpha nodes retained as a query | `10` |
-| `structure-selection` | Leading ranked sequences sent to structure retrieval | protein: `1`; RNA: `0.25` |
+| `structure-selection` | Leading ranked sequences sent to structure retrieval | protein: `1`; RNA: `1.0` (100%) |
 | `keep-tmp` | Keep intermediate files and every tested model | `false` |
 | `chimerax-path` | Optional ChimeraX executable | autodetected or unset |
 
@@ -137,7 +137,7 @@ cryoid run map.mrc candidate_pool.fasta \
   --project-dir /path/to/output_parent \
   --weights-dir /path/to/train_val_data \
   --blast-bin-dir /path/to/ncbi-blast/bin \
-  --mode auto --rcl 0 --structure-selection 0.25
+  --mode auto --rcl 0 --structure-selection 1.0
 ```
 
 Use `cryoid run --help` for all run options. Add

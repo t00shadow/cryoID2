@@ -73,7 +73,7 @@ def parse_structure_selection(value: str | int | float) -> StructureSelection:
 
 
 def default_structure_selection(mode: SequenceMode) -> StructureSelection:
-    return parse_structure_selection("1" if mode == "protein" else "0.25")
+    return parse_structure_selection("1" if mode == "protein" else "1.0")
 
 
 def resolve_effective_structure_selection(

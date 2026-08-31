@@ -124,11 +124,42 @@ def latest_run_dir(project_dir: Path) -> Path | None:
 
 
 def latest_sequence_ranking(project_dir: Path) -> Path | None:
-    run_dir = latest_run_dir(project_dir)
-    if run_dir is None:
-        return None
-    ranking = run_dir / "sequence_ranking.tsv"
-    return ranking.resolve() if ranking.is_file() else None
+    rankings = sequence_ranking_files(project_dir)
+    return rankings[0] if rankings else None
+
+
+def sequence_ranking_files(project_dir: Path) -> list[Path]:
+    """Return run-level rankings from newest to oldest."""
+
+    runs = Path(project_dir).expanduser().resolve() / "runs"
+    if not runs.is_dir():
+        return []
+    return sorted(
+        (
+            ranking.resolve()
+            for run_dir in runs.iterdir()
+            if run_dir.is_dir()
+            and (ranking := run_dir / "sequence_ranking.tsv").is_file()
+        ),
+        key=lambda path: path.parent.name,
+        reverse=True,
+    )
+
+
+def selected_sequence_ranking(
+    project_dir: Path,
+    selected_run_dir: Path | str | None,
+) -> Path | None:
+    """Resolve a saved run choice, falling back to the newest ranking."""
+
+    project = Path(project_dir).expanduser().resolve()
+    selected_text = str(selected_run_dir or "").strip()
+    if selected_text:
+        run_dir = Path(selected_text).expanduser().resolve()
+        ranking = run_dir / "sequence_ranking.tsv"
+        if run_dir.parent == project / "runs" and ranking.is_file():
+            return ranking.resolve()
+    return latest_sequence_ranking(project)
 
 
 def _float_or_none(value: object) -> float | None:

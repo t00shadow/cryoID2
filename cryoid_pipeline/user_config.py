@@ -36,6 +36,7 @@ DEFAULT_CONFIG: dict[str, str] = {
     "chimerax_path": "",
     "blast_bin_dir": "",
     "last_run_dir": "",
+    "sequence_ranking_run_dir": "",
     "last_density_map": "",
     "last_candidate_pool": "",
     "sequence_mode": "auto",
@@ -57,7 +58,13 @@ DEFAULT_KEYS = (
     "sequence_mode",
     "blast_bin_dir",
 )
-GUI_KEYS = ("chimerax_path", "last_run_dir", "last_density_map", "last_candidate_pool")
+GUI_KEYS = (
+    "chimerax_path",
+    "last_run_dir",
+    "sequence_ranking_run_dir",
+    "last_density_map",
+    "last_candidate_pool",
+)
 
 
 def default_config_path() -> Path:
