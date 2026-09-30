@@ -101,7 +101,7 @@ cryoid config path
 | `mode` | `auto`, `protein`, or `rna` | `auto` |
 | `rcl` | Recommended contour level used for U-Net normalization | `0.000` |
 | `protein-min-trace-length` | Minimum connected C-alpha nodes retained as a query | `10` |
-| `structure-selection` | Leading ranked sequences sent to structure retrieval | protein: `1`; RNA: `1.0` (100%) |
+| `structure-selection` | Leading ranked sequences sent to structure retrieval | protein: `1`; RNA: `0.5` (50%) |
 | `keep-tmp` | Keep intermediate files and every tested model | `false` |
 | `chimerax-path` | Optional ChimeraX executable | autodetected or unset |
 
