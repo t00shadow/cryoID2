@@ -408,6 +408,8 @@ def run_rna_structure_pipeline(
     progress_percent(64)
     command = [
         _executable("blastn", blast_bin_dir),
+        "-task",
+        "blastn",
         "-query",
         str(query_path),
         "-db",
