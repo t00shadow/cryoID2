@@ -1,6 +1,5 @@
 import csv
 import os
-import shutil
 import subprocess
 import sys
 import uuid
@@ -14,7 +13,7 @@ except ImportError as exc:
         "Install one GUI extra, for example `pip install .[gui-pyqt6]` or `pip install .[gui-pyqt5]`."
     ) from exc
 
-from G_GUI.gui_skin import Ui_cryoID
+from G_GUI.gui_skin import CryoIDUI
 
 from cryoid_pipeline import __version__  # noqa: E402
 from cryoid_pipeline.cli import decode_event, format_command  # noqa: E402
@@ -25,7 +24,6 @@ from D_BLAST_searching.stage import (  # noqa: E402
 from cryoid_pipeline.models import PipelineResult, StageResult, pipeline_result_from_dict  # noqa: E402
 from cryoid_pipeline.runtime_config import (  # noqa: E402
     RuntimeConfig,
-    cuda_status_message,
     display_problem,
 )
 from cryoid_pipeline.user_config import (  # noqa: E402
@@ -42,48 +40,20 @@ from cryoid_pipeline.user_config import (  # noqa: E402
     results_project_dir,
 )
 
-try:
-    from session_files import (
-        collect_chimerax_project_files,
-        collect_project_display_files,
-        collect_result_display_files,
-        ensure_project_dirs,
-        find_project_dir_from_path,
-        find_run_dir_from_path,
-        flatten_chimerax_session_files,
-        selected_sequence_ranking,
-        sequence_ranking_files,
-    )
-except ImportError:  # Allows `python -m G_GUI.main_gui` from the repo root.
-    from G_GUI.session_files import (
-        collect_chimerax_project_files,
-        collect_project_display_files,
-        collect_result_display_files,
-        ensure_project_dirs,
-        find_project_dir_from_path,
-        find_run_dir_from_path,
-        flatten_chimerax_session_files,
-        selected_sequence_ranking,
-        sequence_ranking_files,
-    )
-
-try:
-    from advanced_settings import AdvancedSettingsWindow
-except ImportError:  # Allows `python -m G_GUI.main_gui` from the repo root.
-    from G_GUI.advanced_settings import AdvancedSettingsWindow
-
-try:
-    from chimerax_launcher import find_chimerax, launch_chimerax
-except ImportError:  # Allows `python -m G_GUI.main_gui` from the repo root.
-    from G_GUI.chimerax_launcher import find_chimerax, launch_chimerax
-
-try:
-    from local_config import ensure_local_config, save_local_config
-except ImportError:  # Allows `python -m G_GUI.main_gui` from the repo root.
-    from G_GUI.local_config import ensure_local_config, save_local_config
+from G_GUI.session_files import (
+    collect_chimerax_project_files,
+    ensure_project_dirs,
+    find_project_dir_from_path,
+    find_run_dir_from_path,
+    flatten_chimerax_session_files,
+    selected_sequence_ranking,
+    sequence_ranking_files,
+)
+from G_GUI.settings_dialogs import ConfigurationsWindow, OptionsWindow
+from G_GUI.chimerax_launcher import find_chimerax, launch_chimerax
+from G_GUI.local_config import ensure_local_config, save_local_config
 
 
-PLACEHOLDERS = {"your_cryoEM_map.mrc", "your_pool_file", "your_pool_file.fasta", "output_file_path"}
 CRYOID_GITHUB_URL = "https://github.com/t00shadow/cryoID_v2"
 CONFIG = RuntimeConfig.from_env()
 REPO_ROOT = CONFIG.repo_root
@@ -231,19 +201,6 @@ class PipelineWorker(QtCore.QObject):
         self.finished.emit(result)
 
 
-def _usable_text(value: str) -> str:
-    text = value.strip()
-    return "" if text in PLACEHOLDERS else text
-
-
-def _project_dir_from_text(value: str) -> Path | None:
-    text = _usable_text(value)
-    if not text:
-        return None
-    path = Path(text).expanduser()
-    return path.resolve()
-
-
 def _clear_line_edit_highlights(
     line_edits: tuple[QtWidgets.QLineEdit, ...],
     focus_target: QtWidgets.QWidget,
@@ -258,78 +215,7 @@ def _clear_line_edit_highlights(
 
 
 def startup_status_message() -> str:
-    return f"{cuda_status_message()}\nCryoID version {__version__}"
-
-
-def _item_path(item: QtWidgets.QListWidgetItem | None) -> Path | None:
-    if item is None:
-        return None
-    raw = item.data(QtCore.Qt.ItemDataRole.UserRole)
-    return Path(str(raw)) if raw else None
-
-
-def _result_label(path: Path, run_dir: Path | None) -> str:
-    if path.name == "sequence_ranking.tsv":
-        detected_run = path.parent
-        mode = ""
-        try:
-            import json
-
-            payload = json.loads((detected_run / "run_config.json").read_text(encoding="utf-8"))
-            mode = str(payload.get("effective_mode") or "").upper()
-        except (OSError, ValueError):
-            pass
-        suffix = f" | {mode}" if mode else ""
-        return f"[{detected_run.name}{suffix}] sequence_ranking.tsv"
-    if run_dir is None:
-        return path.name
-    try:
-        return str(path.resolve().relative_to(run_dir.resolve()))
-    except ValueError:
-        return path.name
-
-
-def _style_link_item(item: QtWidgets.QListWidgetItem) -> None:
-    font = item.font()
-    font.setUnderline(True)
-    item.setFont(font)
-    item.setForeground(QtGui.QBrush(QtGui.QColor("#7db1ff")))
-
-
-def _open_file_location(path: Path) -> None:
-    target = path.expanduser().resolve()
-    if not target.exists():
-        raise FileNotFoundError(f"Result path no longer exists: {target}")
-    if sys.platform.startswith("win"):
-        if target.is_file():
-            subprocess.Popen(["explorer", f"/select,{target}"])
-        else:
-            subprocess.Popen(["explorer", str(target)])
-        return
-    if sys.platform == "darwin":
-        if target.is_file():
-            subprocess.Popen(["open", "-R", str(target)])
-        else:
-            subprocess.Popen(["open", str(target)])
-        return
-
-    directory = target if target.is_dir() else target.parent
-    opener = shutil.which("xdg-open")
-    if opener:
-        subprocess.Popen([opener, str(directory)])
-        return
-    opened = QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(directory)))
-    if not opened:
-        raise RuntimeError(f"No desktop file opener is available for {directory}")
-
-
-def _open_file(path: Path) -> None:
-    target = path.expanduser().resolve()
-    if not target.is_file():
-        raise FileNotFoundError(f"Result file no longer exists: {target}")
-    opened = QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(target)))
-    if not opened:
-        raise RuntimeError(f"No desktop file opener is available for {target}")
+    return f"CryoID2 version {__version__}"
 
 
 def _detect_chimerax_path() -> str:
@@ -615,162 +501,75 @@ class SequenceRankingDialog(QtWidgets.QDialog):
         self.status_label.setText(f"Could not load ranking: {message}")
 
 
-def apply_dark_palette(app: QtWidgets.QApplication) -> None:
-    """Force a dark Fusion palette so the UI stays dark regardless of OS theme."""
+def apply_theme(app, window, ui, theme: str = "light") -> None:
+    """Apply one consistent palette to the main window and its dialogs."""
+    dark = theme == "dark"
+    bg, panel, field = ("#1e1e1e", "#1f242b", "#262b33") if dark else ("#f3f6fa", "#eaf0f7", "#ffffff")
+    text, muted, border = ("#e2e8f0", "#7a818c", "#333944") if dark else ("#213247", "#64748b", "#c8d3e0")
+    accent = "#347aff" if dark else "#2563eb"
+    button = "#2f3540" if dark else panel
+    button_border = "#3a404c" if dark else border
+    menu_hover = "#2a303a" if dark else accent
     palette = QtGui.QPalette()
-    # Main background: tweak Window/Base colors to change the overall background shade.
-    palette.setColor(QtGui.QPalette.ColorRole.Window, QtGui.QColor("#1e1e1e"))
-    palette.setColor(QtGui.QPalette.ColorRole.WindowText, QtGui.QColor("#e2e8f0"))
-    palette.setColor(QtGui.QPalette.ColorRole.Base, QtGui.QColor("#21252b"))
-    palette.setColor(QtGui.QPalette.ColorRole.AlternateBase, QtGui.QColor("#282c34"))
-    palette.setColor(QtGui.QPalette.ColorRole.ToolTipBase, QtGui.QColor("#1e2127"))
-    palette.setColor(QtGui.QPalette.ColorRole.ToolTipText, QtGui.QColor("#e2e8f0"))
-    palette.setColor(QtGui.QPalette.ColorRole.Text, QtGui.QColor("#e2e8f0"))
-    palette.setColor(QtGui.QPalette.ColorRole.Button, QtGui.QColor("#2f3540"))
-    palette.setColor(QtGui.QPalette.ColorRole.ButtonText, QtGui.QColor("#e2e8f0"))
-    palette.setColor(QtGui.QPalette.ColorRole.BrightText, QtGui.QColor("#ff7676"))
-    palette.setColor(QtGui.QPalette.ColorRole.Link, QtGui.QColor("#5d7bff"))
-    palette.setColor(QtGui.QPalette.ColorRole.Highlight, QtGui.QColor("#347aff"))
-    palette.setColor(QtGui.QPalette.ColorRole.HighlightedText, QtGui.QColor("#f4f6fb"))
+    for role, color in {
+        "Window": bg, "WindowText": text, "Base": field,
+        "AlternateBase": panel, "Text": text, "Button": panel,
+        "ButtonText": text, "ToolTipBase": field, "ToolTipText": text,
+        "Highlight": accent, "HighlightedText": "#ffffff", "Link": accent,
+        "BrightText": "#ef4444",
+    }.items():
+        palette.setColor(getattr(QtGui.QPalette.ColorRole, role), QtGui.QColor(color))
+    for role in ("Text", "WindowText", "ButtonText"):
+        palette.setColor(getattr(QtGui.QPalette, "ColorGroup", QtGui.QPalette).Disabled,
+                         getattr(QtGui.QPalette.ColorRole, role), QtGui.QColor(muted))
+    if dark:
+        # Preserve the palette used by the original GUI, including native controls.
+        for role, color in {
+            "Base": "#21252b", "AlternateBase": "#282c34",
+            "ToolTipBase": "#1e2127", "Button": "#2f3540",
+            "BrightText": "#ff7676", "Link": "#5d7bff",
+            "HighlightedText": "#f4f6fb",
+        }.items():
+            palette.setColor(getattr(QtGui.QPalette.ColorRole, role), QtGui.QColor(color))
     app.setPalette(palette)
+    app.setStyleSheet(f"""
+        QMainWindow, QDialog {{ background: {bg}; color: {text}; }}
+        QMenuBar, QMenu {{ background: {panel}; color: {text}; }}
+        QMenuBar::item:selected, QMenu::item:selected {{ background: {menu_hover}; color: {text if dark else "white"}; }}
+        QLabel {{ color: {text}; }}
+        QLabel#density_map_label, QLabel#candidate_pool_label {{ font-weight: 600; }}
+        QLineEdit, QPlainTextEdit, QListWidget, QTableView, QComboBox {{
+            background: {field}; color: {text}; border: 1px solid {border};
+            border-radius: 4px; selection-background-color: {accent};
+            selection-color: white;
+        }}
+        QLineEdit, QComboBox {{ padding: 4px; }}
+        QPushButton {{ background: {button}; color: {text}; border: 1px solid {button_border};
+                       border-radius: 5px; padding: 5px 10px; }}
+        QPushButton:hover {{ border-color: {accent}; }}
+        QPushButton:disabled {{ color: {muted}; border-color: {border}; }}
+        QPushButton#run_button {{ background: #2563eb; color: white; border: none; }}
+        QPushButton#run_button:hover {{ background: #1d4ed8; }}
+        QPushButton#run_button[running="true"] {{ background: #b91c1c; }}
+        QPushButton#run_button[running="true"]:hover {{ background: #991b1b; }}
+        QPushButton#run_button:disabled {{ background: {border}; color: {muted}; }}
+        QProgressBar {{ background: {field if dark else border}; border: none; border-radius: 3px; }}
+        QProgressBar::chunk {{ background: {accent}; border-radius: 3px; }}
+        QLabel#progress_percent {{ color: {muted}; }}
+        QGroupBox {{ border: 1px solid {border}; border-radius: 6px;
+                     margin-top: 10px; font-weight: 600; color: {text}; }}
+        QGroupBox::title {{ subcontrol-origin: margin; left: 12px; padding: 0 5px; }}
+    """)
 
 
-def _font_width(widget: QtWidgets.QWidget, text: str) -> int:
-    metrics = QtGui.QFontMetrics(widget.font())
-    if hasattr(metrics, "horizontalAdvance"):
-        return metrics.horizontalAdvance(text)
-    return metrics.width(text)
+def set_run_button_state(ui, *, running: bool, cancelling: bool = False) -> None:
+    ui.run_button.setText("Aborting…" if cancelling else "Abort" if running else "Run")
+    ui.run_button.setToolTip("Abort the current job" if running else "Run the pipeline")
+    ui.run_button.setEnabled(not cancelling)
+    ui.run_button.setProperty("running", running)
+    ui.run_button.style().unpolish(ui.run_button)
+    ui.run_button.style().polish(ui.run_button)
 
-
-def _font_height(widget: QtWidgets.QWidget) -> int:
-    return QtGui.QFontMetrics(widget.font()).height()
-
-
-def _fixed_policy() -> QtWidgets.QSizePolicy:
-    return QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Policy.Fixed, QtWidgets.QSizePolicy.Policy.Fixed)
-
-
-def _expanding_fixed_policy() -> QtWidgets.QSizePolicy:
-    return QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Fixed)
-
-
-def _browse_icon(window: QtWidgets.QMainWindow) -> QtGui.QIcon:
-    icon = QtGui.QIcon(str(REPO_ROOT / "G_GUI" / "svg_assets" / "upload-sign-svgrepo-com.svg"))
-    if not icon.isNull():
-        return icon
-    try:
-        return window.style().standardIcon(QtWidgets.QStyle.StandardPixmap.SP_DialogOpenButton)
-    except AttributeError:
-        return window.style().standardIcon(QtWidgets.QStyle.SP_DialogOpenButton)
-
-
-def _remove_spacers(layout: QtWidgets.QLayout) -> None:
-    for index in range(layout.count() - 1, -1, -1):
-        item = layout.itemAt(index)
-        if item is not None and item.widget() is None:
-            layout.takeAt(index)
-
-
-def _set_layout_stretches(layout: QtWidgets.QBoxLayout, stretches: list[int]) -> None:
-    for index, stretch in enumerate(stretches):
-        if index < layout.count():
-            layout.setStretch(index, stretch)
-
-
-def _clear_widget_alignment(layout: QtWidgets.QLayout, widget: QtWidgets.QWidget) -> None:
-    try:
-        layout.setAlignment(widget, QtCore.Qt.AlignmentFlag(0))
-    except TypeError:
-        layout.setAlignment(widget, QtCore.Qt.Alignment(0))
-
-
-def apply_runtime_layout_fixes(window: QtWidgets.QMainWindow, ui: Ui_cryoID) -> None:
-    field_button_gap = 10
-    row_margin = 9
-    change_folder_font = QtGui.QFont(ui.mrc_file_editbox.font())
-    if change_folder_font.pointSize() > 0:
-        change_folder_font.setPointSize(max(11, change_folder_font.pointSize() - 1))
-    ui.change_folder_button_results.setFont(change_folder_font)
-
-    field_height = max(30, _font_height(ui.mrc_file_editbox) + 12)
-    browse_size = QtCore.QSize(field_height + 14, field_height)
-    action_width = max(104, _font_width(ui.run_button, "Abort") + 42)
-    action_height = max(48, field_height + 14)
-    label_width = max(
-        _font_width(ui.density_map_label, ui.density_map_label.text()),
-        _font_width(ui.protein_pool_file_label, ui.protein_pool_file_label.text()),
-    ) + 16
-    input_width = max(300, _font_width(ui.mrc_file_editbox, "your_cryoEM_map.mrc") + 90)
-    dock_width = max(350, _font_width(ui.change_folder_button_results, "Change folder") + 220)
-
-    ui.top_widget.setSizePolicy(_expanding_fixed_policy())
-    ui.bot_widget.setSizePolicy(_expanding_fixed_policy())
-    ui.top_widget_right.setSizePolicy(_expanding_fixed_policy())
-    ui.top_widget_right.setMinimumWidth(label_width + input_width + browse_size.width() + (field_button_gap * 2) + 36)
-    ui.top_widget.setMinimumWidth(action_width + ui.top_widget_right.minimumWidth() + 95)
-
-    for layout in (ui.horizontalLayout_6, ui.horizontalLayout_16):
-        _remove_spacers(layout)
-        layout.setContentsMargins(row_margin, row_margin, row_margin, row_margin)
-        layout.setSpacing(field_button_gap)
-        layout.invalidate()
-    _clear_widget_alignment(ui.horizontalLayout_6, ui.top_widget_right)
-    _set_layout_stretches(ui.horizontalLayout_6, [0, 1])
-    _set_layout_stretches(ui.horizontalLayout_16, [0, 0, 1])
-
-    for layout in (ui.horizontalLayout, ui.horizontalLayout_14):
-        _remove_spacers(layout)
-        layout.setSpacing(field_button_gap)
-        _set_layout_stretches(layout, [0, 1, 0])
-        layout.invalidate()
-
-    for label in (ui.density_map_label, ui.protein_pool_file_label):
-        label.setFixedWidth(label_width)
-        label.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignVCenter)
-
-    for line_edit in (ui.mrc_file_editbox, ui.pool_file_editbox):
-        line_edit.setMinimumWidth(input_width)
-        line_edit.setMinimumHeight(field_height)
-        line_edit.setSizePolicy(_expanding_fixed_policy())
-
-    ui.lineEdit_2.setFont(ui.mrc_file_editbox.font())
-
-    icon = _browse_icon(window)
-    for button in (ui.browse_mrc_file_button, ui.browse_pool_fil_button):
-        button.setIcon(icon)
-        button.setIconSize(QtCore.QSize(20, 20))
-        button.setText("")
-        button.setFixedSize(browse_size)
-        button.setSizePolicy(_fixed_policy())
-        button.setCursor(QtCore.Qt.CursorShape.PointingHandCursor)
-
-    for button in (ui.run_button, ui.abort_button):
-        button.setFixedSize(action_width, action_height)
-        button.setSizePolicy(_fixed_policy())
-
-    ui.progressBar.setMinimumHeight(field_height)
-    ui.progressBar.setMinimumWidth(max(340, input_width + browse_size.width()))
-    ui.progressBar.setSizePolicy(_expanding_fixed_policy())
-    ui.status_label.setFixedWidth(label_width)
-    ui.status_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignVCenter)
-
-    ui.dockWidget.setMinimumWidth(dock_width)
-    ui.dockWidgetContents.setMinimumWidth(dock_width - 20)
-    ui.results_label_widget.setMinimumWidth(dock_width - 24)
-    ui.horizontalLayout_7.setSpacing(field_button_gap)
-    _set_layout_stretches(ui.horizontalLayout_7, [1, 0])
-    ui.lineEdit_2.setMinimumWidth(max(130, dock_width - _font_width(ui.change_folder_button_results, "Change folder") - 92))
-    ui.lineEdit_2.setMinimumHeight(field_height)
-    ui.lineEdit_2.setSizePolicy(_expanding_fixed_policy())
-    ui.change_folder_button_results.setFixedSize(
-        _font_width(ui.change_folder_button_results, "Change folder") + 30,
-        field_height,
-    )
-    ui.view_in_chimera_button.setMinimumHeight(field_height)
-    try:
-        window.resizeDocks([ui.dockWidget], [dock_width], QtCore.Qt.Orientation.Horizontal)
-    except Exception:
-        pass
 
 
 def main() -> None:
@@ -779,28 +578,28 @@ def main() -> None:
         raise SystemExit(f"CryoID GUI cannot start: {display_issue}")
 
     app = QtWidgets.QApplication(sys.argv)
-    app.setStyle("Fusion")  # or "Windows"
-    apply_dark_palette(app)  # ensures Fusion stays dark even if OS theme is light
+    app.setStyle("Fusion")
+    # Keep inherited widget fonts consistent when Qt repolishes a new theme.
+    font = app.font()
+    font.setPointSize(12)
+    app.setFont(font)
     window = CryoIDMainWindow()
-    ui = Ui_cryoID()
-    ui.setupUi(window)
+    ui = CryoIDUI()
+    ui.setup(window)
     window.setWindowTitle("CryoIDv2")
-    ui.lineEdit_2.setPlaceholderText("Output directory (.../cryoid_results)")
-    ui.change_folder_button_results.setText("Browse")
+    theme_preferences = QtCore.QSettings("CryoID", "GUI")
+    current_theme = str(theme_preferences.value("theme", "light"))
     local_config_state = ensure_local_config()
     shared_config_state = load_user_config()
     resolved_project_dir = resolve_project_dir(None, shared_config_state, default=REPO_ROOT)
     local_config_state["project_dir"] = str(resolved_project_dir)
-    ui.lineEdit_2.setText(str(resolved_project_dir))
-    ui.progressBar.setRange(0, 100)
-    ui.progressBar.setValue(0)
-    apply_runtime_layout_fixes(window, ui)
+    ui.progress_bar.setRange(0, 100)
+    ui.progress_bar.setValue(0)
 
     state: dict[str, object] = {
         "thread": None,
         "worker": None,
-        "last_result": None,
-        "loaded_project_dir": None,
+        "last_running_progress": 0,
     }
     sequence_ranking_action = QtGui.QAction("Sequence Ranking", window)
     sequence_ranking_action.setToolTip(
@@ -832,7 +631,12 @@ def main() -> None:
     close_state = {"pending": False}
 
     def append_log(message: str) -> None:
-        ui.plainTextEdit.appendPlainText(str(message))
+        ui.log_edit.appendPlainText(str(message))
+
+    def update_run_progress(value: int) -> None:
+        if value < 100:
+            state["last_running_progress"] = value
+        ui.progress_bar.setValue(value)
 
     def persist_config(**updates: object) -> None:
         for key, value in updates.items():
@@ -840,12 +644,12 @@ def main() -> None:
         local_config_state.update(save_local_config(local_config_state))
 
     def current_project_dir() -> Path | None:
-        selected = _project_dir_from_text(ui.lineEdit_2.text())
-        return results_project_dir(selected) if selected is not None else None
+        selected = str(local_config_state.get("project_dir") or "").strip()
+        return results_project_dir(selected) if selected else None
 
     def clear_input_highlight() -> None:
         _clear_line_edit_highlights(
-            (ui.mrc_file_editbox, ui.pool_file_editbox, ui.lineEdit_2),
+            (ui.density_map_edit, ui.candidate_pool_edit),
             ui.centralwidget,
         )
 
@@ -858,17 +662,20 @@ def main() -> None:
             local_config_state.get("sequence_ranking_run_dir"),
         )
 
-    def refresh_ranking_action() -> None:
-        # Keep this command usable like Advanced Settings. The dialog reports
-        # an empty state when the expected run-level ranking is absent.
+    def refresh_result_actions() -> None:
+        project = current_project_dir()
+        has_ranking = bool(project and sequence_ranking_files(project))
+        has_model = bool(project and collect_chimerax_project_files(project, None)["aligned_models"])
+        ui.ranking_button.setEnabled(has_ranking)
         sequence_ranking_action.setEnabled(True)
+        ui.model_button.setEnabled(has_model)
+        ui.actionModel.setEnabled(True)
 
     def open_sequence_ranking(path: Path | None = None) -> None:
         project = current_project_dir()
         rankings = sequence_ranking_files(project) if project is not None else []
         ranking = path.expanduser().resolve() if path is not None else current_sequence_ranking()
         if ranking is None or not ranking.is_file():
-            append_log("No run-specific sequence ranking is available.")
             ranking = None
         elif path is not None:
             persist_config(sequence_ranking_run_dir=ranking.parent)
@@ -876,38 +683,9 @@ def main() -> None:
 
         def remember_selected_run(run_dir: str) -> None:
             persist_config(sequence_ranking_run_dir=run_dir)
-            append_log(f"Sequence ranking run selected: {Path(run_dir).name}")
 
         dialog.run_selected.connect(remember_selected_run)
         _exec_dialog(dialog)
-
-    def populate_results(paths: list[Path], project_dir: Path | None = None) -> None:
-        ui.file_list_widget_results.clear()
-        if project_dir is not None:
-            state["loaded_project_dir"] = project_dir
-        for path in paths:
-            item = QtWidgets.QListWidgetItem(_result_label(path, project_dir))
-            item.setToolTip(str(path))
-            item.setData(QtCore.Qt.ItemDataRole.UserRole, str(path))
-            _style_link_item(item)
-            ui.file_list_widget_results.addItem(item)
-        refresh_ranking_action()
-
-    def populate_project_results(
-        project_dir: Path | None = None,
-        output_files: list[Path] | None = None,
-    ) -> None:
-        project = project_dir or current_project_dir()
-        if project is None:
-            ui.file_list_widget_results.clear()
-            return
-        if not project.is_dir():
-            append_log(f"Project folder not found: {project}")
-            return
-        ensure_project_dirs(project)
-        files = collect_result_display_files(project, output_files)
-        populate_results(files, project_dir=project)
-        append_log(f"Loaded {len(files)} project result file(s) from {project}")
 
     def browse_density_map() -> None:
         filename, _ = QtWidgets.QFileDialog.getOpenFileName(
@@ -917,7 +695,7 @@ def main() -> None:
             "Density maps (*.mrc *.map *.ccp4);;All files (*)",
         )
         if filename:
-            ui.mrc_file_editbox.setText(filename)
+            ui.density_map_edit.setText(filename)
             persist_config(last_density_map=Path(filename).expanduser().resolve())
 
     def browse_candidate_pool() -> None:
@@ -928,25 +706,12 @@ def main() -> None:
             "FASTA sequence pools (*.fasta *.fa *.faa *.fna);;All files (*)",
         )
         if filename:
-            ui.pool_file_editbox.setText(filename)
+            ui.candidate_pool_edit.setText(filename)
             persist_config(last_candidate_pool=Path(filename).expanduser().resolve())
 
-    def choose_results_folder() -> None:
-        directory = QtWidgets.QFileDialog.getExistingDirectory(
-            window,
-            "Select results parent directory",
-            str(current_project_dir() or REPO_ROOT),
-        )
-        if directory:
-            project = results_project_dir(directory)
-            ensure_project_dirs(project)
-            ui.lineEdit_2.setText(str(project))
-            persist_config(project_dir=project)
-            populate_project_results(project)
-
     def start_pipeline() -> None:
-        density_map = _usable_text(ui.mrc_file_editbox.text())
-        candidate_pool = _usable_text(ui.pool_file_editbox.text())
+        density_map = ui.density_map_edit.text().strip()
+        candidate_pool = ui.candidate_pool_edit.text().strip()
         project_dir = current_project_dir()
         if not density_map or not candidate_pool:
             append_log("Run blocked: provide both a density map and a candidate sequence pool.")
@@ -956,7 +721,7 @@ def main() -> None:
             return
         weights_path = settings_state.get("weights_path", "").strip()
         if not weights_path:
-            append_log("Run blocked: set the weights path in More Options > Advanced Settings.")
+            append_log("Run blocked: set the weights path in Settings > Configurations.")
             return
         weights_dir = Path(weights_path).expanduser().resolve()
         if not weights_dir.is_dir():
@@ -979,7 +744,7 @@ def main() -> None:
         except OSError as exc:
             append_log(f"Run blocked: could not create project folder {project_dir}: {exc}")
             return
-        ui.lineEdit_2.setText(str(project_dir))
+        local_config_state["project_dir"] = str(project_dir)
         persist_config(
             project_dir=project_dir,
             weights_path=weights_dir,
@@ -995,10 +760,10 @@ def main() -> None:
             structure_selection=settings_state.get("structure_selection", ""),
             keep_tmp=settings_state.get("keep_tmp", "false") == "true",
         )
-        ui.progressBar.setRange(0, 100)
-        ui.progressBar.setValue(0)
-        ui.run_button.setEnabled(False)
-        ui.abort_button.setEnabled(True)
+        ui.progress_bar.setRange(0, 100)
+        ui.progress_bar.setValue(0)
+        state["last_running_progress"] = 0
+        set_run_button_state(ui, running=True)
         clear_input_highlight()
         append_log("Starting cryoID pipeline...")
 
@@ -1019,11 +784,13 @@ def main() -> None:
 
         def on_finished(result: object) -> None:
             close_after_abort = close_state["pending"]
-            state["last_result"] = result
-            ui.progressBar.setRange(0, 100)
-            ui.progressBar.setValue(100)
-            ui.run_button.setEnabled(True)
-            ui.abort_button.setEnabled(False)
+            ui.progress_bar.setRange(0, 100)
+            result_statuses = {str(stage.status) for stage in getattr(result, "stages", [])}
+            if result_statuses and result_statuses == {"ok"}:
+                ui.progress_bar.setValue(100)
+            else:
+                ui.progress_bar.setValue(int(state.get("last_running_progress", 0)))
+            set_run_button_state(ui, running=False)
             state["thread"] = None
             state["worker"] = None
             if hasattr(result, "stages"):
@@ -1044,7 +811,7 @@ def main() -> None:
                         window,
                         "Sequence mode could not be detected",
                         ambiguous_mode.message
-                        + "\n\nChoose Protein or RNA in More Options > Advanced Settings.",
+                        + "\n\nChoose Protein or RNA using Options.",
                     )
                 config_updates: dict[str, object] = {
                     "project_dir": project_dir,
@@ -1064,7 +831,7 @@ def main() -> None:
                 persist_config(
                     **config_updates,
                 )
-                populate_project_results(project_dir, list(getattr(result, "output_files", []) or []))
+                refresh_result_actions()
                 log_path = Path(result.run_dir) / "pipeline.log"
                 if log_path.is_file():
                     append_log(f"Run log: {log_path}")
@@ -1090,7 +857,7 @@ def main() -> None:
 
         thread.started.connect(worker.run)
         worker.log.connect(append_log)
-        worker.progress.connect(ui.progressBar.setValue)
+        worker.progress.connect(update_run_progress)
         worker.finished.connect(on_finished)
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
@@ -1106,7 +873,7 @@ def main() -> None:
             return
         already_requested = bool(getattr(worker, "_cancel_requested", False))
         worker.cancel()
-        ui.abort_button.setEnabled(False)
+        set_run_button_state(ui, running=True, cancelling=True)
         clear_input_highlight()
         QtCore.QTimer.singleShot(0, clear_input_highlight)
         if close_requested:
@@ -1131,7 +898,7 @@ def main() -> None:
 
     def new_project() -> None:
         if state.get("worker") is not None:
-            append_log("Cannot create a new project while a run is active. Abort or wait for completion first.")
+            QtWidgets.QMessageBox.warning(window, "Run active", "Abort or wait for completion before creating a new project.")
             return
         directory = QtWidgets.QFileDialog.getExistingDirectory(
             window,
@@ -1142,11 +909,11 @@ def main() -> None:
             return
         project = results_project_dir(directory)
         ensure_project_dirs(project)
-        ui.mrc_file_editbox.clear()
-        ui.pool_file_editbox.clear()
-        ui.lineEdit_2.setText(str(project))
-        ui.progressBar.setRange(0, 100)
-        ui.progressBar.setValue(0)
+        ui.density_map_edit.clear()
+        ui.candidate_pool_edit.clear()
+        local_config_state["project_dir"] = str(project)
+        ui.progress_bar.setRange(0, 100)
+        ui.progress_bar.setValue(0)
         persist_config(
             project_dir=project,
             last_run_dir="",
@@ -1164,8 +931,7 @@ def main() -> None:
             structure_selection=settings_state.get("structure_selection", ""),
             keep_tmp=settings_state.get("keep_tmp", "false") == "true",
         )
-        populate_project_results(project)
-        append_log(f"Project opened: {project}")
+        refresh_result_actions()
 
     def open_project() -> None:
         directory = QtWidgets.QFileDialog.getExistingDirectory(
@@ -1179,9 +945,7 @@ def main() -> None:
             detected_project = find_project_dir_from_path(selected)
             project = results_project_dir(detected_project or selected)
             ensure_project_dirs(project)
-            ui.lineEdit_2.setText(str(project))
-            state["last_result"] = None
-            selected_outputs: list[Path] = []
+            local_config_state["project_dir"] = str(project)
             if selected_run is not None:
                 config_updates: dict[str, object] = {
                     "project_dir": project,
@@ -1192,174 +956,132 @@ def main() -> None:
                 persist_config(**config_updates)
             else:
                 persist_config(project_dir=project, last_run_dir="")
-            populate_project_results(project, selected_outputs)
-            append_log(f"Project opened: {project}")
+            refresh_result_actions()
 
-    def save_log() -> None:
-        append_log("GUI log export is not part of the CryoIDv2 project workflow.")
+    def launch_files(files: list[Path]) -> bool:
+        configured_chimerax = settings_state.get("chimerax_path") or None
+        try:
+            launch_chimerax(files, chimerax_path=configured_chimerax)
+        except FileNotFoundError as exc:
+            message = (
+                f"{exc}\n\nSet the ChimeraX executable path in Settings > Configurations."
+            )
+            QtWidgets.QMessageBox.critical(window, "ChimeraX not found", message)
+            return False
+        except Exception as exc:
+            QtWidgets.QMessageBox.critical(window, "ChimeraX launch failed", str(exc))
+            return False
+        return True
 
     def open_chimerax_session() -> None:
         project_dir = current_project_dir()
-        density_map_text = _usable_text(ui.mrc_file_editbox.text())
+        density_map_text = ui.density_map_edit.text().strip()
         density_map = Path(density_map_text).expanduser().resolve() if density_map_text else None
-        configured_chimerax = settings_state.get("chimerax_path") or None
-
-        def launch_files(files: list[Path]) -> bool:
-            try:
-                launch_chimerax(files, chimerax_path=configured_chimerax)
-            except FileNotFoundError as exc:
-                message = (
-                    f"{exc}\n\nSet the ChimeraX executable path in More options > Advanced Settings."
-                )
-                QtWidgets.QMessageBox.critical(window, "ChimeraX not found", message)
-                append_log(f"ChimeraX launch failed: {message}")
-                return False
-            except Exception as exc:
-                QtWidgets.QMessageBox.critical(window, "ChimeraX launch failed", str(exc))
-                append_log(f"ChimeraX launch failed: {exc}")
-                return False
-            append_log(f"Opened in ChimeraX: {', '.join(str(path) for path in files)}")
-            return True
 
         if project_dir is None:
-            append_log("Select a CryoID results directory before opening ChimeraX.")
+            QtWidgets.QMessageBox.warning(window, "ChimeraX", "Select a CryoID results directory before opening ChimeraX.")
             return
         groups = collect_chimerax_project_files(project_dir, density_map)
         files = flatten_chimerax_session_files(groups)
         if not groups["density_maps"]:
-            append_log("ChimeraX launch blocked: provide an existing input density map.")
+            QtWidgets.QMessageBox.warning(window, "ChimeraX", "Provide an existing input density map.")
             return
         if not groups["aligned_models"]:
-            append_log("ChimeraX launch blocked: no best aligned model is recorded in best_overall.")
+            QtWidgets.QMessageBox.warning(window, "ChimeraX", "No best aligned model is recorded in best_overall.")
             return
-        if launch_files(files):
-            append_log(
-                "Opened in ChimeraX: "
-                f"{len(groups['density_maps'])} map(s), "
-                f"{len(groups['aligned_models'])} aligned model(s)."
-            )
+        launch_files(files)
 
-    def open_advanced_settings() -> None:
-        dialog = AdvancedSettingsWindow(
+    def open_configurations() -> None:
+        dialog = ConfigurationsWindow(
             window,
             weights_path=settings_state.get("weights_path", ""),
-            rcl=float(settings_state.get("rcl", "0")),
-            protein_min_trace_length=int(
-                settings_state.get("protein_min_trace_length", "10")
-            ),
             chimerax_path=settings_state.get("chimerax_path", ""),
             detected_chimerax_path=_detect_chimerax_path(),
             blast_bin_dir=settings_state.get("blast_bin_dir", ""),
             detected_blast_bin_dir=str(autodetect_blast_bin_dir() or ""),
+            results_directory=str(current_project_dir() or results_project_dir(REPO_ROOT)),
+        )
+        active_run = state.get("worker") is not None
+        dialog.results_directory_edit.setEnabled(not active_run)
+        dialog.browse_results_button.setEnabled(not active_run)
+        if _exec_dialog(dialog) != _dialog_accepted_code():
+            return
+        project = results_project_dir(dialog.results_directory())
+        try:
+            ensure_project_dirs(project)
+        except OSError as exc:
+            QtWidgets.QMessageBox.warning(window, "Invalid results location", str(exc))
+            return
+        updates = {
+            "weights_path": dialog.weights_path(),
+            "chimerax_path": dialog.chimerax_path(),
+            "blast_bin_dir": dialog.blast_bin_dir(),
+        }
+        settings_state.update(updates)
+        project_updates = {"project_dir": project}
+        if project != current_project_dir():
+            project_updates.update(last_run_dir="", sequence_ranking_run_dir="")
+        persist_config(**updates, **project_updates)
+        refresh_result_actions()
+
+    def open_options() -> None:
+        dialog = OptionsWindow(
+            window,
+            rcl=float(settings_state.get("rcl", "0")),
+            protein_min_trace_length=int(settings_state.get("protein_min_trace_length", "10")),
             sequence_mode=settings_state.get("sequence_mode", "auto"),
             structure_selection=settings_state.get("structure_selection", ""),
             keep_tmp=settings_state.get("keep_tmp", "false").lower() == "true",
         )
         if _exec_dialog(dialog) != _dialog_accepted_code():
             return
-        settings_state["weights_path"] = dialog.weights_path()
-        settings_state["rcl"] = str(dialog.rcl())
-        settings_state["protein_min_trace_length"] = str(
-            dialog.protein_min_trace_length()
-        )
-        settings_state["chimerax_path"] = dialog.chimerax_path()
-        settings_state["blast_bin_dir"] = dialog.blast_bin_dir()
-        settings_state["sequence_mode"] = dialog.sequence_mode()
-        settings_state["structure_selection"] = dialog.structure_selection()
-        settings_state["keep_tmp"] = "true" if dialog.keep_tmp() else "false"
-        persist_config(
-            weights_path=settings_state["weights_path"],
-            rcl=settings_state["rcl"],
-            protein_min_trace_length=settings_state["protein_min_trace_length"],
-            chimerax_path=settings_state["chimerax_path"],
-            blast_bin_dir=settings_state["blast_bin_dir"],
-            sequence_mode=settings_state["sequence_mode"],
-            structure_selection=settings_state["structure_selection"],
-            keep_tmp=settings_state["keep_tmp"],
-        )
-        if settings_state["weights_path"]:
-            append_log(f"Weights path set to: {settings_state['weights_path']}")
-        else:
-            append_log("Weights path cleared. Runs require a weights path.")
-        append_log(f"Recommended contour level (RCL) set to: {float(settings_state['rcl']):g}")
-        append_log(
-            "Protein minimum trace length set to: "
-            f"{int(settings_state['protein_min_trace_length'])}."
-        )
-        if settings_state["chimerax_path"]:
-            append_log(f"ChimeraX path set to: {settings_state['chimerax_path']}")
-        else:
-            append_log("ChimeraX path cleared. View in ChimeraX will try autodetection.")
-        if settings_state["blast_bin_dir"]:
-            append_log(f"BLAST+ bin folder set to: {settings_state['blast_bin_dir']}")
-        else:
-            append_log("BLAST+ path cleared. CryoID will try automatic detection.")
-        append_log(f"Sequence mode set to: {settings_state['sequence_mode']}.")
-        if settings_state["structure_selection"]:
-            append_log(
-                "Structure candidate selection set to: "
-                f"{settings_state['structure_selection']}."
-            )
-        else:
-            append_log("Structure candidate selection uses mode defaults: protein 1; RNA 1.0 (100%).")
-
-    def open_selected_result_location(item: QtWidgets.QListWidgetItem) -> None:
-        path = _item_path(item)
-        if path is None:
-            return
-        if path.name == "sequence_ranking.tsv":
-            open_sequence_ranking(path)
-            return
-        try:
-            _open_file_location(path)
-        except Exception as exc:
-            append_log(f"Could not open result location: {exc}")
-
-    def log_not_ready(feature: str) -> None:
-        append_log(f"{feature}: no separate dialog is wired yet. Use Run for the current default workflow.")
+        updates = {
+            "rcl": str(dialog.rcl()),
+            "protein_min_trace_length": str(dialog.protein_min_trace_length()),
+            "sequence_mode": dialog.sequence_mode(),
+            "structure_selection": dialog.structure_selection(),
+            "keep_tmp": "true" if dialog.keep_tmp() else "false",
+        }
+        settings_state.update(updates)
+        persist_config(**updates)
 
     def open_github() -> None:
         opened = QtGui.QDesktopServices.openUrl(QtCore.QUrl(CRYOID_GITHUB_URL))
         if opened:
-            append_log(f"Opened CryoIDv2 GitHub: {CRYOID_GITHUB_URL}")
             return
         message = f"Could not open the default browser.\n\n{CRYOID_GITHUB_URL}"
         QtWidgets.QMessageBox.warning(window, "Could not open GitHub", message)
-        append_log(f"Could not open CryoIDv2 GitHub: {CRYOID_GITHUB_URL}")
+
+    def toggle_theme() -> None:
+        nonlocal current_theme
+        current_theme = "light" if current_theme == "dark" else "dark"
+        theme_preferences.setValue("theme", current_theme)
+        theme_action.setChecked(current_theme == "dark")
+        apply_theme(app, window, ui, current_theme)
+
+    theme_action = QtGui.QAction("Theme", window)
+    theme_action.setCheckable(True)
+    theme_action.setChecked(current_theme == "dark")
+    theme_action.setToolTip("Switch between light and dark mode (checked means dark)")
+    theme_action.triggered.connect(toggle_theme)
 
     def configure_menus() -> None:
-        ui.menucryoID.setTitle("File")
-        ui.menuView.setTitle("View")
-        ui.menuMore_Options.setTitle("More Options")
-        ui.menuHelp.setTitle("Help")
-        ui.menucryoID.clear()
-        ui.menucryoID.addAction(ui.actionNew)
-        ui.menucryoID.addAction(ui.actionOpen)
+        ui.menuFile.clear()
+        ui.menuFile.addAction(ui.actionNew)
+        ui.menuFile.addAction(ui.actionOpen)
         ui.menuView.clear()
-        ui.menuView.addAction(ui.actionResults_window)
         ui.menuView.addAction(sequence_ranking_action)
-        ui.menuView.addAction(ui.actionChimeraX)
-        ui.menuMore_Options.clear()
-        ui.menuMore_Options.addAction(ui.actionAdvanced_Settings)
+        ui.menuView.addAction(ui.actionModel)
+        ui.menuSettings.clear()
+        ui.menuSettings.addAction(ui.actionConfigurations)
+        ui.menuSettings.addAction(theme_action)
         ui.menuHelp.clear()
-        ui.menuHelp.addAction(ui.actionNonesofar)
-        ui.actionNonesofar.setText("GitHub")
-        ui.actionNonesofar.setToolTip("Open the CryoIDv2 GitHub repository")
-        for action in (
-            ui.actionRecent,
-            ui.action_L_oad_save,
-            ui.actionTBD,
-            ui.actionPhenix,
-            ui.actionCOOT,
-            ui.actionMRCs,
-            ui.actionProgress_bar,
-            ui.actionPreviewer,
-        ):
-            action.setVisible(False)
+        ui.menuHelp.addAction(ui.actionGitHub)
+        ui.actionGitHub.setToolTip("Open the CryoIDv2 GitHub repository")
         ui.menubar.clear()
-        ui.menubar.addAction(ui.menucryoID.menuAction())
+        ui.menubar.addAction(ui.menuFile.menuAction())
         ui.menubar.addAction(ui.menuView.menuAction())
-        ui.menubar.addAction(ui.menuMore_Options.menuAction())
+        ui.menubar.addAction(ui.menuSettings.menuAction())
         ui.menubar.addAction(ui.menuHelp.menuAction())
 
     configure_menus()
@@ -1371,149 +1093,51 @@ def main() -> None:
             if project.is_dir():
                 project = project.resolve()
                 ensure_project_dirs(project)
-                ui.lineEdit_2.setText(str(project))
-                populate_project_results(project)
+                local_config_state["project_dir"] = str(project)
+                refresh_result_actions()
             else:
-                ui.lineEdit_2.setText(str(REPO_ROOT.resolve()))
-                append_log(f"Saved project path no longer exists: {project}")
+                local_config_state["project_dir"] = str(REPO_ROOT.resolve())
         else:
-            ui.lineEdit_2.setText(str(REPO_ROOT.resolve()))
+            local_config_state["project_dir"] = str(REPO_ROOT.resolve())
 
         density_text = local_config_state.get("last_density_map", "")
         if density_text:
             density_path = Path(density_text).expanduser()
             if density_path.is_file():
-                ui.mrc_file_editbox.setText(str(density_path.resolve()))
+                ui.density_map_edit.setText(str(density_path.resolve()))
             else:
-                ui.mrc_file_editbox.clear()
-                append_log(f"Saved density map no longer exists: {density_path}")
+                ui.density_map_edit.clear()
 
         pool_text = local_config_state.get("last_candidate_pool", "")
         if pool_text:
             pool_path = Path(pool_text).expanduser()
             if pool_path.is_file():
-                ui.pool_file_editbox.setText(str(pool_path.resolve()))
+                ui.candidate_pool_edit.setText(str(pool_path.resolve()))
             else:
-                ui.pool_file_editbox.clear()
-                append_log(f"Saved candidate pool no longer exists: {pool_path}")
+                ui.candidate_pool_edit.clear()
 
     restore_startup_state()
-    ui.plainTextEdit.clear()
+    refresh_result_actions()
+    ui.log_edit.clear()
     append_log(startup_status_message())
 
-    ui.browse_mrc_file_button.clicked.connect(browse_density_map)
-    ui.browse_pool_fil_button.clicked.connect(browse_candidate_pool)
-    ui.change_folder_button_results.clicked.connect(choose_results_folder)
-    ui.run_button.clicked.connect(start_pipeline)
-    ui.abort_button.clicked.connect(abort_pipeline)
-    ui.view_in_chimera_button.clicked.connect(open_chimerax_session)
-    ui.file_list_widget_results.itemClicked.connect(open_selected_result_location)
-    ui.abort_button.setEnabled(False)
+    ui.browse_density_button.clicked.connect(browse_density_map)
+    ui.browse_pool_button.clicked.connect(browse_candidate_pool)
+    ui.run_button.clicked.connect(
+        lambda: abort_pipeline() if state.get("worker") is not None else start_pipeline()
+    )
+    ui.model_button.clicked.connect(open_chimerax_session)
 
     ui.actionNew.triggered.connect(new_project)
     ui.actionOpen.triggered.connect(open_project)
-    ui.actionAdvanced_Settings.triggered.connect(open_advanced_settings)
-    ui.actionNonesofar.triggered.connect(open_github)
-    ui.actionChimeraX.triggered.connect(open_chimerax_session)
+    ui.actionConfigurations.triggered.connect(open_configurations)
+    ui.actionGitHub.triggered.connect(open_github)
+    ui.actionModel.triggered.connect(lambda: launch_files([]))
     sequence_ranking_action.triggered.connect(lambda: open_sequence_ranking())
-    # Allow the Results dock to be closed and re-shown via View -> View Results.
-    ui.actionResults_window.setCheckable(True)
-    ui.actionResults_window.setChecked(True)
-    ui.actionResults_window.triggered.connect(ui.dockWidget.setVisible)
-    ui.dockWidget.visibilityChanged.connect(ui.actionResults_window.setChecked)
-    ui.dockWidget.setWindowTitle("")
-    # Results dock panel colors (overall box and inner background)
-    ui.dockWidget.setStyleSheet("QDockWidget#dockWidget { background-color: #22272f; border: none; }")
-    ui.dockWidgetContents.setStyleSheet(
-        """
-        QWidget#dockWidgetContents {
-            background-color: #1f242b;
-        }
-        QWidget#dockWidgetContents QLabel {
-            color: #e2e8f0;
-            font-weight: 600;
-        }
-        QLabel#label_2 {
-            font-weight: 700;
-        }
-        QWidget#dockWidgetContents QLineEdit,
-        QWidget#dockWidgetContents QListWidget {
-            background-color: #262b33;
-            color: #e2e8f0;
-            border: 1px solid #333944;
-        }
-        QWidget#dockWidgetContents QPushButton {
-            background-color: #2f3540;
-            color: #e2e8f0;
-            border: 1px solid #3a404c;
-            padding: 4px 8px;
-        }
-        QWidget#dockWidgetContents QPushButton:disabled {
-            background-color: #242933;
-            color: #7a818c;
-        }
-        """
-    )
-    # Menu bar colors: adjust the QMenuBar block below (background/color/border-bottom).
-    # Results header row (path box + "Change folder"): tweak QLineEdit / QPushButton rules inside the dock CSS above.
-    # Output box under Status: style QPlainTextEdit (or QWidget#widget) in the window stylesheet below to change its background/border.
-    window.setStyleSheet(
-        """
-        QMainWindow, QWidget#centralwidgebel#protein_pool_file_label {
-            font-weight: 600;
-        }
-        QMenuBar {
-            background-color: #1f242b;
-            color: #e2e8f0;
-            border: none;
-            border-bottom: 1px solid #12161d;
-        }
-        QMenuBar::item:selected {
-            background-color: #2a303a;
-        }
-        QLabel#density_map_label,
-        QLabel#protein_pool_file_label,
-        QLabel#status_label {
-            font-weight: 700;
-        }
-        QLineEdit {
-            background-color: #262b33;
-            color: #e2e8f0;
-            border: 1px solid #333944;
-        }
-        QPlainTextEdit {
-            background-color: #262b33;
-            color: #e2e8f0;
-            border: 1px solid #333944;
-            selection-background-color: #347aff;
-            selection-color: #f4f6fb;
-        }
-        QProgressBar {
-            background-color: #262b33;
-            color: #e2e8f0;
-            border: 1px solid #333944;
-            text-align: center;
-        }
-        QProgressBar::chunk {
-            background-color: #347aff;
-        }
-        QPushButton#run_button,
-        QPushButton#abort_button {
-            background-color: #2f6db5 !important;
-            color: #f4f6fb;
-            border: 1px solid #255a92;
-            padding: 6px 14px;
-        }
-        QPushButton#run_button:hover,
-        QPushButton#abort_button:hover {
-            background-color: #377dd2 !important;
-        }
-        QPushButton#run_button:pressed,
-        QPushButton#abort_button:pressed {
-            background-color: #2b5c9c !important;
-        }
-        """
-    )
+    ui.options_button.clicked.connect(open_options)
+    ui.ranking_button.clicked.connect(lambda: open_sequence_ranking())
+    set_run_button_state(ui, running=False)
+    apply_theme(app, window, ui, current_theme)
     window.show()
     smoke_test_ms = os.environ.get("CRYOID_GUI_SMOKE_TEST_MS", "").strip()
     if smoke_test_ms:

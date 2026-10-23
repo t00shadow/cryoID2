@@ -42,7 +42,7 @@ def find_chimerax(explicit_path: str | Path | None = None) -> Path:
             return path
 
     raise FileNotFoundError(
-        "ChimeraX executable not found. Set CHIMERAX_PATH or set the ChimeraX path manually in Advanced Settings."
+        "ChimeraX executable not found. Set CHIMERAX_PATH or set the ChimeraX path manually in Settings > Configurations."
     )
 
 

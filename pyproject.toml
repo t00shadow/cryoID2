@@ -66,7 +66,7 @@ packages = [
 ]
 
 [tool.setuptools.package-data]
-G_GUI = ["*.ui", "README.md", "svg_assets/*"]
+G_GUI = ["README.md", "svg_assets/*"]
 "I_Structure_fitting.protein" = ["README.md"]
 
 [tool.setuptools.exclude-package-data]

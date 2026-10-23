@@ -1,5 +1,0 @@
-<RCC>
-  <qresource prefix="newPrefix">
-    <file>upload-sign-svgrepo-com.svg</file>
-  </qresource>
-</RCC>
