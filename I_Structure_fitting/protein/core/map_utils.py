@@ -421,6 +421,18 @@ def apply_transform_to_structure(st: gemmi.Structure, rotation: np.ndarray, tran
                     atom.pos = gemmi.Position(float(q[0]), float(q[1]), float(q[2]))
 
 
+def _extended_path(path: Path) -> Path:
+    """Allow file I/O on Windows even when long paths are disabled globally."""
+    if os.name != "nt":
+        return path
+    value = str(path.resolve())
+    if value.startswith("\\\\?\\"):
+        return Path(value)
+    if value.startswith("\\\\"):
+        return Path("\\\\?\\UNC\\" + value[2:])
+    return Path("\\\\?\\" + value)
+
+
 def write_transformed_structure(in_model: Path, out_model: Path, rotation: np.ndarray, translation: np.ndarray) -> None:
     """Read ``in_model``, apply ``R p + t`` to every atom, write ``out_model``.
 
@@ -430,17 +442,21 @@ def write_transformed_structure(in_model: Path, out_model: Path, rotation: np.nd
     """
     st = gemmi.read_structure(str(in_model))
     apply_transform_to_structure(st, rotation, translation)
+    out_model = _extended_path(out_model)
     out_model.parent.mkdir(parents=True, exist_ok=True)
     if _STRUCTURE_WRITE_TMP_DIR is not None:
-        _STRUCTURE_WRITE_TMP_DIR.mkdir(parents=True, exist_ok=True)
+        write_tmp_dir = _extended_path(_STRUCTURE_WRITE_TMP_DIR)
+        write_tmp_dir.mkdir(parents=True, exist_ok=True)
         digest = hashlib.sha1(str(out_model.resolve()).encode("utf-8")).hexdigest()[:12]
-        tmp = _STRUCTURE_WRITE_TMP_DIR / f"{out_model.stem}_{digest}{out_model.suffix}.tmp"
+        tmp = write_tmp_dir / f"{out_model.stem}_{digest}{out_model.suffix}.tmp"
     else:
         tmp = out_model.with_suffix(out_model.suffix + ".tmp")
+    # Gemmi's native file writers can reject Windows paths longer than MAX_PATH.
+    # Serialize with Gemmi, then use Python's long-path-aware file I/O.
     if out_model.suffix.lower() in {".cif", ".mmcif"}:
-        st.make_mmcif_document().write_file(str(tmp))
+        tmp.write_bytes(st.make_mmcif_document().as_string().encode("utf-8"))
     else:
-        st.write_pdb(str(tmp))
+        tmp.write_bytes(st.make_pdb_string().encode("utf-8"))
     if not tmp.exists() or tmp.stat().st_size <= 0:
         raise RuntimeError(f"Failed to write transformed structure: {tmp}")
     tmp.replace(out_model)
