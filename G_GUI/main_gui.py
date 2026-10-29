@@ -53,6 +53,8 @@ from G_GUI.settings_dialogs import ConfigurationsWindow, OptionsWindow
 from G_GUI.chimerax_launcher import find_chimerax, launch_chimerax
 from G_GUI.local_config import ensure_local_config, save_local_config
 
+from huggingface_hub import snapshot_download
+
 
 CRYOID_GITHUB_URL = "https://github.com/t00shadow/cryoID_v2"
 CONFIG = RuntimeConfig.from_env()
@@ -709,6 +711,13 @@ def main() -> None:
             ui.candidate_pool_edit.setText(filename)
             persist_config(last_candidate_pool=Path(filename).expanduser().resolve())
 
+    def download_weights() -> Path:
+        return Path(snapshot_download(
+            repo_id="testaccount153/testupload", 
+            allow_patterns="*.pth.tar",
+            # local_dir="TESTING_hf_weights"   # currently just for debugging. Disable in production so weights get stored in huggingface's cache folder instead
+        ))
+
     def start_pipeline() -> None:
         density_map = ui.density_map_edit.text().strip()
         candidate_pool = ui.candidate_pool_edit.text().strip()
@@ -721,8 +730,11 @@ def main() -> None:
             return
         weights_path = settings_state.get("weights_path", "").strip()
         if not weights_path:
-            append_log("Run blocked: set the weights path in Settings > Configurations.")
-            return
+            # Auto-download weights from Hugging Face repo
+            append_log("Downloading weights from Hugging Face repo...")
+            weights_dir = download_weights()
+            settings_state["weights_path"] = str(weights_dir)
+            persist_config(weights_path=weights_dir)
         weights_dir = Path(weights_path).expanduser().resolve()
         if not weights_dir.is_dir():
             append_log(f"Run blocked: weights path does not exist: {weights_dir}")
