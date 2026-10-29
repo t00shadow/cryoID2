@@ -1,0 +1,287 @@
+{
+  "platform": "Windows-11-10.0.26200-SP0",
+  "cpu": "Intel64 Family 6 Model 170 Stepping 4, GenuineIntel",
+  "weights_dir": "C:\\Users\\xinye\\cryoid_weights\\train_val_data",
+  "checkpoint_epochs": {
+    "secondary_strctures": 76,
+    "key_atoms": 11,
+    "residue_types": 66,
+    "residue_types_6letter": 64
+  },
+  "available_cpu_threads": 22,
+  "cuda_available": false,
+  "torch": "2.12.1+cpu",
+  "torch_default_threads": 16,
+  "default_pools": [
+    {
+      "user_api": "blas",
+      "internal_api": "openblas",
+      "num_threads": 22,
+      "prefix": "libscipy_openblas",
+      "filepath": "C:\\Users\\xinye\\Python_Projects\\cryoID_v2_combination\\.venv\\Lib\\site-packages\\numpy.libs\\libscipy_openblas64_-b788215d9d47792bcba3a2e2a7114320.dll",
+      "version": "0.3.33.112.0",
+      "threading_layer": "pthreads",
+      "architecture": "Haswell"
+    },
+    {
+      "user_api": "blas",
+      "internal_api": "openblas",
+      "num_threads": 22,
+      "prefix": "libscipy_openblas",
+      "filepath": "C:\\Users\\xinye\\Python_Projects\\cryoID_v2_combination\\.venv\\Lib\\site-packages\\scipy.libs\\libscipy_openblas-197ee2fc9b4d071f7e048078cac74115.dll",
+      "version": "0.3.31.dev",
+      "threading_layer": "pthreads",
+      "architecture": "Haswell"
+    },
+    {
+      "user_api": "openmp",
+      "internal_api": "openmp",
+      "num_threads": 22,
+      "prefix": "vcomp",
+      "filepath": "C:\\Users\\xinye\\Python_Projects\\cryoID_v2_combination\\.venv\\Lib\\site-packages\\sklearn\\.libs\\vcomp140.dll",
+      "version": null
+    },
+    {
+      "user_api": "openmp",
+      "internal_api": "openmp",
+      "num_threads": 16,
+      "prefix": "libiomp",
+      "filepath": "C:\\Users\\xinye\\Python_Projects\\cryoID_v2_combination\\.venv\\Lib\\site-packages\\torch\\lib\\libiomp5md.dll",
+      "version": null
+    },
+    {
+      "user_api": "openmp",
+      "internal_api": "openmp",
+      "num_threads": 1,
+      "prefix": "libiomp",
+      "filepath": "C:\\Users\\xinye\\Python_Projects\\cryoID_v2_combination\\.venv\\Lib\\site-packages\\torch\\lib\\libiompstubs5md.dll",
+      "version": null
+    }
+  ],
+  "repeats": 2,
+  "scope": "One real 48^3 map patch (one padded 64^3 cube), all three trained U-Net models; complete 4ZX8 ranking; cached RNA BLASTn lookup.",
+  "inference": [
+    {
+      "model": "secondary_strctures",
+      "threads": "auto",
+      "effective_torch_threads": 16,
+      "seconds": [
+        1.0394626000197604,
+        1.0521189999999478
+      ],
+      "median_seconds": 1.0457908000098541,
+      "probabilities_sha256": "8ca2bf18633b26c646473040a570bff9cf4f086ff974ce1352e4b315547201a6",
+      "probabilities_bit_identical": true,
+      "max_absolute_difference": 0.0,
+      "different_argmax_voxels": 0
+    },
+    {
+      "model": "secondary_strctures",
+      "threads": "4",
+      "effective_torch_threads": 4,
+      "seconds": [
+        1.9807480999734253,
+        1.9073794999858364
+      ],
+      "median_seconds": 1.9440637999796309,
+      "probabilities_sha256": "8ca2bf18633b26c646473040a570bff9cf4f086ff974ce1352e4b315547201a6",
+      "probabilities_bit_identical": true,
+      "max_absolute_difference": 0.0,
+      "different_argmax_voxels": 0
+    },
+    {
+      "model": "secondary_strctures",
+      "threads": "8",
+      "effective_torch_threads": 8,
+      "seconds": [
+        1.582730200025253,
+        1.4485899999272078
+      ],
+      "median_seconds": 1.5156600999762304,
+      "probabilities_sha256": "8ca2bf18633b26c646473040a570bff9cf4f086ff974ce1352e4b315547201a6",
+      "probabilities_bit_identical": true,
+      "max_absolute_difference": 0.0,
+      "different_argmax_voxels": 0
+    },
+    {
+      "model": "key_atoms",
+      "threads": "auto",
+      "effective_torch_threads": 16,
+      "seconds": [
+        1.5941967000253499,
+        1.5248624000232667
+      ],
+      "median_seconds": 1.5595295500243083,
+      "probabilities_sha256": "0a197eac5674285dbc529880e57ad948955a3537607ad81f397333c6456c174e",
+      "probabilities_bit_identical": true,
+      "max_absolute_difference": 0.0,
+      "different_argmax_voxels": 0
+    },
+    {
+      "model": "key_atoms",
+      "threads": "4",
+      "effective_torch_threads": 4,
+      "seconds": [
+        2.263408300001174,
+        1.949432999943383
+      ],
+      "median_seconds": 2.1064206499722786,
+      "probabilities_sha256": "0a197eac5674285dbc529880e57ad948955a3537607ad81f397333c6456c174e",
+      "probabilities_bit_identical": true,
+      "max_absolute_difference": 0.0,
+      "different_argmax_voxels": 0
+    },
+    {
+      "model": "key_atoms",
+      "threads": "8",
+      "effective_torch_threads": 8,
+      "seconds": [
+        1.6084098999854177,
+        1.5394912000047043
+      ],
+      "median_seconds": 1.573950549995061,
+      "probabilities_sha256": "0a197eac5674285dbc529880e57ad948955a3537607ad81f397333c6456c174e",
+      "probabilities_bit_identical": true,
+      "max_absolute_difference": 0.0,
+      "different_argmax_voxels": 0
+    },
+    {
+      "model": "residue_types_6letter",
+      "threads": "auto",
+      "effective_torch_threads": 16,
+      "seconds": [
+        1.3152427000459284,
+        1.2960025999927893
+      ],
+      "median_seconds": 1.3056226500193588,
+      "probabilities_sha256": "49e9db4348df0f9fe50be8fffb34e1855cd3dd9528cc8f9a2506174b5f403d1e",
+      "probabilities_bit_identical": true,
+      "max_absolute_difference": 0.0,
+      "different_argmax_voxels": 0
+    },
+    {
+      "model": "residue_types_6letter",
+      "threads": "4",
+      "effective_torch_threads": 4,
+      "seconds": [
+        2.166490099974908,
+        2.1998082000063732
+      ],
+      "median_seconds": 2.1831491499906406,
+      "probabilities_sha256": "49e9db4348df0f9fe50be8fffb34e1855cd3dd9528cc8f9a2506174b5f403d1e",
+      "probabilities_bit_identical": true,
+      "max_absolute_difference": 0.0,
+      "different_argmax_voxels": 0
+    },
+    {
+      "model": "residue_types_6letter",
+      "threads": "8",
+      "effective_torch_threads": 8,
+      "seconds": [
+        1.6921620001085103,
+        1.570432799984701
+      ],
+      "median_seconds": 1.6312974000466056,
+      "probabilities_sha256": "49e9db4348df0f9fe50be8fffb34e1855cd3dd9528cc8f9a2506174b5f403d1e",
+      "probabilities_bit_identical": true,
+      "max_absolute_difference": 0.0,
+      "different_argmax_voxels": 0
+    }
+  ],
+  "ranking": {
+    "auto": {
+      "ranking_sha256": "4c7b56900670595ec268d505fed34b77677d77d8df4a9857b976bab8d0cf7c5c",
+      "ranked_fasta_sha256": "be6ebcf04566b86f71247d7f69c221d478fd74cf839761f5bd7fedd08cc86539",
+      "rows": 166,
+      "top_candidate": "PF3D7_1446200.1_len605",
+      "seconds": 10.518683100002818
+    },
+    "4": {
+      "ranking_sha256": "4c7b56900670595ec268d505fed34b77677d77d8df4a9857b976bab8d0cf7c5c",
+      "ranked_fasta_sha256": "be6ebcf04566b86f71247d7f69c221d478fd74cf839761f5bd7fedd08cc86539",
+      "rows": 166,
+      "top_candidate": "PF3D7_1446200.1_len605",
+      "seconds": 4.884531200048514
+    },
+    "8": {
+      "ranking_sha256": "4c7b56900670595ec268d505fed34b77677d77d8df4a9857b976bab8d0cf7c5c",
+      "ranked_fasta_sha256": "be6ebcf04566b86f71247d7f69c221d478fd74cf839761f5bd7fedd08cc86539",
+      "rows": 166,
+      "top_candidate": "PF3D7_1446200.1_len605",
+      "seconds": 4.83491380000487
+    }
+  },
+  "rna_blastn": {
+    "auto": {
+      "hits_sha256": "be4380b1a38b77f6b9555c02de9647cbfc384594f8e96b5adeff43641e15f942",
+      "hit_rows": 155,
+      "query_sha256": "5b2658a4809080d3ed6371b4261f626133026d4a845d9b3edb23c4acd9f1b791",
+      "database_fasta_sha256": "db4a1a87bd1fb0de37f2539847992a7dc2a3530b060f9c14c45b3cdc120f3031",
+      "seconds": 1.9604190000100061
+    },
+    "4": {
+      "hits_sha256": "be4380b1a38b77f6b9555c02de9647cbfc384594f8e96b5adeff43641e15f942",
+      "hit_rows": 155,
+      "query_sha256": "5b2658a4809080d3ed6371b4261f626133026d4a845d9b3edb23c4acd9f1b791",
+      "database_fasta_sha256": "db4a1a87bd1fb0de37f2539847992a7dc2a3530b060f9c14c45b3cdc120f3031",
+      "seconds": 1.6781738999998197
+    },
+    "8": {
+      "hits_sha256": "be4380b1a38b77f6b9555c02de9647cbfc384594f8e96b5adeff43641e15f942",
+      "hit_rows": 155,
+      "query_sha256": "5b2658a4809080d3ed6371b4261f626133026d4a845d9b3edb23c4acd9f1b791",
+      "database_fasta_sha256": "db4a1a87bd1fb0de37f2539847992a7dc2a3530b060f9c14c45b3cdc120f3031",
+      "seconds": 1.5538370000431314
+    }
+  },
+  "input_patch_sha256": "8b3e3d3c77ce342f5a5cc5a46bdab0be14a0a2b3b5e3fe5d721353edfb52f14e",
+  "restored_pools": [
+    {
+      "user_api": "blas",
+      "internal_api": "openblas",
+      "num_threads": 22,
+      "prefix": "libscipy_openblas",
+      "filepath": "C:\\Users\\xinye\\Python_Projects\\cryoID_v2_combination\\.venv\\Lib\\site-packages\\numpy.libs\\libscipy_openblas64_-b788215d9d47792bcba3a2e2a7114320.dll",
+      "version": "0.3.33.112.0",
+      "threading_layer": "pthreads",
+      "architecture": "Haswell"
+    },
+    {
+      "user_api": "blas",
+      "internal_api": "openblas",
+      "num_threads": 22,
+      "prefix": "libscipy_openblas",
+      "filepath": "C:\\Users\\xinye\\Python_Projects\\cryoID_v2_combination\\.venv\\Lib\\site-packages\\scipy.libs\\libscipy_openblas-197ee2fc9b4d071f7e048078cac74115.dll",
+      "version": "0.3.31.dev",
+      "threading_layer": "pthreads",
+      "architecture": "Haswell"
+    },
+    {
+      "user_api": "openmp",
+      "internal_api": "openmp",
+      "num_threads": 22,
+      "prefix": "vcomp",
+      "filepath": "C:\\Users\\xinye\\Python_Projects\\cryoID_v2_combination\\.venv\\Lib\\site-packages\\sklearn\\.libs\\vcomp140.dll",
+      "version": null
+    },
+    {
+      "user_api": "openmp",
+      "internal_api": "openmp",
+      "num_threads": 16,
+      "prefix": "libiomp",
+      "filepath": "C:\\Users\\xinye\\Python_Projects\\cryoID_v2_combination\\.venv\\Lib\\site-packages\\torch\\lib\\libiomp5md.dll",
+      "version": null
+    },
+    {
+      "user_api": "openmp",
+      "internal_api": "openmp",
+      "num_threads": 1,
+      "prefix": "libiomp",
+      "filepath": "C:\\Users\\xinye\\Python_Projects\\cryoID_v2_combination\\.venv\\Lib\\site-packages\\torch\\lib\\libiompstubs5md.dll",
+      "version": null
+    }
+  ],
+  "restored_torch_threads": 16,
+  "rankings_exact": true,
+  "argmax_labels_exact": true
+}

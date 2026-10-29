@@ -6,12 +6,18 @@ import math
 from pathlib import Path
 from typing import Any, Iterable
 
+import mrcfile
+
 
 SCHEMA_VERSION = 1
+NORMALIZATION = "canonical-zyx-v1"
 
 
 def validate_rcl(value: float | int | str | None) -> float:
-    rcl = 0.0 if value in (None, "") else float(value)
+    try:
+        rcl = 0.0 if value in (None, "") else float(value)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError("RCL must be a finite number greater than or equal to zero.") from exc
     if not math.isfinite(rcl) or rcl < 0.0:
         raise ValueError("RCL must be a finite number greater than or equal to zero.")
     return rcl
@@ -57,7 +63,10 @@ def weights_fingerprint(weights_dir: Path | None) -> dict[str, Any] | None:
         resolved = path.resolve()
         if not resolved.is_file():
             raise FileNotFoundError(f"Missing UNet provenance input: {resolved}")
-        relative = resolved.relative_to(root).as_posix()
+        # Hub snapshots link files to blobs outside the snapshot directory.
+        # Identify each logical weights file by its snapshot-relative name,
+        # while hashing the resolved contents below.
+        relative = path.relative_to(root).as_posix()
         file_hash = sha256_file(resolved)
         size = resolved.stat().st_size
         combined.update(relative.encode("utf-8"))
@@ -97,6 +106,7 @@ def build_prediction_manifest(
     return {
         "schema": "cryoid-prediction-provenance",
         "schema_version": SCHEMA_VERSION,
+        "normalization": NORMALIZATION,
         "source": str(source),
         "density_map": {
             "path": str(map_path),
@@ -142,6 +152,16 @@ def verify_prediction_manifest(
     map_path = Path(density_map).expanduser().resolve()
     if map_meta.get("sha256") != sha256_file(map_path):
         return False, "input density-map checksum changed", manifest
+    normalization = manifest.get("normalization")
+    if normalization is None:
+        # Existing standard-axis predictions are unchanged by the axis fix.
+        # Older nonstandard-axis predictions must be regenerated.
+        with mrcfile.open(map_path, header_only=True, permissive=True) as mrc:
+            axes = tuple(int(value) for value in (mrc.header.mapc, mrc.header.mapr, mrc.header.maps))
+        if axes != (1, 2, 3):
+            return False, "prediction normalization predates the MRC axis correction", manifest
+    elif normalization != NORMALIZATION:
+        return False, "prediction normalization version does not match", manifest
     if validate_rcl(manifest.get("rcl")) != validate_rcl(rcl):
         return False, "RCL changed", manifest
 

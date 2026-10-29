@@ -17,25 +17,19 @@ from G_GUI.gui_skin import CryoIDUI
 
 from cryoid_pipeline import __version__  # noqa: E402
 from cryoid_pipeline.cli import decode_event, format_command  # noqa: E402
-from D_BLAST_searching.stage import (  # noqa: E402
-    autodetect_blast_bin_dir,
-    validate_blast_bin_dir,
-)
 from cryoid_pipeline.models import PipelineResult, StageResult, pipeline_result_from_dict  # noqa: E402
 from cryoid_pipeline.runtime_config import (  # noqa: E402
-    RuntimeConfig,
+    default_repo_root,
     display_problem,
 )
 from cryoid_pipeline.user_config import (  # noqa: E402
+    default_config_path,
+    ensure_startup_config, save_config_changes, STARTUP_KEYS, update_config, normalize_path, ConfigConflictError, resolve_run_settings, project_config_path,
+    DEFAULT_CONFIG,
+    load_effective_config,
     load_config as load_user_config,
     resolve_chimerax_path,
     resolve_device,
-    resolve_keep_tmp,
-    resolve_project_dir,
-    resolve_protein_min_trace_length,
-    resolve_rcl,
-    resolve_sequence_mode,
-    resolve_structure_selection,
     resolve_weights_dir,
     results_project_dir,
 )
@@ -49,23 +43,26 @@ from G_GUI.session_files import (
     selected_sequence_ranking,
     sequence_ranking_files,
 )
-from G_GUI.settings_dialogs import ConfigurationsWindow, OptionsWindow
-from G_GUI.chimerax_launcher import find_chimerax, launch_chimerax
-from G_GUI.local_config import ensure_local_config, save_local_config
+from G_GUI.settings_dialogs import ConfigurationsWindow, OptionsWindow, ConfigConflictDialog
+from G_GUI.chimerax_launcher import launch_chimerax
+from G_GUI.local_config import gui_config_view, save_project_config
 
-from huggingface_hub import snapshot_download
+from G_GUI.diagnostics import collect_diagnostics, check_weights, check_blast_tools, folder_write_issue
+from G_GUI.run_status import RunStatus
+from G_GUI.setup_dialogs import SetupIssuesDialog
+from cryoid_pipeline.weights import PUBLISHED_REPO
 
 
 CRYOID_GITHUB_URL = "https://github.com/t00shadow/cryoID_v2"
-CONFIG = RuntimeConfig.from_env()
-REPO_ROOT = CONFIG.repo_root
+CRYOID_HUGGINGFACE_URL = f"https://huggingface.co/{PUBLISHED_REPO}"
+REPO_ROOT = default_repo_root().resolve()
 
 
 class PipelineWorker(QtCore.QObject):
     log = QtCore.pyqtSignal(str)
     progress = QtCore.pyqtSignal(int)
+    status = QtCore.pyqtSignal(object)
     finished = QtCore.pyqtSignal(object)
-    weights_downloaded = QtCore.pyqtSignal(str)
 
     def __init__(
         self,
@@ -78,19 +75,23 @@ class PipelineWorker(QtCore.QObject):
         sequence_mode: str,
         structure_selection: str,
         keep_tmp: bool,
-        blast_bin_dir: str,
+        device: str | None = None,
+        cpu_threads: str = "auto",
+        chimerax_path: str = "",
     ) -> None:
         super().__init__()
-        self.density_map = density_map
-        self.candidate_pool = candidate_pool
-        self.project_dir = project_dir
-        self.weights_path = weights_path
+        self.density_map = normalize_path(density_map)
+        self.candidate_pool = normalize_path(candidate_pool)
+        self.project_dir = Path(normalize_path(project_dir))
+        self.weights_path = normalize_path(weights_path)
         self.rcl = float(rcl)
         self.protein_min_trace_length = int(protein_min_trace_length)
-        self.sequence_mode = str(sequence_mode)
+        self.sequence_mode = str(sequence_mode or "auto")
         self.structure_selection = str(structure_selection).strip()
         self.keep_tmp = bool(keep_tmp)
-        self.blast_bin_dir = str(blast_bin_dir)
+        self.device = device or "auto"
+        self.cpu_threads = str(cpu_threads or "auto")
+        self.chimerax_path = normalize_path(chimerax_path)
         self._cancel_requested = False
         self._cancel_file = self.project_dir / f".cryoid_cancel_{uuid.uuid4().hex}.signal"
         self._process: subprocess.Popen[str] | None = None
@@ -115,47 +116,26 @@ class PipelineWorker(QtCore.QObject):
             stages=[StageResult("CLI command", "error", message)],
         )
 
-    @staticmethod
-    def _download_weights() -> Path:
-        return Path(snapshot_download(
-            repo_id="testaccount153/testupload", 
-            # allow_patterns="*.pth.tar",      # actually need the txt files too, so download the whole repo 
-            # local_dir="TESTING_hf_weights"   # currently just for debugging. Disable in production so weights get stored in huggingface's cache folder instead
-        ))
-
     @QtCore.pyqtSlot()
     def run(self) -> None:
-        # Download weights if weights_path is empty
-        if not self.weights_path:
-            self.log.emit("Downloading weights from Hugging Face (~4GB, give it some time)...")
-            try:
-                self.weights_path = str(self._download_weights() / "train_val_data")   # need to append train_val_data to the path huggingface returns
-            except Exception as exc:
-                self.finished.emit(
-                    self._failure_result(f"Could not download weights: {exc!r}")
-                )
-                return
-            self.weights_downloaded.emit(self.weights_path)
-
         command = [
             sys.executable,
             "-m",
             "cryoid_pipeline",
             "run",
-            self.density_map,
-            self.candidate_pool,
-            "--project-dir",
+            "--map", self.density_map,
+            "--pool", self.candidate_pool,
+            "--project",
             str(self.project_dir),
-            "--repo-root",
-            str(REPO_ROOT),
             "--event-stream",
+            "--no-config",
             "--cancel-file",
             str(self._cancel_file),
         ]
-        if self.weights_path:
-            command.extend(["--weights-dir", str(Path(self.weights_path).expanduser().resolve())])
-        if self.blast_bin_dir:
-            command.extend(["--blast-bin-dir", str(Path(self.blast_bin_dir).expanduser().resolve())])
+        weights = str(Path(self.weights_path).expanduser().resolve()) if self.weights_path else ""
+        command.extend(["--weights-dir", weights, "--device", self.device,
+                        "--chimerax-path", self.chimerax_path])
+        command.extend(["--cpu-threads", self.cpu_threads])
         command.extend(
             [
                 "--rcl",
@@ -166,19 +146,19 @@ class PipelineWorker(QtCore.QObject):
                 str(self.protein_min_trace_length),
             ]
         )
-        if self.structure_selection:
-            command.extend(["--structure-selection", self.structure_selection])
-        if self.keep_tmp:
-            command.append("--keep-tmp")
+        command.extend(["--structure-selection", self.structure_selection or "auto"])
+        command.append("--keep-tmp" if self.keep_tmp else "--no-keep-tmp")
 
         command_text = format_command(command)
         self._publish(f"Command: {command_text}")
         env = os.environ.copy()
+        # The GUI forwards its reviewed options explicitly; an empty structure
+        # selector means mode defaults, not an inherited environment override.
+        env.pop("CRYOID_STRUCTURE_SELECTION", None)
         env.update(
             {
                 "PYTHONUNBUFFERED": "1",
                 "PYTHONUTF8": "1",
-                "CRYOID_REPO_ROOT": str(REPO_ROOT),
             }
         )
         result: PipelineResult | None = None
@@ -206,6 +186,8 @@ class PipelineWorker(QtCore.QObject):
                 event_type = event.get("type")
                 if event_type == "progress":
                     self.progress.emit(int(event.get("value", 0)))
+                elif event_type == "status":
+                    self.status.emit(event)
                 elif event_type == "result" and isinstance(event.get("result"), dict):
                     result = pipeline_result_from_dict(event["result"])
             return_code = self._process.wait()
@@ -224,6 +206,22 @@ class PipelineWorker(QtCore.QObject):
         self.finished.emit(result)
 
 
+class DiagnosticsWorker(QtCore.QThread):
+    report = QtCore.pyqtSignal(object)
+    failed = QtCore.pyqtSignal(str)
+
+    def __init__(self, weights_path: str, device: str | None, parent=None):
+        super().__init__(parent)
+        self.arguments = (weights_path, device)
+
+    def run(self) -> None:
+        try:
+            self.report.emit(collect_diagnostics(*self.arguments))
+        except Exception:
+            self.failed.emit("Setup checks could not finish. Try Settings > Check setup again. "
+                             "If the problem continues, restart CryoID.")
+
+
 def _clear_line_edit_highlights(
     line_edits: tuple[QtWidgets.QLineEdit, ...],
     focus_target: QtWidgets.QWidget,
@@ -239,13 +237,6 @@ def _clear_line_edit_highlights(
 
 def startup_status_message() -> str:
     return f"CryoID2 version {__version__}"
-
-
-def _detect_chimerax_path() -> str:
-    try:
-        return str(find_chimerax())
-    except FileNotFoundError:
-        return ""
 
 
 def _dialog_accepted_code() -> int:
@@ -363,8 +354,12 @@ class SequenceRankingLoader(QtCore.QObject):
         try:
             headers, rows = _load_sequence_ranking_display(self.path)
             self.loaded.emit(headers, rows)
-        except Exception as exc:
-            self.failed.emit(str(exc))
+        except FileNotFoundError:
+            self.failed.emit("The ranking file was moved or deleted. Open an existing run from File > Open.")
+        except PermissionError:
+            self.failed.emit("The ranking file cannot be read. Check its read permissions and try again.")
+        except Exception:
+            self.failed.emit("The ranking file could not be read or has an invalid format. Select another run or generate a new ranking.")
 
 
 def _ranking_run_label(path: Path) -> str:
@@ -418,10 +413,7 @@ class SequenceRankingDialog(QtWidgets.QDialog):
         run_layout = QtWidgets.QFormLayout()
         self.run_combo = QtWidgets.QComboBox(self)
         self.run_combo.setObjectName("sequence_ranking_run_combo")
-        self.run_combo.setToolTip(
-            "Choose which run's sequence_ranking.tsv to view. The saved choice is reused "
-            "until another run is selected."
-        )
+        self.run_combo.setToolTip("Choose a saved run")
         if self.ranking_paths:
             self.run_combo.blockSignals(True)
             for ranking_path in self.ranking_paths:
@@ -561,7 +553,7 @@ def apply_theme(app, window, ui, theme: str = "light") -> None:
         QMenuBar::item:selected, QMenu::item:selected {{ background: {menu_hover}; color: {text if dark else "white"}; }}
         QLabel {{ color: {text}; }}
         QLabel#density_map_label, QLabel#candidate_pool_label {{ font-weight: 600; }}
-        QLineEdit, QPlainTextEdit, QListWidget, QTableView, QComboBox {{
+        QLineEdit, QPlainTextEdit, QTextBrowser, QListWidget, QTableView, QComboBox {{
             background: {field}; color: {text}; border: 1px solid {border};
             border-radius: 4px; selection-background-color: {accent};
             selection-color: white;
@@ -571,25 +563,49 @@ def apply_theme(app, window, ui, theme: str = "light") -> None:
                        border-radius: 5px; padding: 5px 10px; }}
         QPushButton:hover {{ border-color: {accent}; }}
         QPushButton:disabled {{ color: {muted}; border-color: {border}; }}
+        QPushButton#copy_logs_button {{ background: transparent; border: 1px solid transparent; padding: 4px; }}
+        QPushButton#copy_logs_button:hover {{ background: {button}; border-color: {border}; }}
+        QPushButton#copy_logs_button:focus {{ border-color: {accent}; }}
         QPushButton#run_button {{ background: #2563eb; color: white; border: none; }}
         QPushButton#run_button:hover {{ background: #1d4ed8; }}
+        QPushButton#run_button[blocked="true"] {{ background: {"#9a651d" if dark else "#996117"}; color: white; }}
+        QPushButton#run_button[blocked="true"]:hover {{ background: #805012; }}
+        QPushButton#run_button[checking="true"] {{ background: {button}; color: {muted}; border: 1px solid {border}; }}
         QPushButton#run_button[running="true"] {{ background: #b91c1c; }}
         QPushButton#run_button[running="true"]:hover {{ background: #991b1b; }}
         QPushButton#run_button:disabled {{ background: {border}; color: {muted}; }}
         QProgressBar {{ background: {field if dark else border}; border: none; border-radius: 3px; }}
         QProgressBar::chunk {{ background: {accent}; border-radius: 3px; }}
         QLabel#progress_percent {{ color: {muted}; }}
+        QLabel[muted="true"] {{ color: {muted}; font-size: 10pt; }}
         QGroupBox {{ border: 1px solid {border}; border-radius: 6px;
                      margin-top: 10px; font-weight: 600; color: {text}; }}
         QGroupBox::title {{ subcontrol-origin: margin; left: 12px; padding: 0 5px; }}
     """)
+    if ui is not None:
+        ui.copy_logs_button.set_theme(dark)
 
 
-def set_run_button_state(ui, *, running: bool, cancelling: bool = False) -> None:
-    ui.run_button.setText("Aborting…" if cancelling else "Abort" if running else "Run")
-    ui.run_button.setToolTip("Abort the current job" if running else "Run the pipeline")
+def set_run_button_state(ui, *, running: bool, cancelling: bool = False,
+                         blocked: bool = False, checking: bool = False) -> None:
+    ui.run_button.setText("Abort" if running else "Run")
+    blocked, checking = blocked and not running, checking and not running
+    ui.run_button.setToolTip(
+        "Abort the current job" if running else
+        "Checking setup requirements" if checking else
+        "Show missing setup requirements" if blocked else "Run the pipeline"
+    )
+    icon = QtGui.QIcon()
+    if blocked and not checking:
+        pixmaps = getattr(QtWidgets.QStyle, "StandardPixmap", QtWidgets.QStyle)
+        icon = ui.run_button.style().standardIcon(pixmaps.SP_MessageBoxWarning)
+    ui.run_button.setIcon(icon)
+    ui.run_button.setIconSize(QtCore.QSize(16, 16))
     ui.run_button.setEnabled(not cancelling)
     ui.run_button.setProperty("running", running)
+    ui.run_button.setProperty("blocked", blocked)
+    ui.run_button.setProperty("checking", checking)
+    ui.run_button.setAccessibleName("Run unavailable: setup required" if blocked else ui.run_button.text())
     ui.run_button.style().unpolish(ui.run_button)
     ui.run_button.style().polish(ui.run_button)
 
@@ -600,7 +616,8 @@ def main() -> None:
     if display_issue:
         raise SystemExit(f"CryoID GUI cannot start: {display_issue}")
 
-    app = QtWidgets.QApplication(sys.argv)
+    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(False)
     app.setStyle("Fusion")
     # Keep inherited widget fonts consistent when Qt repolishes a new theme.
     font = app.font()
@@ -612,9 +629,37 @@ def main() -> None:
     window.setWindowTitle("CryoIDv2")
     theme_preferences = QtCore.QSettings("CryoID", "GUI")
     current_theme = str(theme_preferences.value("theme", "light"))
-    local_config_state = ensure_local_config()
-    shared_config_state = load_user_config()
-    resolved_project_dir = resolve_project_dir(None, shared_config_state, default=REPO_ROOT)
+    startup_pending = True
+    startup_load_issue = ""
+    try:
+        global_config = ensure_startup_config()
+    except (OSError, ValueError) as exc:
+        global_config = load_user_config()
+        startup_load_issue = f"Startup configuration: {exc}"
+    startup_state = {key: global_config[key] for key in STARTUP_KEYS}
+    startup_baseline = dict(startup_state)
+    local_config_state = gui_config_view(global_config)
+    shared_config_state = global_config
+    resolved_project_dir = results_project_dir(shared_config_state.get("project_dir") or REPO_ROOT)
+    project_state = {"active": bool(shared_config_state.get("project_dir")) and resolved_project_dir.is_dir()}
+    project_load_issue = ""
+    try:
+        loaded = load_effective_config(resolved_project_dir, user_config=dict(DEFAULT_CONFIG, **startup_state))
+        shared_config_state = loaded.values
+        local_config_state.update(gui_config_view(loaded.values))
+        if loaded.source_path is not None:
+            project_state["active"] = True
+    except ValueError as exc:
+        project_load_issue = f"Project configuration: {exc}"
+        shared_config_state = dict(DEFAULT_CONFIG, **startup_state, project_dir=str(resolved_project_dir))
+        local_config_state.update(gui_config_view(shared_config_state))
+    project_baseline = dict(shared_config_state)
+    stored_overrides = dict(shared_config_state, structure_selection=shared_config_state.get("structure_selection") or "auto")
+    run_settings, startup_issues = resolve_run_settings(shared_config_state, overrides=stored_overrides)
+    if project_load_issue:
+        startup_issues["project_config"] = project_load_issue
+    if startup_load_issue:
+        startup_issues["startup_config"] = startup_load_issue
     local_config_state["project_dir"] = str(resolved_project_dir)
     ui.progress_bar.setRange(0, 100)
     ui.progress_bar.setValue(0)
@@ -622,51 +667,281 @@ def main() -> None:
     state: dict[str, object] = {
         "thread": None,
         "worker": None,
-        "last_running_progress": 0,
     }
     sequence_ranking_action = QtGui.QAction("Sequence Ranking", window)
-    sequence_ranking_action.setToolTip(
-        "Open a run's sequence ranking and choose which run to keep viewing"
-    )
-    detected_chimerax = _detect_chimerax_path()
-    configured_weights = resolve_weights_dir(None, shared_config_state)
-    configured_chimerax = resolve_chimerax_path(shared_config_state)
-    configured_device = resolve_device(None, shared_config_state)
-    configured_rcl = resolve_rcl(None, shared_config_state)
-    configured_protein_min_trace_length = resolve_protein_min_trace_length(
-        None, shared_config_state
-    )
-    configured_sequence_mode = resolve_sequence_mode(None, shared_config_state)
-    configured_structure_selection = resolve_structure_selection(None, shared_config_state)
-    configured_keep_tmp = resolve_keep_tmp(None, shared_config_state)
-    configured_blast = str(shared_config_state.get("blast_bin_dir") or "").strip()
-    detected_blast = autodetect_blast_bin_dir()
+    sequence_ranking_action.setToolTip("View ranked sequence matches")
+    configured_weights = resolve_weights_dir(shared_config_state.get("weights_dir", ""), shared_config_state)
+    configured_chimerax = resolve_chimerax_path(shared_config_state, argument=shared_config_state.get("chimerax_path", ""))
+    configured_device = run_settings["device"]
+    configured_rcl = run_settings["rcl"]
+    configured_protein_min_trace_length = run_settings["protein_min_trace_length"]
+    configured_sequence_mode = run_settings["sequence_mode"]
+    configured_structure_selection = run_settings["structure_selection"]
+    configured_keep_tmp = run_settings["keep_tmp"]
     settings_state: dict[str, str] = {
         "weights_path": str(configured_weights or ""),
+        "device": configured_device or "auto",
+        "cpu_threads": str(run_settings["cpu_threads"] or "auto"),
         "rcl": str(configured_rcl),
         "protein_min_trace_length": str(configured_protein_min_trace_length),
-        "chimerax_path": configured_chimerax or detected_chimerax,
+        "chimerax_path": configured_chimerax,
         "sequence_mode": configured_sequence_mode,
         "structure_selection": str(configured_structure_selection or ""),
         "keep_tmp": "true" if configured_keep_tmp else "false",
-        "blast_bin_dir": configured_blast or str(detected_blast or ""),
     }
     close_state = {"pending": False}
+    run_status = RunStatus(history_path=default_config_path().with_name("timing_history.json"))
+    diagnostics_state = {"thread": None, "pending": False, "report": None, "error": ""}
+
+    def finish_diagnostics_on_exit() -> None:
+        worker = diagnostics_state["thread"]
+        if worker is not None:
+            worker.wait()
+
+    app.aboutToQuit.connect(finish_diagnostics_on_exit)
+
+    def refresh_run_status() -> None:
+        ui.stage_label.setText(run_status.description)
+        device = run_status.device
+        ui.device_label.setText("CPU" if device == "cpu" else f"GPU ({device})" if device.startswith("cuda") else device)
+        ui.elapsed_label.setText(run_status.elapsed)
+        ui.eta_label.setText(run_status.eta)
+        ui.progress_bar.setValue(run_status.percent)
+
+    run_clock = QtCore.QTimer(window)
+    run_clock.setInterval(1000)
+    run_clock.timeout.connect(refresh_run_status)
+
+    def update_stage(event: dict) -> None:
+        if event.get("weights_path") and event.get("automatic"):
+            path = event["weights_path"]
+            # Avoid replacing a custom path selected while the run downloaded.
+            worker = state.get("worker")
+            if worker is not None and settings_state.get("weights_path", "") == worker.weights_path:
+                if persist_startup_settings({"weights_dir": path}):
+                    append_log(f"Weights: saved downloaded weights location: {path}")
+                else:
+                    append_log(f"Weights: using {path} for this run; the location could not be saved.")
+                refresh_diagnostics()
+        worker = state.get("worker")
+        if worker is not None and getattr(worker, "_cancel_requested", False):
+            if event.get("name") != "Cancelling / cleanup":
+                return
+        run_status.set_stage(event)
+        refresh_run_status()
 
     def append_log(message: str) -> None:
         ui.log_edit.appendPlainText(str(message))
+        if state.get("worker") is not None:
+            run_status.consume_log(str(message))
+            refresh_run_status()
+
+    def readiness_issues() -> list[str]:
+        issues = list(startup_issues.values())
+        if diagnostics_state["thread"] is not None:
+            issues.append("Dependency and configuration checks are still running. Please wait.")
+        elif diagnostics_state["error"]:
+            issues.append(str(diagnostics_state["error"]))
+        elif diagnostics_state["report"] is not None:
+            issues.extend(diagnostics_state["report"].issues)
+        else:
+            issues.append("Setup has not been checked yet.")
+        for label, field in (("Density map", ui.density_map_edit), ("Candidate pool", ui.candidate_pool_edit)):
+            value = field.text().strip()
+            if not value:
+                issues.append(f"{label}: select an input file.")
+            elif not Path(value).expanduser().is_file():
+                issues.append(f"{label}: This file was moved or could not be found. Select an existing input file.\nFile: {value}")
+        project = current_project_dir() if project_state["active"] else None
+        if project is None:
+            issues.append("Project: select a project with File > New or Open.")
+        location_issue = folder_write_issue(str(project) if project is not None else "")
+        if project is not None and location_issue:
+            issues.append(f"Project folder: {location_issue}")
+        return issues
+
+    def refresh_run_availability() -> None:
+        if state.get("worker") is None:
+            set_run_button_state(ui, running=False, blocked=bool(readiness_issues()),
+                                 checking=diagnostics_state["thread"] is not None)
+
+    def show_setup_issues() -> None:
+        dialog = SetupIssuesDialog(readiness_issues(), window)
+        refresh = QtCore.QTimer(dialog)
+        refresh.setInterval(200)
+        refresh.timeout.connect(lambda: dialog.update_issues(readiness_issues()))
+        refresh.start()
+        _exec_dialog(dialog)
+        refresh.stop()
+        if dialog.action == "configure":
+            open_configurations()
+
+    def check_setup() -> None:
+        refresh_diagnostics()
+        show_setup_issues()
+
+    def refresh_diagnostics() -> None:
+        if diagnostics_state["thread"] is not None:
+            diagnostics_state["pending"] = True
+            return
+        diagnostics_state["report"] = None
+        diagnostics_state["error"] = ""
+        worker = DiagnosticsWorker(
+            settings_state.get("weights_path", ""),
+            resolve_device(settings_state["device"], {}), window,
+        )
+
+        def checked(report) -> None:
+            if diagnostics_state["pending"]:
+                return
+            diagnostics_state["report"] = report
+            if state.get("worker") is None:
+                run_status.device = report.device if report.compute.ok else "Unavailable"
+                refresh_run_status()
+
+        def check_failed(message: str) -> None:
+            diagnostics_state["error"] = message
+            run_status.device = "Unavailable"
+            refresh_run_status()
+
+        def checks_finished() -> None:
+            nonlocal startup_pending
+            diagnostics_state["thread"] = None
+            if diagnostics_state["pending"]:
+                diagnostics_state["pending"] = False
+                refresh_diagnostics()
+                return
+            refresh_run_availability()
+            if startup_pending:
+                startup_pending = False
+                screen = app.primaryScreen()
+                if screen is not None:
+                    window.move(screen.availableGeometry().center() - window.rect().center())
+                app.setQuitOnLastWindowClosed(True)
+                window.show()
+
+        worker.report.connect(checked)
+        worker.failed.connect(check_failed)
+        worker.finished.connect(checks_finished)
+        worker.finished.connect(worker.deleteLater)
+        diagnostics_state["thread"] = worker
+        refresh_run_availability()
+        worker.start()
 
     def update_run_progress(value: int) -> None:
-        if value < 100:
-            state["last_running_progress"] = value
-        ui.progress_bar.setValue(value)
+        worker = state.get("worker")
+        if worker is not None and getattr(worker, "_cancel_requested", False):
+            return
+        run_status.update_progress(value)
+        refresh_run_status()
 
-    def persist_config(**updates: object) -> None:
-        for key, value in updates.items():
-            local_config_state[key] = str(value) if value is not None else ""
-        local_config_state.update(save_local_config(local_config_state))
+    def apply_saved_settings(saved) -> None:
+        saved = dict(saved, **startup_state)
+        shared_config_state.clear()
+        shared_config_state.update(saved)
+        local_config_state.update(gui_config_view(saved))
+        overrides = dict(saved, structure_selection=saved.get("structure_selection") or "auto")
+        resolved, issues = resolve_run_settings(saved, overrides=overrides)
+        startup_issues.clear()
+        startup_issues.update(issues)
+        for key, value in resolved.items():
+            if key in {"device", "cpu_threads"}:
+                value = value or "auto"
+            elif key == "keep_tmp":
+                value = "true" if value else "false"
+            elif key == "structure_selection":
+                value = value or ""
+            settings_state[key] = str(value)
+        settings_state["weights_path"] = saved.get("weights_dir", "")
+        settings_state["chimerax_path"] = saved.get("chimerax_path", "")
+        ui.density_map_edit.setText(saved["last_density_map"])
+        ui.candidate_pool_edit.setText(saved["last_candidate_pool"])
+        project_baseline.clear()
+        project_baseline.update(saved)
+
+    def apply_startup_settings(saved) -> None:
+        startup_state.update({key: saved[key] for key in STARTUP_KEYS})
+        startup_baseline.update(startup_state)
+        settings_state.update(weights_path=startup_state["weights_dir"], chimerax_path=startup_state["chimerax_path"])
+        shared_config_state.update(startup_state)
+        local_config_state.update(gui_config_view(dict(local_config_state, **startup_state)))
+
+    def persist_startup_settings(updates=None, *, snapshot=False) -> bool:
+        desired = dict(startup_state)
+        desired.update({key: normalize_path(value) for key, value in (updates or {}).items()})
+        changes = {key: value for key, value in desired.items()
+                   if snapshot or value != startup_baseline[key]}
+        try:
+            try:
+                saved = save_config_changes(changes, baseline=startup_baseline)
+            except ConfigConflictError as exc:
+                dialog = ConfigConflictDialog(exc, window)
+                _exec_dialog(dialog)
+                if dialog.action == "reload":
+                    apply_startup_settings(exc.saved)
+                    refresh_diagnostics()
+                    return False
+                if dialog.action != "keep":
+                    return False
+                saved = save_config_changes(changes, baseline=startup_baseline, force=True)
+        except (OSError, ValueError) as exc:
+            QtWidgets.QMessageBox.warning(window, "Could not save startup settings",
+                                          f"The shared installation paths could not be saved.\n\n{default_config_path()}\n\n{exc}")
+            return False
+        apply_startup_settings(saved)
+        startup_issues.pop("startup_config", None)
+        return True
+
+    def persist_config(*, reviewed_options: bool = False, snapshot: bool = False,
+                       initialize: bool = False, **updates: object) -> bool:
+        to_save = dict(local_config_state, **settings_state)
+        to_save.update({key: str(value) if value is not None else "" for key, value in updates.items()})
+        to_save["last_density_map"] = normalize_path(ui.density_map_edit.text().strip())
+        to_save["last_candidate_pool"] = normalize_path(ui.candidate_pool_edit.text().strip())
+        for key in startup_issues:
+            if not reviewed_options:
+                to_save[key] = shared_config_state.get(key, "")
+        active = project_state["active"]
+        project = current_project_dir() if active else None
+        if project is None:
+            settings_state.update({key: str(value) for key, value in updates.items() if key in settings_state})
+            return True
+        previous_settings = dict(settings_state)
+        try:
+            try:
+                saved = save_project_config(to_save, project, baseline=project_baseline,
+                                            initialize=initialize or "project_dir" in updates, snapshot=snapshot)
+            except ConfigConflictError as exc:
+                dialog = ConfigConflictDialog(exc, window)
+                _exec_dialog(dialog)
+                if dialog.action == "reload":
+                    apply_saved_settings(dict(exc.saved, project_dir=str(project)))
+                    refresh_diagnostics()
+                    return False
+                if dialog.action != "keep":
+                    return False
+                saved = save_project_config(to_save, project, baseline=project_baseline,
+                                            initialize=True, snapshot=snapshot, force=True)
+            update_config(project_dir=str(project))
+        except (OSError, ValueError, TimeoutError) as exc:
+            QtWidgets.QMessageBox.warning(window, "Could not save configuration",
+                                          f"The configuration could not be saved. Check this file and its permissions.\n\n{project_config_path(project)}\n\n{exc}")
+            return False
+        apply_saved_settings(saved)
+        if previous_settings != settings_state and not snapshot:
+            refresh_diagnostics()
+        project_state["active"] = active
+        return True
+
+    def remember_edited_inputs() -> bool:
+        if (ui.density_map_edit.text().strip() != local_config_state.get("last_density_map", "")
+                or ui.candidate_pool_edit.text().strip() != local_config_state.get("last_candidate_pool", "")):
+            return persist_config()
+        return True
 
     def current_project_dir() -> Path | None:
+        if not project_state["active"]:
+            return None
         selected = str(local_config_state.get("project_dir") or "").strip()
         return results_project_dir(selected) if selected else None
 
@@ -690,9 +965,32 @@ def main() -> None:
         has_ranking = bool(project and sequence_ranking_files(project))
         has_model = bool(project and collect_chimerax_project_files(project, None)["aligned_models"])
         ui.ranking_button.setEnabled(has_ranking)
+        ui.ranking_button.setToolTip(
+            "View ranked sequence matches" if has_ranking else
+            "No sequence rankings available"
+        )
         sequence_ranking_action.setEnabled(True)
         ui.model_button.setEnabled(has_model)
+        ui.model_button.setToolTip(
+            "Open model in ChimeraX" if has_model else
+            "No fitted model available"
+        )
         ui.actionModel.setEnabled(True)
+
+    def open_results_folder() -> None:
+        project = current_project_dir()
+        if project is None:
+            QtWidgets.QMessageBox.warning(window, "Results folder", "Select a project with File > New or Open first.")
+            return
+        try:
+            project.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            QtWidgets.QMessageBox.warning(window, "Results folder",
+                                          f"The results folder could not be opened. Check that its location is accessible.\n\n{project}")
+            return
+        if not QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(project))):
+            QtWidgets.QMessageBox.warning(window, "Results folder",
+                                          f"The file manager could not open this folder. You can open it manually:\n\n{project}")
 
     def open_sequence_ranking(path: Path | None = None) -> None:
         project = current_project_dir()
@@ -733,6 +1031,11 @@ def main() -> None:
             persist_config(last_candidate_pool=Path(filename).expanduser().resolve())
 
     def start_pipeline() -> None:
+        if readiness_issues():
+            show_setup_issues()
+            return
+        if not persist_startup_settings(snapshot=True):
+            return
         density_map = ui.density_map_edit.text().strip()
         candidate_pool = ui.candidate_pool_edit.text().strip()
         project_dir = current_project_dir()
@@ -740,24 +1043,22 @@ def main() -> None:
             append_log("Run blocked: provide both a density map and a candidate sequence pool.")
             return
         if project_dir is None:
-            append_log("Run blocked: select an output parent directory.")
+            append_log("Run blocked: select a project with File > New or Open.")
             return
         weights_path = settings_state.get("weights_path", "").strip()
-        if weights_path:
-            weights_dir = Path(weights_path).expanduser().resolve()
-            if not weights_dir.is_dir():
-                append_log(f"Run blocked: weights path does not exist: {weights_dir}")
-                return
-        else:
-            # empty so pipelineworker with auto-download weights later
-            weights_dir = ""
-        blast_bin_dir = settings_state.get("blast_bin_dir", "").strip()
-        if blast_bin_dir:
-            try:
-                blast_bin_dir = str(validate_blast_bin_dir(blast_bin_dir))
-            except ValueError as exc:
-                append_log(f"Run blocked: {exc}")
-                return
+        weights_dir = Path(weights_path).expanduser().resolve() if weights_path else ""
+        weights_check = check_weights(weights_path)
+        report = diagnostics_state["report"]
+        report.weights = weights_check
+        if not weights_check.ok:
+            refresh_run_availability()
+            show_setup_issues()
+            return
+        report.blast = check_blast_tools()
+        if not report.blast.ok:
+            refresh_run_availability()
+            show_setup_issues()
+            return
         if state.get("thread") is not None:
             append_log("A run is already active.")
             return
@@ -769,25 +1070,45 @@ def main() -> None:
             append_log(f"Run blocked: could not create project folder {project_dir}: {exc}")
             return
         local_config_state["project_dir"] = str(project_dir)
-        persist_config(
+        if not persist_config(
+            snapshot=True,
             project_dir=project_dir,
             weights_path=weights_dir,
+            device=settings_state["device"],
+            cpu_threads=settings_state["cpu_threads"],
             rcl=settings_state.get("rcl", "0"),
             protein_min_trace_length=settings_state.get(
                 "protein_min_trace_length", "10"
             ),
             chimerax_path=settings_state.get("chimerax_path", ""),
-            blast_bin_dir=blast_bin_dir,
             last_density_map=Path(density_map).expanduser().resolve(),
             last_candidate_pool=Path(candidate_pool).expanduser().resolve(),
             sequence_mode=settings_state.get("sequence_mode", "auto"),
             structure_selection=settings_state.get("structure_selection", ""),
             keep_tmp=settings_state.get("keep_tmp", "false") == "true",
-        )
+        ):
+            return
+        density_map = ui.density_map_edit.text().strip()
+        candidate_pool = ui.candidate_pool_edit.text().strip()
         ui.progress_bar.setRange(0, 100)
         ui.progress_bar.setValue(0)
-        state["last_running_progress"] = 0
         set_run_button_state(ui, running=True)
+        run_status.start(
+            report.device if report is not None else configured_device or "cpu",
+            workload={
+                "map_bytes": Path(density_map).stat().st_size,
+                "pool_bytes": Path(candidate_pool).stat().st_size,
+                "mode": settings_state.get("sequence_mode", "auto"),
+                "structure_selection": settings_state.get("structure_selection", ""),
+                "trace_length": settings_state.get("protein_min_trace_length", "10"),
+                "rcl": settings_state.get("rcl", "0"),
+                "hardware": report.compute.detail,
+                "cpu_threads": settings_state["cpu_threads"],
+                "cpu": next((line for line in report.lines if line.startswith("CPU:")), ""),
+            },
+        )
+        refresh_run_status()
+        run_clock.start()
         clear_input_highlight()
         append_log("Starting cryoID pipeline...")
 
@@ -802,7 +1123,9 @@ def main() -> None:
             settings_state.get("sequence_mode", "auto"),
             settings_state.get("structure_selection", ""),
             settings_state.get("keep_tmp", "false") == "true",
-            blast_bin_dir,
+            device=report.device if report is not None else configured_device,
+            cpu_threads=settings_state["cpu_threads"],
+            chimerax_path=settings_state.get("chimerax_path", ""),
         )
         worker.moveToThread(thread)
 
@@ -810,13 +1133,19 @@ def main() -> None:
             close_after_abort = close_state["pending"]
             ui.progress_bar.setRange(0, 100)
             result_statuses = {str(stage.status) for stage in getattr(result, "stages", [])}
-            if result_statuses and result_statuses == {"ok"}:
-                ui.progress_bar.setValue(100)
-            else:
-                ui.progress_bar.setValue(int(state.get("last_running_progress", 0)))
+            cancelled = "skipped" in result_statuses or getattr(worker, "_cancel_requested", False)
+            label = (
+                "Failed" if "error" in result_statuses else
+                "Cancelled" if cancelled else
+                "Complete" if result_statuses == {"ok"} else "Blocked"
+            )
+            run_status.finish(label, reset_progress=cancelled)
+            run_clock.stop()
+            refresh_run_status()
             set_run_button_state(ui, running=False)
             state["thread"] = None
             state["worker"] = None
+            refresh_run_availability()
             if hasattr(result, "stages"):
                 for stage in result.stages:
                     append_log(f"{stage.name}: {stage.status} - {stage.message}")
@@ -844,7 +1173,6 @@ def main() -> None:
                     "weights_path": settings_state.get("weights_path", ""),
                     "rcl": settings_state.get("rcl", "0"),
                     "chimerax_path": settings_state.get("chimerax_path", ""),
-                    "blast_bin_dir": settings_state.get("blast_bin_dir", ""),
                     "sequence_mode": settings_state.get("sequence_mode", "auto"),
                     "structure_selection": settings_state.get("structure_selection", ""),
                     "keep_tmp": settings_state.get("keep_tmp", "false"),
@@ -879,17 +1207,10 @@ def main() -> None:
                 append_log("Abort finished. Closing window.")
                 QtCore.QTimer.singleShot(0, window.close)
 
-        def on_weights_downloaded(weights_path: str) -> None:
-            updates = {
-                "weights_path": weights_path,
-            }
-            settings_state.update(updates)
-            persist_config(**updates)
-
         thread.started.connect(worker.run)
         worker.log.connect(append_log)
-        worker.weights_downloaded.connect(on_weights_downloaded)
         worker.progress.connect(update_run_progress)
+        worker.status.connect(update_stage)
         worker.finished.connect(on_finished)
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
@@ -906,6 +1227,8 @@ def main() -> None:
         already_requested = bool(getattr(worker, "_cancel_requested", False))
         worker.cancel()
         set_run_button_state(ui, running=True, cancelling=True)
+        run_status.set_stage({"name": "Cancelling / waiting for cleanup", "device": run_status.device})
+        refresh_run_status()
         clear_input_highlight()
         QtCore.QTimer.singleShot(0, clear_input_highlight)
         if close_requested:
@@ -920,6 +1243,9 @@ def main() -> None:
 
     def handle_close_request(event: QtGui.QCloseEvent) -> bool:
         if state.get("worker") is None:
+            if not remember_edited_inputs():
+                event.ignore()
+                return True
             return False
         event.ignore()
         close_state["pending"] = True
@@ -927,6 +1253,50 @@ def main() -> None:
         return True
 
     window.close_request_handler = handle_close_request
+
+    def activate_project(project: Path) -> None:
+        try:
+            latest_global = load_user_config(strict=True)
+        except (OSError, ValueError) as exc:
+            QtWidgets.QMessageBox.warning(window, "Could not load startup settings", str(exc))
+            return
+        apply_startup_settings(latest_global)
+        config_path = project_config_path(project)
+        try:
+            loaded = load_effective_config(project, user_config=dict(DEFAULT_CONFIG, **startup_state))
+            saved_settings = loaded.values
+        except (OSError, ValueError) as exc:
+            QtWidgets.QMessageBox.warning(
+                window, "Could not open project",
+                f"The saved project settings could not be read.\n\n{config_path}\n\n{exc}",
+            )
+            return
+        try:
+            ensure_project_dirs(project)
+        except OSError as exc:
+            QtWidgets.QMessageBox.warning(window, "Could not open project",
+                                          f"The results folders could not be created.\n\n{project}\n\n{exc}")
+            return
+        # Read the destination before saving the outgoing project, including
+        # when reopening the current project after a config edit on disk.
+        if project_state["active"] and project != current_project_dir():
+            if not persist_config():
+                return
+        saved_settings["project_dir"] = str(project)
+        try:
+            saved_settings = save_project_config(gui_config_view(saved_settings), project,
+                                                 baseline=saved_settings, initialize=True)
+            update_config(project_dir=str(project))
+        except (OSError, ValueError, TimeoutError) as exc:
+            QtWidgets.QMessageBox.warning(window, "Could not open project",
+                                          f"The project configuration could not be saved.\n\n{config_path}\n\n{exc}")
+            return
+        apply_saved_settings(saved_settings)
+        project_state["active"] = True
+        run_status.reset()
+        refresh_run_status()
+        refresh_result_actions()
+        refresh_diagnostics()
 
     def new_project() -> None:
         if state.get("worker") is not None:
@@ -939,33 +1309,12 @@ def main() -> None:
         )
         if not directory:
             return
-        project = results_project_dir(directory)
-        ensure_project_dirs(project)
-        ui.density_map_edit.clear()
-        ui.candidate_pool_edit.clear()
-        local_config_state["project_dir"] = str(project)
-        ui.progress_bar.setRange(0, 100)
-        ui.progress_bar.setValue(0)
-        persist_config(
-            project_dir=project,
-            last_run_dir="",
-            sequence_ranking_run_dir="",
-            last_density_map="",
-            last_candidate_pool="",
-            weights_path=settings_state.get("weights_path", ""),
-            rcl=settings_state.get("rcl", "0"),
-            protein_min_trace_length=settings_state.get(
-                "protein_min_trace_length", "10"
-            ),
-            chimerax_path=settings_state.get("chimerax_path", ""),
-            blast_bin_dir=settings_state.get("blast_bin_dir", ""),
-            sequence_mode=settings_state.get("sequence_mode", "auto"),
-            structure_selection=settings_state.get("structure_selection", ""),
-            keep_tmp=settings_state.get("keep_tmp", "false") == "true",
-        )
-        refresh_result_actions()
+        activate_project(results_project_dir(directory))
 
     def open_project() -> None:
+        if state.get("worker") is not None:
+            QtWidgets.QMessageBox.warning(window, "Run active", "Abort or wait for completion before opening another project.")
+            return
         directory = QtWidgets.QFileDialog.getExistingDirectory(
             window,
             "Open results parent or cryoid_results directory",
@@ -975,33 +1324,23 @@ def main() -> None:
             selected = Path(directory).expanduser().resolve()
             selected_run = find_run_dir_from_path(selected)
             detected_project = find_project_dir_from_path(selected)
+            if detected_project is None and selected_run is not None and selected_run.parent.name == "runs":
+                detected_project = selected_run.parent.parent
             project = results_project_dir(detected_project or selected)
-            ensure_project_dirs(project)
-            local_config_state["project_dir"] = str(project)
-            if selected_run is not None:
-                config_updates: dict[str, object] = {
-                    "project_dir": project,
-                    "last_run_dir": selected_run,
-                }
-                if (selected_run / "sequence_ranking.tsv").is_file():
-                    config_updates["sequence_ranking_run_dir"] = selected_run
-                persist_config(**config_updates)
-            else:
-                persist_config(project_dir=project, last_run_dir="")
-            refresh_result_actions()
+            activate_project(project)
 
     def launch_files(files: list[Path]) -> bool:
         configured_chimerax = settings_state.get("chimerax_path") or None
         try:
             launch_chimerax(files, chimerax_path=configured_chimerax)
-        except FileNotFoundError as exc:
-            message = (
-                f"{exc}\n\nSet the ChimeraX executable path in Settings > Configurations."
-            )
+        except FileNotFoundError:
+            message = "ChimeraX could not be found. Choose its executable in Settings > Configurations."
             QtWidgets.QMessageBox.critical(window, "ChimeraX not found", message)
             return False
-        except Exception as exc:
-            QtWidgets.QMessageBox.critical(window, "ChimeraX launch failed", str(exc))
+        except Exception:
+            QtWidgets.QMessageBox.critical(window, "ChimeraX launch failed",
+                                          "ChimeraX could not start. Check that the selected program works "
+                                          "on this computer, then try again.")
             return False
         return True
 
@@ -1019,7 +1358,7 @@ def main() -> None:
             QtWidgets.QMessageBox.warning(window, "ChimeraX", "Provide an existing input density map.")
             return
         if not groups["aligned_models"]:
-            QtWidgets.QMessageBox.warning(window, "ChimeraX", "No best aligned model is recorded in best_overall.")
+            QtWidgets.QMessageBox.warning(window, "ChimeraX", "No fitted model is available yet. Complete a run with structure fitting before opening a model.")
             return
         launch_files(files)
 
@@ -1028,35 +1367,17 @@ def main() -> None:
             window,
             weights_path=settings_state.get("weights_path", ""),
             chimerax_path=settings_state.get("chimerax_path", ""),
-            detected_chimerax_path=_detect_chimerax_path(),
-            blast_bin_dir=settings_state.get("blast_bin_dir", ""),
-            detected_blast_bin_dir=str(autodetect_blast_bin_dir() or ""),
-            results_directory=str(current_project_dir() or results_project_dir(REPO_ROOT)),
         )
-        active_run = state.get("worker") is not None
-        dialog.results_directory_edit.setEnabled(not active_run)
-        dialog.browse_results_button.setEnabled(not active_run)
         if _exec_dialog(dialog) != _dialog_accepted_code():
             return
-        project = results_project_dir(dialog.results_directory())
-        try:
-            ensure_project_dirs(project)
-        except OSError as exc:
-            QtWidgets.QMessageBox.warning(window, "Invalid results location", str(exc))
+        updates = {"weights_dir": dialog.weights_path(), "chimerax_path": dialog.chimerax_path()}
+        if not persist_startup_settings(updates):
             return
-        updates = {
-            "weights_path": dialog.weights_path(),
-            "chimerax_path": dialog.chimerax_path(),
-            "blast_bin_dir": dialog.blast_bin_dir(),
-        }
-        settings_state.update(updates)
-        project_updates = {"project_dir": project}
-        if project != current_project_dir():
-            project_updates.update(last_run_dir="", sequence_ranking_run_dir="")
-        persist_config(**updates, **project_updates)
         refresh_result_actions()
+        refresh_diagnostics()
 
     def open_options() -> None:
+        report = diagnostics_state["report"]
         dialog = OptionsWindow(
             window,
             rcl=float(settings_state.get("rcl", "0")),
@@ -1064,6 +1385,9 @@ def main() -> None:
             sequence_mode=settings_state.get("sequence_mode", "auto"),
             structure_selection=settings_state.get("structure_selection", ""),
             keep_tmp=settings_state.get("keep_tmp", "false").lower() == "true",
+            device=settings_state["device"],
+            cpu_threads=settings_state["cpu_threads"],
+            devices=report.devices if report is not None else (),
         )
         if _exec_dialog(dialog) != _dialog_accepted_code():
             return
@@ -1073,16 +1397,20 @@ def main() -> None:
             "sequence_mode": dialog.sequence_mode(),
             "structure_selection": dialog.structure_selection(),
             "keep_tmp": "true" if dialog.keep_tmp() else "false",
+            "device": dialog.device(),
+            "cpu_threads": dialog.cpu_threads(),
         }
-        settings_state.update(updates)
-        persist_config(**updates)
+        if not persist_config(reviewed_options=True, initialize=True, **updates):
+            return
+        startup_issues.clear()
+        refresh_diagnostics()
 
-    def open_github() -> None:
-        opened = QtGui.QDesktopServices.openUrl(QtCore.QUrl(CRYOID_GITHUB_URL))
+    def open_repository(name: str, url: str) -> None:
+        opened = QtGui.QDesktopServices.openUrl(QtCore.QUrl(url))
         if opened:
             return
-        message = f"Could not open the default browser.\n\n{CRYOID_GITHUB_URL}"
-        QtWidgets.QMessageBox.warning(window, "Could not open GitHub", message)
+        message = f"Could not open the default browser.\n\n{url}"
+        QtWidgets.QMessageBox.warning(window, f"Could not open {name}", message)
 
     def toggle_theme() -> None:
         nonlocal current_theme
@@ -1094,7 +1422,7 @@ def main() -> None:
     theme_action = QtGui.QAction("Theme", window)
     theme_action.setCheckable(True)
     theme_action.setChecked(current_theme == "dark")
-    theme_action.setToolTip("Switch between light and dark mode (checked means dark)")
+    theme_action.setToolTip("Switch light or dark theme")
     theme_action.triggered.connect(toggle_theme)
 
     def configure_menus() -> None:
@@ -1104,12 +1432,18 @@ def main() -> None:
         ui.menuView.clear()
         ui.menuView.addAction(sequence_ranking_action)
         ui.menuView.addAction(ui.actionModel)
+        ui.menuView.addAction(ui.actionResultsFolder)
+        ui.actionResultsFolder.setToolTip("Open project results folder")
         ui.menuSettings.clear()
         ui.menuSettings.addAction(ui.actionConfigurations)
+        check_setup_action = ui.menuSettings.addAction("Check setup")
+        check_setup_action.triggered.connect(check_setup)
         ui.menuSettings.addAction(theme_action)
         ui.menuHelp.clear()
         ui.menuHelp.addAction(ui.actionGitHub)
-        ui.actionGitHub.setToolTip("Open the CryoIDv2 GitHub repository")
+        ui.actionGitHub.setToolTip("Open CryoID GitHub repository")
+        ui.menuHelp.addAction(ui.actionHuggingFace)
+        ui.actionHuggingFace.setToolTip("Open the published CryoID weights on Hugging Face")
         ui.menubar.clear()
         ui.menubar.addAction(ui.menuFile.menuAction())
         ui.menubar.addAction(ui.menuView.menuAction())
@@ -1119,34 +1453,21 @@ def main() -> None:
     configure_menus()
 
     def restore_startup_state() -> None:
-        project_text = local_config_state.get("project_dir", "")
-        if project_text:
-            project = Path(project_text).expanduser()
-            if project.is_dir():
-                project = project.resolve()
-                ensure_project_dirs(project)
-                local_config_state["project_dir"] = str(project)
-                refresh_result_actions()
-            else:
-                local_config_state["project_dir"] = str(REPO_ROOT.resolve())
-        else:
-            local_config_state["project_dir"] = str(REPO_ROOT.resolve())
+        project = Path(local_config_state.get("project_dir") or results_project_dir(REPO_ROOT)).expanduser().resolve()
+        local_config_state["project_dir"] = str(project)
+        if project.is_dir():
+            ensure_project_dirs(project)
+            refresh_result_actions()
 
         density_text = local_config_state.get("last_density_map", "")
         if density_text:
             density_path = Path(density_text).expanduser()
-            if density_path.is_file():
-                ui.density_map_edit.setText(str(density_path.resolve()))
-            else:
-                ui.density_map_edit.clear()
+            ui.density_map_edit.setText(str(density_path))
 
         pool_text = local_config_state.get("last_candidate_pool", "")
         if pool_text:
             pool_path = Path(pool_text).expanduser()
-            if pool_path.is_file():
-                ui.candidate_pool_edit.setText(str(pool_path.resolve()))
-            else:
-                ui.candidate_pool_edit.clear()
+            ui.candidate_pool_edit.setText(str(pool_path))
 
     restore_startup_state()
     refresh_result_actions()
@@ -1163,14 +1484,20 @@ def main() -> None:
     ui.actionNew.triggered.connect(new_project)
     ui.actionOpen.triggered.connect(open_project)
     ui.actionConfigurations.triggered.connect(open_configurations)
-    ui.actionGitHub.triggered.connect(open_github)
+    ui.actionGitHub.triggered.connect(lambda: open_repository("GitHub", CRYOID_GITHUB_URL))
+    ui.actionHuggingFace.triggered.connect(lambda: open_repository("Hugging Face", CRYOID_HUGGINGFACE_URL))
     ui.actionModel.triggered.connect(lambda: launch_files([]))
+    ui.actionResultsFolder.triggered.connect(open_results_folder)
     sequence_ranking_action.triggered.connect(lambda: open_sequence_ranking())
     ui.options_button.clicked.connect(open_options)
+    ui.density_map_edit.textChanged.connect(refresh_run_availability)
+    ui.candidate_pool_edit.textChanged.connect(refresh_run_availability)
+    ui.density_map_edit.editingFinished.connect(remember_edited_inputs)
+    ui.candidate_pool_edit.editingFinished.connect(remember_edited_inputs)
     ui.ranking_button.clicked.connect(lambda: open_sequence_ranking())
-    set_run_button_state(ui, running=False)
+    refresh_run_availability()
     apply_theme(app, window, ui, current_theme)
-    window.show()
+    QtCore.QTimer.singleShot(0, refresh_diagnostics)
     smoke_test_ms = os.environ.get("CRYOID_GUI_SMOKE_TEST_MS", "").strip()
     if smoke_test_ms:
         QtCore.QTimer.singleShot(max(1, int(smoke_test_ms)), app.quit)

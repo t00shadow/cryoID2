@@ -1,97 +1,109 @@
 # CryoID v2
 
-CryoID identifies protein or RNA sequences from cryo-EM density maps and fits
-available public structures into the map.
+Identify protein or RNA sequences and structures from cryo-EM density maps
 
 ## Requirements
 
-- Windows 10/11 or 64-bit Linux; Python 3.10–3.13.
-- A density map (`.mrc`, `.map`, or `.ccp4`) and candidate sequences in FASTA format.
-- The external CryoID U-Net `train_val_data` weights bundle; **not included in Git**.
-  Keep its checkpoint directories, `class_weight_for_training.txt`, and
-  `epoch_num_path.txt` intact.
-- NCBI BLAST+ (`blastp`, `blastn`, and `makeblastdb`) and internet access for
-  public structure retrieval.
+- Linux/Windows x86-64, or macOS 14+ on Intel or Apple Silicon.
+- For conda installations: [Miniforge](https://conda-forge.org/download/) **25.9.1-0+ (recommended)** or
+  [Conda](https://docs.conda.io/projects/conda/en/stable/user-guide/install/)
+  **25.5.1+**.
+- A density map (`.mrc`, `.map`, `.ccp4`) and candidate FASTA. Published U-Net
+  weights download automatically on first use (about 3 GiB); local weights are optional.
+- Internet access for public structures. [ChimeraX](https://www.cgl.ucsf.edu/chimerax/)
+  is optional for viewing models.
 
-A CUDA-capable NVIDIA GPU with compatible PyTorch is recommended; CPU runs are
-supported but slower. [ChimeraX](https://www.cgl.ucsf.edu/chimerax/) is optional
-and used for model visualization. Qt Designer is not required.
+NOTE: Linux/Windows can use NVIDIA CUDA with compatible PyTorch; Macs use CPU.
 
-## Install
+## Install and launch
 
-A fresh clone needs its dependencies and external weights before it can run.
-From the repository folder:
+Run from the repository folder. Complete setup once, then use the run commands
+each time you open a new terminal.
 
-**Linux:** with Conda or Miniforge installed:
+**Linux:** with Miniforge or Conda installed:
 
 ```bash
-conda env create -f environment.yml
+# One-time setup
+conda activate base
+python -m cryoid_pipeline.create_conda_env
+
+# Run CryoID
 conda activate cryoid
+cryoid-gui
 ```
 
-This installs CryoID, BLAST+, and the GUI runtime. For GPU use, verify that
-PyTorch supports your NVIDIA driver.
+**Windows:** with Miniforge or Conda installed:
 
-**Windows:** in PowerShell:
+Run in PowerShell or Miniforge/Anaconda Prompt. To enable PowerShell, run
+`conda init powershell` once in Miniforge/Anaconda Prompt, then reopen PowerShell.
 
 ```powershell
-py -3.13 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -e ".[gui]"
+# One-time setup
+conda activate base
+python -m cryoid_pipeline.create_conda_env
+
+# Run CryoID
+conda activate cryoid
+cryoid-gui
 ```
 
-Install [NCBI BLAST+](https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/)
-separately on Windows. Activate the environment whenever you use CryoID.
+Alternatively, install Python 3.13 **64-bit (x64)** and use PowerShell:
 
-## GUI workflow
+```powershell
+# One-time setup
+py -3.13 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e ".[gui]"
 
-Launch `cryoid-gui` in the installed environment, then:
+# Run CryoID
+.\.venv\Scripts\Activate.ps1
+cryoid-gui
+```
 
-1. **File → New:** create/select a project folder. Use **File → Open** to resume
-   an existing project or run.
-2. **Settings → Configurations:** set the weights directory and any undetected
-   BLAST+/ChimeraX paths. **Results location** reflects your chosen project;
-   change it here if needed.
-3. Browse for the **Density Map** and **Candidate Pool**.
-4. Adjust **Options** if needed: sequence mode, protein trace length, structure
-   candidates, RCL, and temporary-file retention.
-5. Press **Run**. It becomes **Abort** while running; progress and run messages
-   appear in the progress bar and collapsible **Logs** box.
-6. Under **Results**, **Sequence ranking** becomes available when a ranking
-   exists, and **Model** when a fitted model exists. Model opens the map and
-   fitted model in ChimeraX.
-
-Without saved settings or overrides, a fresh source checkout uses
-`<repository>/cryoid_results/`. Your chosen location is remembered. Selecting
-an existing `cryoid_results` folder does not create a nested copy or move old
-results. Theme switching is under **Settings → Theme**.
-
-## Results and configuration
-
-Results are stored in `<selected_folder>/cryoid_results/`:
-
-- `runs/<run_id>/`: complete `sequence_ranking.tsv`, `alignment_summary.csv`,
-  fitted models, `pipeline.log`, and `run_config.json`.
-- `unetpredictions/`: prediction maps, reused only when provenance matches.
-- `best_overall/`: best retained models across runs in this project.
-
-The ranking viewer shows the first 20 rows; the saved TSV contains the full
-candidate ranking. Structure selection defaults to one protein candidate or
-50% of RNA candidates. An integer selects a count; a decimal selects a
-fraction (`1` = one candidate, `1.0` = all). Temporary files are removed unless
-retention is enabled in Options.
-
-GUI and CLI share a per-user `config.toml`: `%APPDATA%/cryoid/` on Windows,
-`~/.config/cryoid/` on Linux (or `$XDG_CONFIG_HOME/cryoid/`). `CRYOID_CONFIG`
-can override its location.
-
-## Command-line use
+**macOS:** with Miniforge or Conda installed:
 
 ```bash
-cryoid config set weights-dir /path/to/train_val_data
-cryoid run /path/to/map.mrc /path/to/candidates.fasta --project-dir /path/to/output_parent
+# One-time setup
+conda activate base
+python -m cryoid_pipeline.create_conda_env
+
+# Run CryoID
+conda activate cryoid
+cryoid-gui
 ```
 
-Use `cryoid config path` to locate the configuration and `cryoid run --help`
-for run options. `--stop-after-identification` skips structure retrieval and
-fitting. See [GUI details](G_GUI/README.md) for the desktop controls.
+## Use (GUI)
+
+1. **File → New:** select a project folder, or **File → Open** to resume one.
+2. **Settings → Configurations:** optionally set **Custom weights path** (shared across projects).
+   Leave it empty to autodownload published weights; the downloaded path is saved afterward.
+   Optionally select ChimeraX (a `ChimeraX.app` path works on macOS).
+3. Select the density map and candidate FASTA. Adjust **Options** if needed.
+4. Click **Run**, then open **Sequence ranking** or **Model** when ready.
+
+Use **Settings → Check setup** to diagnose missing requirements. **Abort** cancels
+a run. Results are saved under `<project>/cryoid_results/`, with per-run outputs
+in `runs/`, reusable predictions in `unetpredictions/`, and retained models in
+`best_overall/`.
+
+## Command line
+
+Activate the environment first: `conda activate cryoid`, or
+`.\.venv\Scripts\Activate.ps1` for the Windows venv method.
+
+```bash
+# First run (uses the current directory as the project)
+cryoid run --map /path/to/map.mrc --pool /path/to/candidates.fasta
+
+# Optional: use an existing local weights bundle instead of autodownloading
+cryoid config set weights-dir /path/to/train_val_data
+
+# Run an existing project with its saved settings
+cryoid run --project /path/to/project
+
+# View or change a project's saved settings
+cryoid config --project /path/to/project
+cryoid config --project /path/to/project set rcl 0.25
+```
+
+Add `--project /path/to/project` to `cryoid run` to choose another project.
+`init` is optional. See `cryoid run --help` for options.

@@ -4,6 +4,7 @@ import csv
 from pathlib import Path
 
 
+
 DENSITY_SUFFIXES = {".ccp4", ".map", ".mrc"}
 MODEL_SUFFIXES = {".cif", ".mmcif", ".pdb"}
 DISPLAY_SUFFIXES = {
@@ -77,7 +78,7 @@ def find_run_dir_from_path(path: Path | None) -> Path | None:
     except OSError:
         pass
     for current in (candidate, *candidate.parents):
-        if (current / "run_config.json").is_file() and (current / "pipeline.log").is_file():
+        if (current / "run_config.json").is_file():
             return current
     return None
 
@@ -98,29 +99,6 @@ def collect_project_display_files(project_dir: Path) -> list[Path]:
     paths.extend(_display_files_under(project_dir / "best_overall"))
     paths.extend(_display_files_under(project_dir / "unetpredictions"))
     return _dedupe_paths(paths)
-
-
-def collect_result_display_files(project_dir: Path, output_files: list[Path] | None = None) -> list[Path]:
-    # The ranking has a dedicated dialog and must not appear in the default
-    # results-file list. Keep the optional argument for the stable GUI API.
-    _ = output_files
-    return collect_project_display_files(project_dir)
-
-
-def latest_run_dir(project_dir: Path) -> Path | None:
-    runs = Path(project_dir).expanduser().resolve() / "runs"
-    if not runs.is_dir():
-        return None
-    candidates = sorted(
-        (
-            path.resolve()
-            for path in runs.iterdir()
-            if path.is_dir() and (path / "run_config.json").is_file()
-        ),
-        key=lambda path: path.name,
-        reverse=True,
-    )
-    return candidates[0] if candidates else None
 
 
 def latest_sequence_ranking(project_dir: Path) -> Path | None:

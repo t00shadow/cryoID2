@@ -1,6 +1,9 @@
 # Editors and local tooling
 /.vscode/
 /.codex_tmp/
+/.cryoid-env-*.yml
+/.github/
+/scripts/
 
 # Python environments, bytecode, and builds
 /.venv/
@@ -11,6 +14,7 @@ __pycache__/
 *.egg-info/
 /build/
 /dist/
+/setup-reports/
 
 # Runtime projects and generated outputs
 /cryoid_output/
@@ -56,6 +60,9 @@ CryoID_v2.log
 /backups/
 
 # Local-only project material
+/MANIFEST.in
 /docs/
 /experiments/
-/tests/
+# Keep the tracked project README at the repository root.
+**/README.md
+!/README.md

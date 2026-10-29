@@ -27,9 +27,9 @@ class ClusteringConfig:
     bandwidth: float = 1.9
     manual_file_name: str | None = None
     timestamp: bool = False
-    z_slice: tuple[int, int] = (0, 999)
-    y_slice: tuple[int, int] = (0, 999)
-    x_slice: tuple[int, int] = (0, 999)
+    z_slice: tuple[int, int] | None = None
+    y_slice: tuple[int, int] | None = None
+    x_slice: tuple[int, int] | None = None
 
 
 def save_pdb(

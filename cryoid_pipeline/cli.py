@@ -11,38 +11,37 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from .models import PipelineResult, pipeline_result_from_dict, pipeline_result_to_dict
-from .orchestrator import CryoIDPipeline
 from .user_config import (
+    PROJECT_STATE_KEYS, STARTUP_KEYS,
+    DEFAULT_CONFIG,
     default_config_path,
     load_config,
-    resolve_device,
-    resolve_keep_tmp,
-    resolve_blast_bin_dir,
-    resolve_project_dir,
-    resolve_protein_min_trace_length,
-    resolve_rcl,
-    resolve_sequence_mode,
-    resolve_structure_selection,
+    load_effective_config,
+    project_config_path,
+    results_project_dir,
+    resolve_run_settings,
+    resolve_chimerax_path,
     resolve_weights_dir,
+    save_config, save_config_changes, PATH_KEYS, normalize_path,
     update_config,
-    validate_keep_tmp,
-    validate_structure_selection,
+    validate_config_value,
 )
 
 
 EVENT_PREFIX = "CRYOID_EVENT "
 
 CONFIGURABLE_KEYS = {
-    "project-dir": "project_dir",
     "weights-dir": "weights_dir",
     "device": "device",
+    "cpu-threads": "cpu_threads",
     "rcl": "rcl",
     "protein-min-trace-length": "protein_min_trace_length",
     "structure-selection": "structure_selection",
     "keep-tmp": "keep_tmp",
     "chimerax-path": "chimerax_path",
     "mode": "sequence_mode",
-    "blast-bin-dir": "blast_bin_dir",
+    "map": "last_density_map",
+    "pool": "last_candidate_pool",
 }
 
 
@@ -82,7 +81,65 @@ def _result_exit_code(result: PipelineResult) -> int:
 
 
 def _selected_config_path(args: argparse.Namespace) -> Path:
+    if args.project_dir is not None:
+        return project_config_path(results_project_dir(args.project_dir))
     return Path(args.config).expanduser().resolve() if args.config is not None else default_config_path()
+
+
+def _config_values(args: argparse.Namespace) -> dict[str, str]:
+    if args.project_dir is not None:
+        loaded = load_effective_config(args.project_dir)
+        values = dict(loaded.values)
+        if loaded.source_path is None:
+            for key in PROJECT_STATE_KEYS:
+                values[key] = ""
+        return values
+    return load_config(_selected_config_path(args))
+
+
+def _saved_value(key: str, value: Any) -> str:
+    if key in PATH_KEYS and value:
+        return normalize_path(value)
+    return validate_config_value(key, value)
+
+
+def _save_setting(args: argparse.Namespace, key: str, value: str) -> None:
+    path = _selected_config_path(args)
+    if args.project_dir is None:
+        update_config(path, **{key: value})
+    else:
+        values = _config_values(args)
+        save_config_changes({key: value}, path, initial=values, project=True)
+
+
+def _init_project(args: argparse.Namespace, _raw_argv: Sequence[str]) -> int:
+    project = results_project_dir(args.project_path)
+    path = project_config_path(project)
+    if path.exists():
+        raise ValueError(f"Project is already initialized: {project}\nUse 'cryoid config --project PATH' to view or edit it.")
+    loaded = load_effective_config(project, config_path=args.config)
+    values = dict(loaded.values)
+    if loaded.source_path is None:
+        for key in PROJECT_STATE_KEYS:
+            values[key] = ""
+    for public, key in CONFIGURABLE_KEYS.items():
+        if public in {"map", "pool"}:
+            continue
+        if key in STARTUP_KEYS:
+            continue
+        explicit = getattr(args, public.replace("-", "_"), None)
+        if explicit is not None:
+            values[key] = explicit
+        if key == "structure_selection" and not str(values[key]).strip():
+            continue
+        values[key] = _saved_value(key, values[key])
+    for argument, key in ((args.map_path, "last_density_map"), (args.pool_path, "last_candidate_pool")):
+        if argument is not None:
+            values[key] = _saved_value(key, argument)
+    save_config(values, path, overwrite=False, project=True)
+    print(f"Project initialized: {project}")
+    print(f"Config file: {path}")
+    return 0
 
 
 def _config_path(args: argparse.Namespace, _raw_argv: Sequence[str]) -> int:
@@ -92,10 +149,12 @@ def _config_path(args: argparse.Namespace, _raw_argv: Sequence[str]) -> int:
 
 def _config_show(args: argparse.Namespace, _raw_argv: Sequence[str]) -> int:
     path = _selected_config_path(args)
-    config = load_config(path)
+    config = _config_values(args)
     print(f"Config file: {path}")
     print(f"Exists: {'yes' if path.is_file() else 'no'}")
     for public_key, stored_key in CONFIGURABLE_KEYS.items():
+        if args.project_dir is not None and stored_key in STARTUP_KEYS:
+            continue
         print(f"{public_key} = {config.get(stored_key, '')}")
     return 0
 
@@ -103,32 +162,14 @@ def _config_show(args: argparse.Namespace, _raw_argv: Sequence[str]) -> int:
 def _config_set(args: argparse.Namespace, _raw_argv: Sequence[str]) -> int:
     stored_key = CONFIGURABLE_KEYS[args.key]
     path = _selected_config_path(args)
-    value = args.value
-    if args.key == "blast-bin-dir":
-        try:
-            value = str(resolve_blast_bin_dir(args.value, {}))
-        except ValueError as exc:
-            print(f"Could not set blast-bin-dir: {exc}", file=sys.stderr)
-            return 2
-    elif args.key == "protein-min-trace-length":
-        try:
-            value = str(resolve_protein_min_trace_length(args.value, {}))
-        except ValueError as exc:
-            print(f"Could not set protein-min-trace-length: {exc}", file=sys.stderr)
-            return 2
-    elif args.key == "structure-selection":
-        try:
-            value = validate_structure_selection(args.value)
-        except ValueError as exc:
-            print(f"Could not set structure-selection: {exc}", file=sys.stderr)
-            return 2
-    elif args.key == "keep-tmp":
-        try:
-            value = "true" if validate_keep_tmp(args.value) else "false"
-        except ValueError as exc:
-            print(f"Could not set keep-tmp: {exc}", file=sys.stderr)
-            return 2
-    update_config(path, **{stored_key: value})
+    try:
+        if args.project_dir is not None and stored_key in STARTUP_KEYS:
+            raise ValueError(f"{args.key} is a global startup setting. Use cryoid config set {args.key} VALUE without --project.")
+        value = _saved_value(stored_key, args.value)
+    except ValueError as exc:
+        print(f"Could not set {args.key}: {exc}", file=sys.stderr)
+        return 2
+    _save_setting(args, stored_key, value)
     print(f"Set {args.key} = {value}")
     print(f"Config file: {path}")
     return 0
@@ -137,25 +178,72 @@ def _config_set(args: argparse.Namespace, _raw_argv: Sequence[str]) -> int:
 def _config_unset(args: argparse.Namespace, _raw_argv: Sequence[str]) -> int:
     stored_key = CONFIGURABLE_KEYS[args.key]
     path = _selected_config_path(args)
-    update_config(path, **{stored_key: ""})
+    if args.project_dir is not None and stored_key in STARTUP_KEYS:
+        raise ValueError(f"{args.key} is a global startup setting. Use cryoid config unset {args.key} without --project.")
+    _save_setting(args, stored_key, "")
     print(f"Unset {args.key}")
     print(f"Config file: {path}")
     return 0
 
 
 def _run_pipeline(args: argparse.Namespace, raw_argv: Sequence[str]) -> int:
-    user_config = load_config(args.config)
-    project_dir = resolve_project_dir(args.project_dir, user_config)
-    weights_dir = resolve_weights_dir(args.weights_dir, user_config)
-    device = resolve_device(args.device, user_config)
-    rcl = resolve_rcl(args.rcl, user_config)
-    protein_min_trace_length = resolve_protein_min_trace_length(
-        args.protein_min_trace_length, user_config
+    selected_project = args.project_dir if args.project_dir is not None else Path.cwd()
+    loaded = load_effective_config(
+        selected_project, config_path=args.config,
+        user_config=DEFAULT_CONFIG if args.no_config else None,
+        use_project_config=not args.no_config,
     )
-    sequence_mode = resolve_sequence_mode(args.mode, user_config)
-    structure_selection = resolve_structure_selection(args.structure_selection, user_config)
-    keep_tmp = resolve_keep_tmp(args.keep_tmp, user_config)
-    blast_bin_dir = resolve_blast_bin_dir(args.blast_bin_dir, user_config)
+    project_dir, user_config = loaded.project_dir, loaded.values
+
+    def input_path(named: Path | None, key: str, option: str) -> Path:
+        if named is not None:
+            return named
+        saved = user_config.get(key, "") if loaded.source_path is not None else ""
+        if not saved:
+            raise ValueError(f"No input saved for {option}. Supply '{option} PATH'.")
+        path = Path(saved).expanduser()
+        return path if path.is_absolute() else (loaded.source_path.parent / path).resolve()
+
+    density_map = input_path(args.map_path, "last_density_map", "--map")
+    candidate_pool = input_path(args.pool_path, "last_candidate_pool", "--pool")
+    weights_argument = args.weights_dir if args.weights_dir is not None else ("" if args.no_config else None)
+    weights_dir = resolve_weights_dir(weights_argument, user_config)
+    chimerax_argument = args.chimerax_path if args.chimerax_path is not None else ("" if args.no_config else None)
+    chimerax_path = resolve_chimerax_path(user_config, argument=chimerax_argument)
+    overrides = {
+        "device": args.device, "cpu_threads": args.cpu_threads, "rcl": args.rcl,
+        "protein_min_trace_length": args.protein_min_trace_length,
+        "sequence_mode": args.mode, "structure_selection": args.structure_selection,
+        "keep_tmp": args.keep_tmp,
+    }
+    if args.no_config:
+        overrides = {key: (value if value is not None else DEFAULT_CONFIG[key]) for key, value in overrides.items()}
+        if not overrides["structure_selection"]:
+            overrides["structure_selection"] = "auto"
+    settings, _ = resolve_run_settings(user_config, strict=True, overrides=overrides)
+    path = project_config_path(project_dir)
+    if not path.exists():
+        initial = dict(user_config)
+        if loaded.source_path is None:
+            for key in PROJECT_STATE_KEYS:
+                initial[key] = ""
+        initial.update(
+            settings,
+            project_dir=str(project_dir),
+            weights_dir=str(weights_dir or ""),
+            chimerax_path=chimerax_path,
+            device=settings["device"] or "auto",
+            cpu_threads=settings["cpu_threads"] if settings["cpu_threads"] is not None else "auto",
+            structure_selection=settings["structure_selection"] or "",
+            keep_tmp="true" if settings["keep_tmp"] else "false",
+            last_density_map=str(density_map.expanduser().resolve()),
+            last_candidate_pool=str(candidate_pool.expanduser().resolve()),
+        )
+        try:
+            save_config(initial, path, overwrite=False, project=True)
+        except FileExistsError:
+            pass
+        print(f"Created project config: {path}", flush=True)
     cancellation_requested = threading.Event()
     cancel_file = Path(args.cancel_file).expanduser().resolve() if args.cancel_file else None
 
@@ -185,24 +273,46 @@ def _run_pipeline(args: argparse.Namespace, raw_argv: Sequence[str]) -> int:
     def should_cancel() -> bool:
         return cancellation_requested.is_set() or bool(cancel_file and cancel_file.exists())
 
+    def status(event: dict[str, Any]) -> None:
+        if (event.get("weights_path") and event.get("automatic")
+                and not args.no_config and args.weights_dir is None):
+            # The GUI uses --no-config and persists through its own conflict-
+            # aware settings handler. A CLI run saves to its selected user file.
+            try:
+                baseline = load_config(args.config)
+                if baseline["weights_dir"] == user_config.get("weights_dir", ""):
+                    save_config_changes({"weights_dir": event["weights_path"]},
+                                        path=args.config, baseline=baseline)
+                    progress(f"Weights: saved location to {args.config or default_config_path()}")
+                else:
+                    progress("Weights: startup configuration changed during this run; keeping the newer weights setting.")
+            except (OSError, ValueError, TimeoutError) as exc:
+                progress(f"Weights: could not save the downloaded weights location: {exc}")
+        if args.event_stream:
+            print(encode_event("status", **event), flush=True)
+
     try:
+        from .orchestrator import CryoIDPipeline
+
         pipeline = CryoIDPipeline(
-            repo_root=args.repo_root,
             project_dir=project_dir,
-            unet_weights_dir=weights_dir,
-            unet_device=device,
-            unet_rcl=rcl,
-            protein_min_trace_length=protein_min_trace_length,
-            sequence_mode=sequence_mode,
-            structure_selection=structure_selection,
-            keep_tmp=keep_tmp,
-            blast_bin_dir=blast_bin_dir,
+            unet_weights_dir=weights_dir if weights_dir is not None else "",
+            unet_device=settings["device"] or "auto",
+            cpu_threads=settings["cpu_threads"] if settings["cpu_threads"] is not None else "auto",
+            unet_rcl=settings["rcl"],
+            protein_min_trace_length=settings["protein_min_trace_length"],
+            sequence_mode=settings["sequence_mode"],
+            structure_selection=settings["structure_selection"],
+            keep_tmp=settings["keep_tmp"],
+            chimerax_path=chimerax_path,
+            user_config=user_config,
         )
         result = pipeline.run(
-            args.density_map,
-            args.candidate_pool,
+            density_map,
+            candidate_pool,
             progress=progress,
             progress_percent=progress_percent,
+            status=status,
             should_cancel=should_cancel,
             command_line=command_line,
             stop_after_identification=args.stop_after_identification,
@@ -221,88 +331,106 @@ def _run_pipeline(args: argparse.Namespace, raw_argv: Sequence[str]) -> int:
             signal.signal(signum, handler)
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="cryoid", description="Run the CryoID pipeline without the GUI.")
-    subparsers = parser.add_subparsers(dest="command", required=True)
-    run_parser = subparsers.add_parser("run", help="Run the same end-to-end pipeline used by the GUI.")
-    run_parser.add_argument("density_map", type=Path, help="Input .map/.mrc/.ccp4 density map.")
-    run_parser.add_argument(
-        "candidate_pool",
-        type=Path,
-        help="Candidate protein or RNA sequence pool in FASTA format.",
-    )
-    run_parser.add_argument(
-        "--project-dir",
-        type=Path,
-        default=None,
-        help=(
-            "Output parent directory; CryoID creates or reuses its cryoid_results child. "
-            "Defaults to CRYOID_PROJECT_DIR, config.toml, then the current directory."
-        ),
-    )
-    run_parser.add_argument(
-        "--weights-dir",
-        type=Path,
-        default=None,
-        help="UNet weights directory; defaults to CRYOID_UNET_WEIGHTS_DIR, then config.toml.",
-    )
-    run_parser.add_argument(
+def _add_run_options(parser: argparse.ArgumentParser, *, startup_paths: bool = True) -> None:
+    if startup_paths:
+        parser.add_argument(
+            "--weights-dir",
+            type=str,
+            default=None,
+            help="Custom weights directory for this run. Empty or missing paths autodownload published weights.",
+        )
+        parser.add_argument("--chimerax-path", default=None,
+                            help="Override the global startup ChimeraX path for this run; an empty string disables it.")
+    parser.add_argument(
         "--device",
         default=None,
-        help="Torch device, such as cuda:0 or cpu; defaults to environment, config, then auto-detection.",
+        help="Inference device: auto, cpu, or cuda:N. Auto selects CUDA when available, otherwise CPU.",
     )
-    run_parser.add_argument(
+    parser.add_argument(
+        "--cpu-threads", default=None, metavar="auto|N",
+        help="CPU threads per supported numerical pool and BLAST search. Auto preserves library defaults.",
+    )
+    parser.add_argument(
         "--rcl",
         type=float,
         default=None,
         help=(
-            "Recommended contour level used for UNet map normalization; zero is "
-            "used literally. The archived EMD-47655 RNA test used 0.05."
+            "Recommended contour level used for UNet map normalization; "
+            "defaults to zero, which is used literally."
         ),
     )
-    run_parser.add_argument(
+    parser.add_argument(
         "--mode",
         choices=("auto", "protein", "rna"),
         default=None,
         help="Sequence pipeline mode; defaults to config, then auto-detection.",
     )
-    run_parser.add_argument(
+    parser.add_argument(
         "--protein-min-trace-length",
         type=int,
         default=None,
         help="Minimum number of traced C-alpha nodes retained as a protein query; defaults to 10.",
     )
-    run_parser.add_argument(
+    parser.add_argument(
         "--structure-selection",
         default=None,
         help=(
             "Top ranked sequences sent to structure retrieval/fitting. A positive integer "
             "selects a count (1 means one); a decimal from 0 to 1 selects a fraction "
-            "(1.0 means 100%%). Defaults to 1 for protein and 0.5 for RNA."
+            "(1.0 means 100%%). Use auto for mode defaults: 1 for protein and 0.5 for RNA."
         ),
     )
-    run_parser.add_argument(
-        "--blast-bin-dir",
-        type=Path,
-        default=None,
-        help=(
-            "Folder containing blastp, blastn, and makeblastdb; defaults to config, "
-            "CRYOID_BLAST_BIN_DIR, the active environment, or PATH."
-        ),
-    )
-    run_parser.add_argument(
+    parser.add_argument(
         "--keep-tmp",
         action=argparse.BooleanOptionalAction,
         default=None,
         help="Retain all run temporary files and tested models; defaults to false.",
     )
-    run_parser.add_argument(
+    parser.add_argument(
         "--config",
         type=Path,
         default=None,
-        help="Alternate TOML config file; defaults to CRYOID_CONFIG or the user config directory.",
+        help="User defaults TOML file; project settings and explicit options take precedence. Defaults to CRYOID_CONFIG or the user config directory.",
     )
-    run_parser.add_argument("--repo-root", type=Path, default=None, help=argparse.SUPPRESS)
+
+
+def _add_config_target(parser: argparse.ArgumentParser, *, default: Any = None) -> None:
+    target = parser.add_mutually_exclusive_group()
+    target.add_argument("--project", dest="project_dir", type=Path, default=default,
+                        help="View or edit this project's saved settings.")
+    target.add_argument("--config", type=Path, default=default,
+                        help="Config file path; otherwise use global user defaults.")
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="cryoid", description="Create projects and run CryoID with saved settings.",
+        epilog="First run here: cryoid run --map MAP --pool FASTA\n"
+               "Run again: cryoid run --project PROJECT\n"
+               "Settings: cryoid config --project PROJECT\n"
+               "Optional setup without running: cryoid init PROJECT --map MAP --pool FASTA",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    init_parser = subparsers.add_parser("init", help="Create a project and save its inputs and settings.")
+    init_parser.add_argument("project_path", type=Path, metavar="PROJECT", help="Project parent or cryoid_results directory.")
+    init_parser.add_argument("--map", dest="map_path", type=Path, help="Save the input density map.")
+    init_parser.add_argument("--pool", dest="pool_path", type=Path, help="Save the candidate FASTA.")
+    _add_run_options(init_parser, startup_paths=False)
+    init_parser.set_defaults(handler=_init_project)
+    run_parser = subparsers.add_parser("run", help="Run the same end-to-end pipeline used by the GUI.")
+    run_parser.add_argument(
+        "--project", dest="project_dir",
+        type=Path,
+        default=None,
+        help=(
+            "Output parent directory; CryoID creates or reuses its cryoid_results child. "
+            "Loads or creates that project's config.toml. Defaults to the current directory."
+        ),
+    )
+    run_parser.add_argument("--map", dest="map_path", type=Path, help="Override the saved density map for this run.")
+    run_parser.add_argument("--pool", dest="pool_path", type=Path, help="Override the saved candidate FASTA for this run.")
+    _add_run_options(run_parser)
     run_parser.add_argument(
         "--stop-after-identification",
         action="store_true",
@@ -313,31 +441,32 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run_parser.add_argument("--event-stream", action="store_true", help=argparse.SUPPRESS)
     run_parser.add_argument("--cancel-file", type=Path, default=None, help=argparse.SUPPRESS)
+    run_parser.add_argument("--no-config", action="store_true",
+                            help="Use only supplied arguments and built-in defaults; ignore saved settings and environment overrides.")
     run_parser.set_defaults(handler=_run_pipeline)
 
-    config_parser = subparsers.add_parser("config", help="View or change persistent GUI/CLI defaults.")
-    config_parser.add_argument(
-        "--config",
-        type=Path,
-        default=None,
-        help="Alternate TOML config file; defaults to CRYOID_CONFIG or the user config directory.",
-    )
-    config_actions = config_parser.add_subparsers(dest="config_action", required=True)
+    config_parser = subparsers.add_parser("config", help="View or edit project settings or global defaults.",
+                                         description="View settings, or use set/unset to edit them. Without an action, show settings.")
+    _add_config_target(config_parser)
+    config_parser.set_defaults(handler=_config_show)
+    config_actions = config_parser.add_subparsers(dest="config_action")
 
     path_parser = config_actions.add_parser("path", help="Print the config file location.")
     path_parser.set_defaults(handler=_config_path)
 
-    show_parser = config_actions.add_parser("show", help="Show persistent defaults.")
+    show_parser = config_actions.add_parser("show", help="Show saved settings.")
     show_parser.set_defaults(handler=_config_show)
 
-    set_parser = config_actions.add_parser("set", help="Save a persistent default.")
+    set_parser = config_actions.add_parser("set", help="Save a setting.")
     set_parser.add_argument("key", choices=CONFIGURABLE_KEYS, help="Setting to save.")
     set_parser.add_argument("value", help="Value to save.")
     set_parser.set_defaults(handler=_config_set)
 
-    unset_parser = config_actions.add_parser("unset", help="Clear a persistent default.")
+    unset_parser = config_actions.add_parser("unset", help="Clear a setting.")
     unset_parser.add_argument("key", choices=CONFIGURABLE_KEYS, help="Setting to clear.")
     unset_parser.set_defaults(handler=_config_unset)
+    for action in (path_parser, show_parser, set_parser, unset_parser):
+        _add_config_target(action, default=argparse.SUPPRESS)
     return parser
 
 
@@ -345,7 +474,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     raw_argv = list(sys.argv[1:] if argv is None else argv)
     parser = build_parser()
     args = parser.parse_args(raw_argv)
-    return int(args.handler(args, raw_argv))
+    if args.command == "config" and args.config is not None and args.project_dir is not None:
+        parser.error("Choose --project or --config, not both.")
+    if args.command == "run":
+        if args.no_config and args.config is not None:
+            parser.error("Choose --no-config or --config, not both.")
+    try:
+        return int(args.handler(args, raw_argv))
+    except (ValueError, OSError) as exc:
+        print(f"Cannot continue: {exc}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":

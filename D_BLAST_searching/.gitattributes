@@ -1,0 +1,2 @@
+# Preserve the exact upstream payload bytes, including text notices/manifests.
+bundled/** -text

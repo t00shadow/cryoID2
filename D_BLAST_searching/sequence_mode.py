@@ -3,12 +3,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from cryoid_pipeline.models import RequestedSequenceMode, SequenceMode
+from cryoid_pipeline.user_config import validate_sequence_mode
 from .sequence_search import SequenceRecord, read_sequence_pool
 
 
 RNA_ALPHABET = frozenset("ACGTUN")
 PROTEIN_ALPHABET = frozenset("ABCDEFGHIKLMNPQRSTVWXYZJUO")
-VALID_MODES = frozenset({"auto", "protein", "rna"})
 
 
 class SequenceModeError(ValueError):
@@ -16,10 +16,10 @@ class SequenceModeError(ValueError):
 
 
 def validate_requested_mode(value: str | None) -> RequestedSequenceMode:
-    mode = str(value or "auto").strip().lower()
-    if mode not in VALID_MODES:
-        raise SequenceModeError("Sequence mode must be auto, protein, or rna.")
-    return mode  # type: ignore[return-value]
+    try:
+        return validate_sequence_mode(value)  # type: ignore[return-value]
+    except ValueError as exc:
+        raise SequenceModeError(str(exc)) from exc
 
 
 def _is_rna_record(record: SequenceRecord) -> bool:

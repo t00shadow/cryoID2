@@ -31,16 +31,18 @@ import time
 from argparse import Namespace
 
 from . import search_support as search_sup
+from .evalues import alignment_log10_evalue, format_log10_evalue, linear_evalue
 from Bio import SeqIO
 from matplotlib import pyplot as plt
 
 # default blast format
 blastformat7 = '# Fields: query acc.ver, subject acc.ver, identical, alignment length, query length, mismatches, gap opens, gaps, q. start, q. end, s. start, s. end, query seq, subject seq, evalue'
+blastformat7_with_bitscore = blastformat7 + ', bit score'
 
 # save the results in class BlastSeq
 class BlastSeq:
 
-    def __init__(self, result):
+    def __init__(self, result, *, dbsize=None):
         # read data from blast results
         self.data = result
         results = result.split('\t')
@@ -49,6 +51,11 @@ class BlastSeq:
         self.qstart, self.qend, self.sstart, self.send = map(int, results[8:12])
         self.qseq, self.sseq = results[12:14]
         self.evalue = float(results[14])
+        self.bit_score = float(results[15]) if len(results) == 16 else None
+        self.log10_evalue = alignment_log10_evalue(
+            self.evalue, bit_score=self.bit_score,
+            search_space=dbsize * self.querylength if dbsize is not None else None,
+        )
         if len(results) == 17:
             self.length = int(results[15])
             self.composite_evalue = float(results[16])
@@ -71,76 +78,6 @@ class BlastSeq:
         self.ave_identity = float(ave_identity)
         self.data += f'\t{str(self.ave_identity)}'
 
-
-#================================================================================================================================================================================================
-# read and check input arguments
-#================================================================================================================================================================================================
-
-# def Parser():
-
-#     parser = argparse.ArgumentParser(
-#         prog = 'CryoID2',
-#         description = '%(prog)s translates both the segment sequences and all the candidate protein sequences of the pool into the simplified “6-letter” code \
-#                                      and performs a modified blast search of the entire pool using the segment sequences as queries.',
-#         epilog = 'Example: %(prog)s -q queries.pdb -p candidate_pool.fasta',
-#     )
-#     parser.add_argument('-q', '--queryfile', type=argparse.FileType('r'), required=True,
-#                         help='Queries (.fasta/.pdb file) to be searched')                 #python 3.10
-#     parser.add_argument('-p', '--candidate_pool', type=argparse.FileType('r'), required=True,
-#                         help='Candidate protein sequence pool file in fasta format)')     #python 3.10   # , or standard mass spetrum results (.xlsx format))')
-#     parser.add_argument('-b', '--base', action='store_true', default=False,
-#                         help='Use Blastn instead of Blastp to search nucleotide sequences')
-#     parser.add_argument('-o', '--outfile', default=None,
-#                         help='Output file basename. Default value is the same as query file basename')
-#     parser.add_argument('-od', '--outdir', default=None,
-#                         help='Output file directory. Default value is the same as query file directory')
-#     parser.add_argument('-r', '--reverse', action='store_true', default=False,
-#                         help='If N/C terminal polarity of query sesquences are unknown, add -r flag')
-#     parser.add_argument('-l', '--length', type=int, nargs=2, default=[1, 100000],
-#                         help='Set target sequence length filter for the final results. Note that this argument takes two parameters seperated by a space. Default value is 1 10000 for a sequence length range of 1~10000')
-#     parser.add_argument('-e', '--evalue', type=float, default=1.0,
-#                         help='Expectation value (E) threshold for saving hits in blast search for each query. Default 1.0')
-#     parser.add_argument('-g', '--gapscore', type=int, nargs=2, default=[32767, 32767],
-#                         help='Penalty score pairs for gapopen and gapextend. Note that this argument takes two parameters seperated by a space. Default value is 32767 32767 for ungapped searching. You may change it to 15 3 for gapped searching')
-#     parser.add_argument('-n', '--num_candidate', type=int, default=100,
-#                         help='Maximum number of candidates to keep in the final result lists. Default 20')
-#     parser.add_argument('-v', '--verbose', action='store_true', default=False,
-#                         help='Keep simplified query sequences files and all the significant blastp alignments')
-
-#     params = parser.parse_args()
-
-#     # check params : query file format, candidate_pool file format, evalue, length range, gapscore, output name
-#     if not (params.queryfile.name.endswith('.fasta') or params.queryfile.name.endswith('.pdb')):
-#         raise ValueError('Query file must be in .fasta or .pdb format.')
-
-#     if not (params.candidate_pool.name.endswith('.fasta') or params.candidate_pool.name.endswith('.txt') or params.candidate_pool.name.endswith('.list')): # or params.candidate_pool.name.endswith('.xlsx')
-#         raise ValueError('Sequence pool file format is not recognized.')
-
-#     if params.evalue <= 0.0 or params.evalue >= 1000.0:
-#         raise ValueError('E-value should be between 0.0 and 1000.0.')
-
-#     if not (params.length[0] > 0 and params.length[0] < params.length[1]):
-#         raise ValueError('Please input a valid length range.')
-
-#     if not (params.gapscore == [32767, 32767] or params.gapscore == [15, 3] or params.gapscore == [13, 3]):
-#         raise ValueError('Please input acceptable gapscores: [32767, 32767], [15, 3], or [13, 3].')
-
-#     if params.num_candidate <= 0:
-#         raise ValueError('The number of candidates must be a positive integer.')
-
-#     if params.outfile is None:
-#         out_base = os.path.splitext(os.path.basename(params.queryfile.name))[0]
-#         params.outfile = out_base
-
-#     if params.outdir is None:
-#         params.outdir = os.path.dirname(params.queryfile.name)
-
-#     return params
-
-
-#================================================================================================================================================================================================
-# blast query sequences against local database
-#================================================================================================================================================================================================
 
 def Blast(params):
     """
@@ -171,7 +108,8 @@ def Blast(params):
         blastp_params = Namespace(dbsize=params.dbsize, qsize=query_len, query=query_file,
                                   outfile=blast_file, database=params.dbname, evalue=params.evalue,
                                   gapscore=params.gapscore, logger=params.logger,
-                                  max_target_seqs=params.max_target_seqs)
+                                  max_target_seqs=params.max_target_seqs,
+                                  cpu_threads=getattr(params, 'cpu_threads', None))
         search_sup.SeqBlast(blastp_params)
 
         # Keep the blast result files
@@ -222,8 +160,8 @@ def Filter(results, params):
             if field.candidate != last_candidate:
                     fields.append(field)
                     last_candidate = field.candidate
-                    last_evalue = field.evalue
-            elif field.candidate == last_candidate and str(field.evalue) == str(last_evalue):
+                    last_evalue = field.log10_evalue
+            elif field.candidate == last_candidate and field.log10_evalue == last_evalue:
                     fields.append(field)
 
     return fields
@@ -295,7 +233,7 @@ def Readfile(params):
             # hits.  Treat that as a valid empty result instead of a malformed
             # file, while still validating a fields declaration when present.
             if stripped.startswith('# Fields:'):
-                if stripped != blastformat7:
+                if stripped not in (blastformat7, blastformat7_with_bitscore):
                     params.logger.exception('Error: ' + f + ' wrong format! Exiting')
                     raise OSError('Error: ' + f + ' wrong format! Exiting')
                 continue
@@ -304,10 +242,17 @@ def Readfile(params):
                 continue
 
             # save the results in class and list
-            field = BlastSeq(stripped)
+            field = BlastSeq(stripped, dbsize=getattr(params, 'dbsize', None))
+            candidate_id_map = getattr(params, 'candidate_id_map', None)
+            if candidate_id_map is not None:
+                if field.candidate not in candidate_id_map:
+                    raise ValueError(f"BLAST returned an unknown internal candidate ID: {field.candidate!r}")
+                field.candidate = candidate_id_map[field.candidate]
 
             # add length to class BlastSeq
-            candidate_length = protlen_casefold.get(field.candidate.casefold())
+            candidate_length = params.protlen.get(field.candidate)
+            if candidate_length is None:
+                candidate_length = protlen_casefold.get(field.candidate.casefold())
             if candidate_length is not None:
                 field.set_prot_len(candidate_length)
             else:
@@ -316,7 +261,7 @@ def Readfile(params):
             tem.append(field)
 
         # sort the list according to candidate and evalue and then save the best result for each candidate
-        tem.sort(key=operator.attrgetter('candidate', 'evalue'), reverse=False)
+        tem.sort(key=operator.attrgetter('candidate', 'log10_evalue'), reverse=False)
 
         # Filter(params) to place restrains on gap opens, align length etc.
         tem = Filter(tem, params)
@@ -375,7 +320,7 @@ def Calculate(results, params):
 
         # temp evalue dictionary to get the lowest E-value from all the alignments between each candidate and current query
         # initialize the composite E-value to the cutoff E-value
-        tem_evalue = dict.fromkeys(candidate, params.evalue)
+        tem_evalue = dict.fromkeys(candidate, math.log10(params.evalue))
         # temp identity dictionary to get the highest identity from all the alignments between each candidate and current query
         # initialize to 0
         tem_identity = dict.fromkeys(candidate, 0.0)
@@ -385,13 +330,13 @@ def Calculate(results, params):
             query_fields.extend(results_by_query.get(query[0] + '_rev', ()))
 
         for field in query_fields:
-            if field.evalue < tem_evalue[field.candidate]:
-                tem_evalue[field.candidate] = field.evalue
+            if field.log10_evalue < tem_evalue[field.candidate]:
+                tem_evalue[field.candidate] = field.log10_evalue
                 tem_identity[field.candidate] = field.identity
 
         # loop over all candidate to update the composite E-value and ave_identity
         for icandidate in candidate_log_evalue:
-            candidate_log_evalue[icandidate] += math.log10(tem_evalue[icandidate])
+            candidate_log_evalue[icandidate] += tem_evalue[icandidate]
 
             # apply the length factor here
             if candidate_length[icandidate] > 0:
@@ -423,7 +368,7 @@ def Calculate(results, params):
         log_evalue = candidate_log_evalue[field.candidate]
         # Keep the float attribute for result consumers. Very small
         # values may be zero here, but sorting and reporting use the log value.
-        field.set_composite_evalue(10.0 ** log_evalue)
+        field.set_composite_evalue(linear_evalue(log_evalue))
         field.set_composite_log10_evalue(log_evalue)
         field.set_ave_identity(candidate_ave_identity[field.candidate])
 
@@ -472,6 +417,7 @@ def Writefile(fields, params):
     ranking = 0
 
     for i, field in enumerate(fields):
+        composite_text = format_log10_evalue(field.composite_log10_evalue)
 
         # By default only keep the first 100 most promising candidates
         # may add an argument to specify a number by the user
@@ -488,7 +434,7 @@ def Writefile(fields, params):
                 params.logger.warning('Warning: No high identity (> 70%) protein candidates identified! You may want to optimize your query sequences first, otherwise the results may not be reliable.\n')
 
             out = 'Most likely candidate:\t' + field.candidate + '\nQuery set identity:\t{0:.0%}\nSequence length:\t'.format(field.ave_identity) +\
-            str(field.length) + '\nComposite E-value:\t{0:1.1e}\n'.format(field.composite_evalue) + '\n'
+            str(field.length) + '\nComposite E-value:\t' + composite_text + '\n\n'
             out += 'The candidates have been ranked by composite E-value, and the top candidates are shown in the graph in the pop-up window. Presence of a statistically significant "gap" in composite E-values between the \
 top candidate and all other candidates indicates a high confidence identification. The aligned segments can be used for further verification/model building.'
 
@@ -520,9 +466,9 @@ top candidate and all other candidates indicates a high confidence identificatio
             # write brief summary to files.
             print(
                 str(ranking) + '\t' + field.candidate + '\t' + str(field.length)
-                + '\t' + '{0:.0%}\t{1:1.1e}\t{2:.12f}'.format(
+                + '\t' + '{0:.0%}\t{1}\t{2:.12f}'.format(
                     field.ave_identity,
-                    field.composite_evalue,
+                    composite_text,
                     field.composite_log10_evalue,
                 ),
                 file=fout1,
@@ -538,11 +484,11 @@ top candidate and all other candidates indicates a high confidence identificatio
         # write detailed alignments info to files
         if params.gapscore == [32767, 32767]:
             print(str(ranking)+'\t'+field.candidate+'\t'+field.query+'\t'+str(field.identity)+'\t'+str(field.querylength)+'\t'+str(field.qstart)+'\t'+str(field.qend)+\
-            '\t'+str(field.sstart)+'\t'+str(field.send)+'\t'+str(field.length)+'\t'+field.qseq+'\t'+field.sseq+'\t'+'{0:1.1e}'.format(field.evalue)+'\t'+'{0:1.1e}'.format(field.composite_evalue),
+            '\t'+str(field.sstart)+'\t'+str(field.send)+'\t'+str(field.length)+'\t'+field.qseq+'\t'+field.sseq+'\t'+'{0:1.1e}'.format(field.evalue)+'\t'+composite_text,
             file=fout)
         else:
             print(str(ranking)+'\t'+field.candidate+'\t'+field.query+'\t'+str(field.identity)+'\t'+str(field.querylength)+'\t'+str(field.gaps)+'\t'+str(field.qstart)+'\t'+str(field.qend)+\
-            '\t'+str(field.sstart)+'\t'+str(field.send)+'\t'+str(field.length)+'\t'+field.qseq+'\t'+field.sseq+'\t'+'{0:1.1e}'.format(field.evalue)+'\t'+'{0:1.1e}'.format(field.composite_evalue),
+            '\t'+str(field.sstart)+'\t'+str(field.send)+'\t'+str(field.length)+'\t'+field.qseq+'\t'+field.sseq+'\t'+'{0:1.1e}'.format(field.evalue)+'\t'+composite_text,
             file=fout)
 
     fout.close()
@@ -708,11 +654,16 @@ def Search(params):
 
     # Get the length of each sequence
     protlen = {}
-    for record in SeqIO.parse(seqfile_name, "fasta"):
+    candidate_ids = {}
+    for index, record in enumerate(SeqIO.parse(seqfile_name, "fasta"), start=1):
+        if record.id in protlen:
+            raise ValueError(f"Duplicate candidate FASTA identifier: {record.id!r}")
+        candidate_ids[record.id] = f"cryoid_seq_{index:08d}"
         protlen[record.id] = len(record.seq)              # eg. record.id = "tr|Q8IKL5|Q8IKL5_PLAF7", record.seq = "MNIRLIKKIGINY...ESKWYSFWEENA"
 
     # Generate a local blastp database from the (degenerate) candidate sequences
-    DB_params = Namespace(seqfile=seqfile_name, logger=logger, verbose=params.verbose)
+    DB_params = Namespace(seqfile=seqfile_name, logger=logger, verbose=params.verbose,
+                          candidate_ids=candidate_ids)
     dbsize, dbname = search_sup.DBGenerate(DB_params)
 
     # Map the query sequences to files for blastp search
@@ -721,13 +672,15 @@ def Search(params):
 
     # Blast query sequences against local database
     Blast_params = Namespace(query_info=query_info, dbsize=dbsize, dbname=dbname, evalue=params.evalue, gapscore=params.gapscore, logger=logger, verbose=params.verbose, max_target_seqs=len(protlen))
+    Blast_params.cpu_threads = getattr(params, 'cpu_threads', None)
     blast_files = Blast(Blast_params)
 
     # Interpret the blast results
     if len(blast_files):
         # Process blast results and generate the final searching results
         process_params = Namespace(blastfiles=blast_files, candidate_pool=params.candidate_pool, protlen=protlen, reverse=params.reverse, length=params.length, queryfile=params.queryfile, outfile=params.outfile, outdir=params.outdir,
-                                   evalue=params.evalue, verbose=params.verbose, gapscore=params.gapscore, num_candidate=params.num_candidate, query_info=query_info, logger=logger)
+                                   evalue=params.evalue, verbose=params.verbose, gapscore=params.gapscore, num_candidate=params.num_candidate, query_info=query_info, logger=logger,
+                                   dbsize=dbsize, candidate_id_map={internal: original for original, internal in candidate_ids.items()})
         results = Process(process_params)
 
         # Log the time used for the job

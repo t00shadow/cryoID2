@@ -13,7 +13,7 @@ from scipy.ndimage import zoom
 
 from C_Unet_model_predicting.model import UNET
 from cryoid_pipeline.models import PredictionBundle, SequenceMode
-from cryoid_pipeline.runtime_config import default_unet_device, resolve_unet_weights_dir
+from cryoid_pipeline.runtime_config import default_unet_device
 
 
 MODEL_TYPES = ("secondary_strctures", "key_atoms", "residue_types_6letter")
@@ -32,10 +32,6 @@ class UnetInferenceResult:
     device: str
     weights_dir: Path
     generated_files: list[Path] = field(default_factory=list)
-
-
-def default_weights_dir() -> Path | None:
-    return resolve_unet_weights_dir()
 
 
 def select_device(device: str | None = None) -> str:
@@ -109,10 +105,28 @@ def _prediction_prefix(map_path: Path) -> str:
     return name[:-4] if name.lower().endswith(".mrc") else name
 
 
+def _map_axes(header) -> tuple[int, int, int]:
+    axes = (int(header.mapc), int(header.mapr), int(header.maps))
+    if set(axes) != {1, 2, 3}:
+        raise ValueError(f"MRC map axes must be a permutation of (1, 2, 3), got {axes}.")
+    return axes
+
+
 def normalize_map(map_path: Path, recl: float = 0.0) -> tuple[np.ndarray, list[float]]:
     with mrcfile.mmap(map_path, mode="r", permissive=True) as mrc:
         map_data = np.array(mrc.data, dtype=np.float32)
+        if map_data.ndim == 4 and map_data.shape[0] == 1:
+            map_data = map_data[0]
+        if map_data.ndim != 3:
+            raise ValueError(f"Expected a 3D density map, got shape {map_data.shape}.")
+        # MRC arrays are sections/rows/columns. Resample only after mapping
+        # those storage axes to physical Z/Y/X, including anisotropic voxels.
+        storage_axes = _map_axes(mrc.header)[::-1]
+        orientation = tuple(storage_axes.index(axis) for axis in (3, 2, 1))
+        map_data = np.ascontiguousarray(np.transpose(map_data, orientation))
         zoom_factors = [float(mrc.voxel_size.z), float(mrc.voxel_size.y), float(mrc.voxel_size.x)]
+        if not all(np.isfinite(value) and value > 0 for value in zoom_factors):
+            raise ValueError(f"MRC voxel sizes must be finite and positive, got {zoom_factors}.")
         map_data = zoom(map_data, zoom_factors)
 
         count_good = int(np.sum(map_data > max(0.0, float(recl))))
@@ -136,11 +150,6 @@ def normalize_map(map_path: Path, recl: float = 0.0) -> tuple[np.ndarray, list[f
             raise ValueError(f"Empty map: 99th percentile of positive density is zero: {map_path}")
         map_data = np.clip(map_data / positive_data_99, 0.0, 1.0)
 
-        orientation = np.array(
-            [int(mrc.header.mapc) - 1, int(mrc.header.mapr) - 1, int(mrc.header.maps) - 1],
-            dtype=np.int32,
-        )
-        map_data = np.transpose(map_data, orientation)
     return map_data.astype(np.float32, copy=False), zoom_factors
 
 
@@ -239,11 +248,14 @@ def write_prediction_map(
         output_map.unlink()
     shutil.copyfile(input_map, output_map)
     with mrcfile.open(output_map, mode="r+", permissive=True) as mrc:
+        starts = dict(zip(_map_axes(mrc.header),
+                          (int(mrc.header.nxstart), int(mrc.header.nystart), int(mrc.header.nzstart))))
         data = model_data.astype(np.int8 if is_int else np.float32, copy=False)
         mrc.set_data(data)
-        mrc.header.nzstart = int(mrc.header.nzstart * zoom_factors[0])
-        mrc.header.nystart = int(mrc.header.nystart * zoom_factors[1])
-        mrc.header.nxstart = int(mrc.header.nxstart * zoom_factors[2])
+        mrc.header.mapc, mrc.header.mapr, mrc.header.maps = 1, 2, 3
+        mrc.header.nzstart = int(starts[3] * zoom_factors[0])
+        mrc.header.nystart = int(starts[2] * zoom_factors[1])
+        mrc.header.nxstart = int(starts[1] * zoom_factors[2])
         mrc.header.ispg = 401
         mrc.update_header_from_data()
         mrc.update_header_stats()
@@ -289,11 +301,11 @@ def run_unet_inference(
 ) -> UnetInferenceResult:
     check_cancel = should_cancel or (lambda: None)
     check_cancel()
-    weights = (weights_dir or default_weights_dir())
+    weights = weights_dir
     if weights is None:
         raise FileNotFoundError(
-            "UNet weights directory was not found. Set the weights path in Advanced Settings "
-            "or set CRYOID_UNET_WEIGHTS_DIR."
+            "U-Net weights are not configured. Choose the weights folder in Settings > Configurations "
+            "or supply --weights-dir on the command line."
         )
     weights = weights.expanduser().resolve()
     validate_weights(weights)

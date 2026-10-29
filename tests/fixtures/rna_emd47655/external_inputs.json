@@ -1,0 +1,15 @@
+{
+  "density_map": {
+    "name": "emd_47655.map",
+    "bytes": 67109888,
+    "sha256": "7903eb4f4d9ddca4b9f18adfb9ae5363395e61a0ce0f54e9aa3a8eb7791c065a",
+    "server_path": "/home/syu214/projects/cryoID_rna_structfetch_test_20260801/experiments/rna_structfetch/test_data/emd_47655.map"
+  },
+  "weights_dir": "/home/syu214/cryoid_weights/train_val_data",
+  "correct_rcl": 0.05,
+  "expected_query_lengths": [105, 96, 55, 44, 35, 23, 14],
+  "archived_query_sha256": "5088f62b01281662e253c5176eb6ff24e0fd99298d0d0dad030d0dbdfb8b1cad",
+  "archived_ground_truth_locus_rank": 4,
+  "fresh_query_sha256": "fde2f88b9716ba6c7b056ca7bf2680dfb4d53039fa3917fd344eb73003018531",
+  "fresh_ground_truth_locus_rank": 3
+}

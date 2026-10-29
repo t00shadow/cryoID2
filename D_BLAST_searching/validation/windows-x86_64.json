@@ -1,0 +1,89 @@
+{
+  "platform": "Windows-11-10.0.26200-SP0",
+  "reference_bin": "C:\\Users\\xinye\\Tools\\ncbi-blast-2.17.0+\\bin",
+  "bundled_bin": "D_BLAST_searching/bundled/windows-x86_64/bin",
+  "version": "blastp: 2.17.0+\n Package: blast 2.17.0, build Jul  1 2025 08:57:20\n",
+  "cases": {
+    "protein_e1d3": {
+      "reference": {
+        "ranking_sha256": "307b84f818e37c5394a1bd9bf451ddc788c063a6dfcb143ac28984bab56716f8",
+        "ranked_fasta_sha256": "9649f15951818da0310d46bb1be50dc3ca9feb625f1e2f19f16be9e4c945c56d",
+        "rows": 166,
+        "top_candidate": "PF3D7_1446200.1_len605",
+        "seconds": 25.338269699946977
+      },
+      "bundled": {
+        "ranking_sha256": "307b84f818e37c5394a1bd9bf451ddc788c063a6dfcb143ac28984bab56716f8",
+        "ranked_fasta_sha256": "9649f15951818da0310d46bb1be50dc3ca9feb625f1e2f19f16be9e4c945c56d",
+        "rows": 166,
+        "top_candidate": "PF3D7_1446200.1_len605",
+        "seconds": 26.66292729997076
+      }
+    },
+    "protein_4zx8": {
+      "reference": {
+        "ranking_sha256": "4c7b56900670595ec268d505fed34b77677d77d8df4a9857b976bab8d0cf7c5c",
+        "ranked_fasta_sha256": "be6ebcf04566b86f71247d7f69c221d478fd74cf839761f5bd7fedd08cc86539",
+        "rows": 166,
+        "top_candidate": "PF3D7_1446200.1_len605",
+        "seconds": 4.18665529997088
+      },
+      "bundled": {
+        "ranking_sha256": "4c7b56900670595ec268d505fed34b77677d77d8df4a9857b976bab8d0cf7c5c",
+        "ranked_fasta_sha256": "be6ebcf04566b86f71247d7f69c221d478fd74cf839761f5bd7fedd08cc86539",
+        "rows": 166,
+        "top_candidate": "PF3D7_1446200.1_len605",
+        "seconds": 4.314919999917038
+      }
+    },
+    "protein_alphafold": {
+      "reference": {
+        "ranking_sha256": "a6409ab6d4052aa529106a93443777703ad5aa94789b33a7d8e5e726a1ad453f",
+        "ranked_fasta_sha256": "7148f897b18d58b0811ff6add66fbbba90b8fec0ccb281bdf3d64c1561ff89a0",
+        "rows": 166,
+        "top_candidate": "PF3D7_1446200.1_len605",
+        "seconds": 5.388119699899107
+      },
+      "bundled": {
+        "ranking_sha256": "a6409ab6d4052aa529106a93443777703ad5aa94789b33a7d8e5e726a1ad453f",
+        "ranked_fasta_sha256": "7148f897b18d58b0811ff6add66fbbba90b8fec0ccb281bdf3d64c1561ff89a0",
+        "rows": 166,
+        "top_candidate": "PF3D7_1446200.1_len605",
+        "seconds": 5.35542469995562
+      }
+    },
+    "rna_emd47655": {
+      "reference": {
+        "ranking_sha256": "8046e8358cae13c9b7ee71746d9a5e8759d26ced9b5dd12ea5e45045db68b735",
+        "ranked_fasta_sha256": "7b1d0e9f011ce4d21c123421d2593391fb9e6d1f07c2ac29b9fac32c6a04dbe0",
+        "rows": 2538,
+        "top_candidate": "seq02778",
+        "seconds": 2.185174099984579
+      },
+      "bundled": {
+        "ranking_sha256": "8046e8358cae13c9b7ee71746d9a5e8759d26ced9b5dd12ea5e45045db68b735",
+        "ranked_fasta_sha256": "7b1d0e9f011ce4d21c123421d2593391fb9e6d1f07c2ac29b9fac32c6a04dbe0",
+        "rows": 2538,
+        "top_candidate": "seq02778",
+        "seconds": 1.8797207999741659
+      }
+    }
+  },
+  "rna_structure_lookup": {
+    "reference": {
+      "hits_sha256": "be4380b1a38b77f6b9555c02de9647cbfc384594f8e96b5adeff43641e15f942",
+      "hit_rows": 155,
+      "query_sha256": "5b2658a4809080d3ed6371b4261f626133026d4a845d9b3edb23c4acd9f1b791",
+      "database_fasta_sha256": "db4a1a87bd1fb0de37f2539847992a7dc2a3530b060f9c14c45b3cdc120f3031",
+      "seconds": 2.19460390007589
+    },
+    "bundled": {
+      "hits_sha256": "be4380b1a38b77f6b9555c02de9647cbfc384594f8e96b5adeff43641e15f942",
+      "hit_rows": 155,
+      "query_sha256": "5b2658a4809080d3ed6371b4261f626133026d4a845d9b3edb23c4acd9f1b791",
+      "database_fasta_sha256": "db4a1a87bd1fb0de37f2539847992a7dc2a3530b060f9c14c45b3cdc120f3031",
+      "seconds": 2.0569886000594124
+    }
+  },
+  "exact_match": true
+}

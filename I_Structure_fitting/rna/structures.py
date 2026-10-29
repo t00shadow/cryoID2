@@ -361,7 +361,6 @@ def select_structure_hits(
 def run_rna_structure_pipeline(
     *,
     project_dir: Path,
-    repo_root: Path,
     run_dir: Path,
     density_map: Path,
     prediction_bundle: PredictionBundle,
@@ -372,8 +371,8 @@ def run_rna_structure_pipeline(
     check_cancel: CancellationCheckpoint,
     blast_bin_dir: Path | None = None,
     keep_tmp: bool = False,
+    cpu_threads: int | None = None,
 ) -> RnaStructureResult:
-    del repo_root  # Stage I now invokes its implementation directly from the installed package.
     output = Path(run_dir) / "tmp" / "structure_fetch"
     output.mkdir(parents=True, exist_ok=True)
     database = ensure_public_rna_database(
@@ -423,6 +422,8 @@ def run_rna_structure_pipeline(
         "-out",
         str(blast_path),
     ]
+    if cpu_threads is not None:
+        command.extend(["-num_threads", str(cpu_threads)])
     subprocess.run(command, check=True, capture_output=True, text=True)
     check_cancel()
     chain_sequences = _read_fasta(database.fasta_path)

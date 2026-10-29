@@ -1,0 +1,137 @@
+{
+  "platform": "Linux-5.15.167.4-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "reference_bin": "/mnt/c/Users/xinye/Python_Projects/cryoID_v2_combination/D_BLAST_searching/validation/work/linux-x86_64/archive_reference/bin",
+  "bundled_bin": "D_BLAST_searching/bundled/linux-x86_64/bin",
+  "comparison_scope": "reference versus bundled on this operating system",
+  "checked_existing_outputs": true,
+  "version": "blastp: 2.17.0+\n Package: blast 2.17.0, build Jul  1 2025 08:59:18\n",
+  "cases": {
+    "protein_e1d3": {
+      "reference": {
+        "ranking_sha256": "307b84f818e37c5394a1bd9bf451ddc788c063a6dfcb143ac28984bab56716f8",
+        "ranked_fasta_sha256": "9649f15951818da0310d46bb1be50dc3ca9feb625f1e2f19f16be9e4c945c56d",
+        "rows": 166,
+        "top_candidate": "PF3D7_1446200.1_len605",
+        "seconds": null,
+        "checked_existing_outputs": true
+      },
+      "bundled": {
+        "ranking_sha256": "307b84f818e37c5394a1bd9bf451ddc788c063a6dfcb143ac28984bab56716f8",
+        "ranked_fasta_sha256": "9649f15951818da0310d46bb1be50dc3ca9feb625f1e2f19f16be9e4c945c56d",
+        "rows": 166,
+        "top_candidate": "PF3D7_1446200.1_len605",
+        "seconds": null,
+        "checked_existing_outputs": true
+      },
+      "cross_platform": {
+        "ranked_fasta_exact": true,
+        "ranking_tsv_exact": true,
+        "numeric_format_differences": []
+      }
+    },
+    "protein_4zx8": {
+      "reference": {
+        "ranking_sha256": "fb4ccd826cd01dcc9fe96fdcef9a561eca01c159e9ef6a9826e3bf87eb421898",
+        "ranked_fasta_sha256": "be6ebcf04566b86f71247d7f69c221d478fd74cf839761f5bd7fedd08cc86539",
+        "rows": 166,
+        "top_candidate": "PF3D7_1446200.1_len605",
+        "seconds": null,
+        "checked_existing_outputs": true
+      },
+      "bundled": {
+        "ranking_sha256": "fb4ccd826cd01dcc9fe96fdcef9a561eca01c159e9ef6a9826e3bf87eb421898",
+        "ranked_fasta_sha256": "be6ebcf04566b86f71247d7f69c221d478fd74cf839761f5bd7fedd08cc86539",
+        "rows": 166,
+        "top_candidate": "PF3D7_1446200.1_len605",
+        "seconds": null,
+        "checked_existing_outputs": true
+      },
+      "cross_platform": {
+        "ranked_fasta_exact": true,
+        "ranking_tsv_exact": false,
+        "numeric_format_differences": [
+          {
+            "rank": "53",
+            "field": "primary_score",
+            "reference_platform": "20.086186147616285",
+            "this_platform": "20.08618614761628"
+          }
+        ]
+      }
+    },
+    "protein_alphafold": {
+      "reference": {
+        "ranking_sha256": "24a16972e3cd9f006f32e52afb471156f0eb0d3a2b0edeb917fc5318cc13057b",
+        "ranked_fasta_sha256": "7148f897b18d58b0811ff6add66fbbba90b8fec0ccb281bdf3d64c1561ff89a0",
+        "rows": 166,
+        "top_candidate": "PF3D7_1446200.1_len605",
+        "seconds": null,
+        "checked_existing_outputs": true
+      },
+      "bundled": {
+        "ranking_sha256": "24a16972e3cd9f006f32e52afb471156f0eb0d3a2b0edeb917fc5318cc13057b",
+        "ranked_fasta_sha256": "7148f897b18d58b0811ff6add66fbbba90b8fec0ccb281bdf3d64c1561ff89a0",
+        "rows": 166,
+        "top_candidate": "PF3D7_1446200.1_len605",
+        "seconds": null,
+        "checked_existing_outputs": true
+      },
+      "cross_platform": {
+        "ranked_fasta_exact": true,
+        "ranking_tsv_exact": false,
+        "numeric_format_differences": [
+          {
+            "rank": "96",
+            "field": "primary_score",
+            "reference_platform": "19.086186147616285",
+            "this_platform": "19.08618614761628"
+          }
+        ]
+      }
+    },
+    "rna_emd47655": {
+      "reference": {
+        "ranking_sha256": "8046e8358cae13c9b7ee71746d9a5e8759d26ced9b5dd12ea5e45045db68b735",
+        "ranked_fasta_sha256": "7b1d0e9f011ce4d21c123421d2593391fb9e6d1f07c2ac29b9fac32c6a04dbe0",
+        "rows": 2538,
+        "top_candidate": "seq02778",
+        "seconds": null,
+        "checked_existing_outputs": true
+      },
+      "bundled": {
+        "ranking_sha256": "8046e8358cae13c9b7ee71746d9a5e8759d26ced9b5dd12ea5e45045db68b735",
+        "ranked_fasta_sha256": "7b1d0e9f011ce4d21c123421d2593391fb9e6d1f07c2ac29b9fac32c6a04dbe0",
+        "rows": 2538,
+        "top_candidate": "seq02778",
+        "seconds": null,
+        "checked_existing_outputs": true
+      },
+      "cross_platform": {
+        "ranked_fasta_exact": true,
+        "ranking_tsv_exact": true,
+        "numeric_format_differences": []
+      }
+    }
+  },
+  "cross_platform_rna_structure_lookup": {
+    "identical_hit_rows": true,
+    "byte_identical": false
+  },
+  "rna_structure_lookup": {
+    "reference": {
+      "hits_sha256": "35d9066b13d33725664d2bcdccee54094cf861c3a66f63e534801f829fcbb613",
+      "hit_rows": 155,
+      "query_sha256": "5b2658a4809080d3ed6371b4261f626133026d4a845d9b3edb23c4acd9f1b791",
+      "database_fasta_sha256": "db4a1a87bd1fb0de37f2539847992a7dc2a3530b060f9c14c45b3cdc120f3031",
+      "seconds": null
+    },
+    "bundled": {
+      "hits_sha256": "35d9066b13d33725664d2bcdccee54094cf861c3a66f63e534801f829fcbb613",
+      "hit_rows": 155,
+      "query_sha256": "5b2658a4809080d3ed6371b4261f626133026d4a845d9b3edb23c4acd9f1b791",
+      "database_fasta_sha256": "db4a1a87bd1fb0de37f2539847992a7dc2a3530b060f9c14c45b3cdc120f3031",
+      "seconds": null
+    }
+  },
+  "exact_match": true
+}

@@ -6,7 +6,7 @@ import re
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 from C_Unet_model_predicting import stage as stage_c_prediction
 from D_BLAST_searching import stage as stage_d_identification
@@ -23,6 +23,8 @@ from .models import (
     StageResult,
 )
 from .runtime_config import RuntimeConfig
+from .compute import cpu_thread_limit
+from .weights import resolve_weights, pipeline_percent, DOWNLOAD_START, DOWNLOAD_END
 from .structure_selection import (
     StructureSelection,
     resolve_effective_structure_selection,
@@ -74,9 +76,7 @@ class CryoIDPipeline:
     def __init__(
         self,
         *,
-        repo_root: Path | None = None,
         project_dir: Path | None = None,
-        output_root: Path | None = None,
         struct_fetch_runner: StructFetchRunner | None = None,
         unet_runner: UnetRunner | None = None,
         protein_query_runner: ProteinQueryRunner | None = None,
@@ -84,33 +84,26 @@ class CryoIDPipeline:
         rna_query_runner: RnaQueryRunner | None = None,
         rna_ranking_runner: RnaRankingRunner | None = None,
         rna_structure_runner: RnaStructureRunner | None = None,
-        unet_weights_dir: Path | None = None,
+        unet_weights_dir: Path | str | None = None,
         unet_device: str | None = None,
+        cpu_threads: int | str | None = None,
         unet_rcl: float = 0.0,
         protein_min_trace_length: int = 10,
         chimerax_path: Path | str | None = None,
         sequence_mode: str = "auto",
         structure_selection: str | int | float | None = None,
         keep_tmp: bool = False,
-        blast_bin_dir: Path | str | None = None,
+        user_config: Mapping[str, Any] | None = None,
     ) -> None:
         self.config = RuntimeConfig.from_env(
-            repo_root=repo_root,
-            output_root=output_root,
+            project_dir=project_dir,
             unet_weights_dir=unet_weights_dir,
             unet_device=unet_device,
+            cpu_threads=cpu_threads,
+            user_config=user_config,
         )
-        self.repo_root = self.config.repo_root
-        configured_output_root = self.config.output_root
-        if project_dir is not None:
-            self.project_dir = Path(project_dir).expanduser().resolve()
-            self.output_root = self.project_dir / "runs"
-        elif configured_output_root.name.lower() == "runs":
-            self.project_dir = configured_output_root.parent
-            self.output_root = configured_output_root
-        else:
-            self.project_dir = configured_output_root
-            self.output_root = self.project_dir / "runs"
+        self.project_dir = self.config.project_dir
+        self.output_root = self.project_dir / "runs"
         self.struct_fetch_runner = struct_fetch_runner
         self.unet_runner = unet_runner
         self.protein_query_runner = protein_query_runner
@@ -120,6 +113,7 @@ class CryoIDPipeline:
         self.rna_structure_runner = rna_structure_runner
         self.unet_weights_dir = self.config.unet_weights_dir
         self.unet_device = self.config.unet_device
+        self.cpu_threads = self.config.cpu_threads
         self.unet_rcl = stage_c_prediction.validate_rcl(unet_rcl)
         self.protein_min_trace_length = validate_protein_min_trace_length(
             protein_min_trace_length
@@ -134,7 +128,7 @@ class CryoIDPipeline:
             else None
         )
         self.keep_tmp = bool(keep_tmp)
-        self.blast_bin_dir = stage_d_identification.resolve_blast_bin_dir(blast_bin_dir, {})
+        self.blast_bin_dir = stage_d_identification.bundled_blast_bin_dir()
 
     def run(
         self,
@@ -143,6 +137,26 @@ class CryoIDPipeline:
         *,
         progress: ProgressCallback | None = None,
         progress_percent: PercentCallback | None = None,
+        status: Callable[[dict[str, Any]], None] | None = None,
+        should_cancel: CancelCheck | None = None,
+        command_line: str | None = None,
+        stop_after_identification: bool = False,
+    ) -> PipelineResult:
+        with cpu_thread_limit(self.cpu_threads):
+            return self._run(
+                density_map, candidate_pool, progress=progress, progress_percent=progress_percent,
+                status=status, should_cancel=should_cancel, command_line=command_line,
+                stop_after_identification=stop_after_identification,
+            )
+
+    def _run(
+        self,
+        density_map: str | Path,
+        candidate_pool: str | Path,
+        *,
+        progress: ProgressCallback | None = None,
+        progress_percent: PercentCallback | None = None,
+        status: Callable[[dict[str, Any]], None] | None = None,
         should_cancel: CancelCheck | None = None,
         command_line: str | None = None,
         stop_after_identification: bool = False,
@@ -190,23 +204,42 @@ class CryoIDPipeline:
         def emit(message: str) -> None:
             record_log(message, emit_to_user=True)
 
-        current_percent = -1
+        def set_stage(name: str, device: str = "cpu") -> None:
+            record_log(f"Stage: {name}; device: {device}", emit_to_user=True)
+            if status is not None:
+                status({"name": name, "device": device})
 
-        def set_percent(value: int) -> None:
+        current_percent = -1
+        with_download = False
+
+        def publish_percent(value: float) -> None:
             nonlocal current_percent
             next_percent = max(0, min(100, int(value)))
-            if next_percent <= current_percent:
-                return
-            current_percent = next_percent
-            record_log(f"Progress: {next_percent}%", emit_to_user=False)
-            progress_percent(next_percent)
+            if next_percent > current_percent:
+                current_percent = next_percent
+                record_log(f"Progress: {next_percent}%", emit_to_user=False)
+                progress_percent(next_percent)
+
+        def set_percent(value: int) -> None:
+            publish_percent(pipeline_percent(value, with_download))
+
+        def weights_status(event: dict) -> None:
+            nonlocal with_download
+            if event["name"] == "Downloading weights":
+                with_download = True
+                fraction = event["completed_bytes"] / max(1, event["total_bytes"])
+                publish_percent(DOWNLOAD_START + (DOWNLOAD_END - DOWNLOAD_START) * fraction)
+            if status is not None:
+                status(event)
 
         def check_cancel() -> None:
             if should_cancel():
                 raise PipelineCancelled("Pipeline run was cancelled.")
 
         try:
+            set_stage("Input validation")
             emit("Starting cryoID pipeline.")
+            emit(f"CPU threads: {self.cpu_threads if self.cpu_threads is not None else 'Auto (library defaults)'}")
             if command_line:
                 emit(f"Command: {command_line}")
             set_percent(0)
@@ -281,7 +314,15 @@ class CryoIDPipeline:
                     f"{float(structure_selection.numeric) * 100:g}% of ranked sequences."
                 )
 
+            # Resolve before prediction/provenance checks, so both entrypoints
+            # use the same files and cleared caches recover automatically.
+            if self.unet_runner is None:
+                self.unet_weights_dir = resolve_weights(
+                    self.unet_weights_dir, log=emit, status=weights_status, check_cancel=check_cancel,
+                )
+                check_cancel()
             set_percent(3)
+            set_stage("U-Net prediction", self.unet_device)
             prediction_stage, prediction_bundle = self._run_unet_predictions(
                 density_path,
                 run_dir,
@@ -297,6 +338,7 @@ class CryoIDPipeline:
             set_percent(55)
             check_cancel()
 
+            set_stage("Backbone tracing / query generation")
             if effective_mode == "protein":
                 query_stage, query_bundle = self._run_protein_query_generation(
                     prediction_bundle=prediction_bundle,
@@ -316,6 +358,7 @@ class CryoIDPipeline:
             set_percent(57)
             check_cancel()
 
+            set_stage("BLAST+ sequence search" if effective_mode == "protein" else "RNA sequence ranking")
             if effective_mode == "protein":
                 search_stage, selected_hit, search_outputs, ranking_path = self._run_protein_blast(
                     query_bundle=query_bundle,
@@ -364,6 +407,7 @@ class CryoIDPipeline:
                 set_percent(100)
                 return result
 
+            set_stage("Structure fetching / fitting")
             if effective_mode == "protein":
                 struct_stage, struct_outputs = self._run_struct_fetch(
                     run_dir=run_dir,
@@ -392,6 +436,7 @@ class CryoIDPipeline:
             emit(f"{struct_stage.name}: {struct_stage.message}")
             set_percent(98)
 
+            set_stage("Finalizing outputs")
             result = self._finish(
                 run_dir,
                 stages,
@@ -410,6 +455,7 @@ class CryoIDPipeline:
             set_percent(100)
             return result
         except PipelineCancelled:
+            set_stage("Cancelling / cleanup")
             stages.append(StageResult("Run", "skipped", "Pipeline run cancelled by user."))
             emit("Run cancelled. Cleaning tmp/intermediate outputs.")
             try:
@@ -1006,9 +1052,9 @@ class CryoIDPipeline:
                     query_fasta=query_bundle.query_fasta,
                     candidate_pool=candidate_pool,
                     run_dir=run_dir,
-                    repo_root=self.repo_root,
                     progress=progress,
                     blast_bin_dir=self.blast_bin_dir,
+                    cpu_threads=self.cpu_threads,
                 )
             top_row = result.ranking[0] if result.ranking else {}
             ranking_path = stage_d_identification.write_sequence_ranking(
@@ -1199,7 +1245,6 @@ class CryoIDPipeline:
             if self.rna_structure_runner is not None:
                 result = self.rna_structure_runner(
                     project_dir=self.project_dir,
-                    repo_root=self.repo_root,
                     run_dir=run_dir,
                     density_map=density_map,
                     candidate_pool=candidate_pool,
@@ -1214,7 +1259,6 @@ class CryoIDPipeline:
             else:
                 result = stage_i_structure.run_rna_structure_pipeline(
                     project_dir=self.project_dir,
-                    repo_root=self.repo_root,
                     run_dir=run_dir,
                     density_map=density_map,
                     prediction_bundle=prediction_bundle,
@@ -1224,6 +1268,7 @@ class CryoIDPipeline:
                     progress_percent=progress_percent,
                     check_cancel=check_cancel,
                     blast_bin_dir=self.blast_bin_dir,
+                    cpu_threads=self.cpu_threads,
                     keep_tmp=self.keep_tmp,
                 )
             normalized_outputs = self._normalize_rna_structure_results(
@@ -2016,6 +2061,7 @@ class CryoIDPipeline:
             "density_map": str(density_map) if density_map is not None else "",
             "candidate_pool": str(candidate_pool) if candidate_pool is not None else "",
             "weights_path": str(self.unet_weights_dir or ""),
+            "unet_device": self.unet_device,
             "configured_rcl": self.unet_rcl,
             "rcl": self._effective_unet_rcl(effective_mode) if effective_mode else self.unet_rcl,
             "protein_min_trace_length": self.protein_min_trace_length,
@@ -2024,6 +2070,7 @@ class CryoIDPipeline:
             "effective_mode": effective_mode or "",
             "configured_structure_selection": self.structure_selection or "",
             "keep_tmp": self.keep_tmp,
+            "cpu_threads": self.cpu_threads if self.cpu_threads is not None else "auto",
             "structure_selection": (
                 self._effective_structure_selection(effective_mode).details(
                     self._ranking_row_count(ranking_path)
@@ -2032,6 +2079,7 @@ class CryoIDPipeline:
                 else {}
             ),
             "blast_bin_dir": str(self.blast_bin_dir or ""),
+            "blast_source": "bundled",
             "sequence_ranking": str(ranking_path) if ranking_path is not None else "",
             "log_path": str(log_path) if log_path is not None else "",
             "selected_hit": None

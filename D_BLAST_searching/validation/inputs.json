@@ -1,0 +1,168 @@
+[
+  {
+    "name": "protein_e1d3",
+    "mode": "protein",
+    "query": "D_BLAST_searching/validation/work/inputs/protein_e1d3.fasta",
+    "pool": "test_data/protein_e1d3/malaria_pool.fasta",
+    "query_sha256": "3c28d112905c114c427dd16349784f42e3afcfac9c3b21d1ad1b71e5aef44f9f",
+    "source": "fresh production backbone tracing from existing U-Net maps",
+    "prediction_maps": [
+      {
+        "path": "experiments/10_25_protein_final/cryoid_results/unetpredictions/E1_D3_map_key_atoms_1_possibility.mrc",
+        "sha256": "2f9ec438c5065edb0164df88cd48adbf720355b78689224f9f5277e79d9f3538"
+      },
+      {
+        "path": "experiments/10_25_protein_final/cryoid_results/unetpredictions/E1_D3_map_secondary_strctures_1_possibility.mrc",
+        "sha256": "9ff402567caeb91c5e17c3034fe91726d25ba70a8057e5e89a6523bb303ca770"
+      },
+      {
+        "path": "experiments/10_25_protein_final/cryoid_results/unetpredictions/E1_D3_map_secondary_strctures_2_possibility.mrc",
+        "sha256": "8aa6bda26f987b5ec78579de66e77d4363ca0282812a002c3ef80e68ba3fcece"
+      },
+      {
+        "path": "experiments/10_25_protein_final/cryoid_results/unetpredictions/E1_D3_map_secondary_strctures_3_possibility.mrc",
+        "sha256": "c9547e05ca5bdc4a542ac368f3516b03ae66e7f06c14e10fd1e4cfd7a425a600"
+      },
+      {
+        "path": "experiments/10_25_protein_final/cryoid_results/unetpredictions/E1_D3_map_residue_types_6letter_1_possibility.mrc",
+        "sha256": "55bd978db531f31ca30d817c83d6ec7349366ba17abf3719cde6695c51a29052"
+      },
+      {
+        "path": "experiments/10_25_protein_final/cryoid_results/unetpredictions/E1_D3_map_residue_types_6letter_2_possibility.mrc",
+        "sha256": "69e2697e152cca0a7a552b7487c9ad265aebd95d5ac364592ce5b0353cdabe21"
+      },
+      {
+        "path": "experiments/10_25_protein_final/cryoid_results/unetpredictions/E1_D3_map_residue_types_6letter_3_possibility.mrc",
+        "sha256": "1c81f5bcd0eca11a504e60f119a720366e95de4679e81651e282ecb635e9dfd0"
+      },
+      {
+        "path": "experiments/10_25_protein_final/cryoid_results/unetpredictions/E1_D3_map_residue_types_6letter_4_possibility.mrc",
+        "sha256": "ac3b4228b0792aa965720be5ec8d0bf2b40b3ff8dbd0e0d64208bcc0fb146a02"
+      },
+      {
+        "path": "experiments/10_25_protein_final/cryoid_results/unetpredictions/E1_D3_map_residue_types_6letter_5_possibility.mrc",
+        "sha256": "6634b13b6a7a44b695445d3b7179d4824176006723717e3b5db894576c2c3d8f"
+      },
+      {
+        "path": "experiments/10_25_protein_final/cryoid_results/unetpredictions/E1_D3_map_residue_types_6letter_6_possibility.mrc",
+        "sha256": "e696ecb3d8b0c9808b3c5c11ab5ebf262e281ba1967ccba3836b115652f56dc4"
+      }
+    ],
+    "candidate_pool_sha256": "117679b85eba40df7b57888d8caacc8524628bc5c0d7bfc1d36342c384e22e5c",
+    "query_count": 53
+  },
+  {
+    "name": "protein_4zx8",
+    "mode": "protein",
+    "query": "D_BLAST_searching/validation/work/inputs/protein_4zx8.fasta",
+    "pool": "experiments/alpha_experiment/malaria_pool.fasta",
+    "query_sha256": "785de818739c0d543dde36f4cf9bb292c699d916450000f48431c6bcf853160a",
+    "source": "fresh production backbone tracing from existing U-Net maps",
+    "prediction_maps": [
+      {
+        "path": "experiments/alpha_experiment/10_22_generated_from_chain_A/cryoid_results/unetpredictions/4ZX8_chain_A_molmap_2p7A_key_atoms_1_possibility.mrc",
+        "sha256": "6fe8b3e88a4f6cf49a24a40dfa3994c2c5adc17a80f320972462d9f23f9ebc01"
+      },
+      {
+        "path": "experiments/alpha_experiment/10_22_generated_from_chain_A/cryoid_results/unetpredictions/4ZX8_chain_A_molmap_2p7A_secondary_strctures_1_possibility.mrc",
+        "sha256": "749141c8c284c561ae59c4e84a2f10d2c6f49aa1fbf8bba5f1e3e0250a1ad5a5"
+      },
+      {
+        "path": "experiments/alpha_experiment/10_22_generated_from_chain_A/cryoid_results/unetpredictions/4ZX8_chain_A_molmap_2p7A_secondary_strctures_2_possibility.mrc",
+        "sha256": "f6e8d2a4ded6d4611dc333a46a78b973de8563af6cf420b3efe880dbdf19c1c2"
+      },
+      {
+        "path": "experiments/alpha_experiment/10_22_generated_from_chain_A/cryoid_results/unetpredictions/4ZX8_chain_A_molmap_2p7A_secondary_strctures_3_possibility.mrc",
+        "sha256": "f65021df47e5cb0b1d076e1788efd851d6dac4ed28d194f5ab7443c19e46bb34"
+      },
+      {
+        "path": "experiments/alpha_experiment/10_22_generated_from_chain_A/cryoid_results/unetpredictions/4ZX8_chain_A_molmap_2p7A_residue_types_6letter_1_possibility.mrc",
+        "sha256": "9c7f1efa065aef28dde334d92bf75e742a7697f6f07a0c83b222389c43699673"
+      },
+      {
+        "path": "experiments/alpha_experiment/10_22_generated_from_chain_A/cryoid_results/unetpredictions/4ZX8_chain_A_molmap_2p7A_residue_types_6letter_2_possibility.mrc",
+        "sha256": "77c1731a0f2f711b24bc68dd5b3820a364b41ab3b99a8cf8e1be8eeeea30b185"
+      },
+      {
+        "path": "experiments/alpha_experiment/10_22_generated_from_chain_A/cryoid_results/unetpredictions/4ZX8_chain_A_molmap_2p7A_residue_types_6letter_3_possibility.mrc",
+        "sha256": "b06dffb563ba8d508984b8eb417cfcb606dda9990d2ea39d8f81bbf82330535e"
+      },
+      {
+        "path": "experiments/alpha_experiment/10_22_generated_from_chain_A/cryoid_results/unetpredictions/4ZX8_chain_A_molmap_2p7A_residue_types_6letter_4_possibility.mrc",
+        "sha256": "ba80a6357468c948a79e8d71ceec0ec11f612ab567db1f4b66b5b1e638d7a0ca"
+      },
+      {
+        "path": "experiments/alpha_experiment/10_22_generated_from_chain_A/cryoid_results/unetpredictions/4ZX8_chain_A_molmap_2p7A_residue_types_6letter_5_possibility.mrc",
+        "sha256": "a9aa644a0207139dba9d09219ec91449e1ae90ef593ac1dbab505f15fbce4dd5"
+      },
+      {
+        "path": "experiments/alpha_experiment/10_22_generated_from_chain_A/cryoid_results/unetpredictions/4ZX8_chain_A_molmap_2p7A_residue_types_6letter_6_possibility.mrc",
+        "sha256": "ace44e1ead318e7dc02e659270637072d827470ac9d8af0b980d7f2fa096104a"
+      }
+    ],
+    "candidate_pool_sha256": "117679b85eba40df7b57888d8caacc8524628bc5c0d7bfc1d36342c384e22e5c",
+    "query_count": 8
+  },
+  {
+    "name": "protein_alphafold",
+    "mode": "protein",
+    "query": "D_BLAST_searching/validation/work/inputs/protein_alphafold.fasta",
+    "pool": "experiments/alpha_experiment/malaria_pool.fasta",
+    "query_sha256": "e5c8b94590674310587e20e50474e6046998cd89b90648e66f6579171dc9f231",
+    "source": "fresh production backbone tracing from existing U-Net maps",
+    "prediction_maps": [
+      {
+        "path": "experiments/alpha_experiment/10_22_generated_from_AF/cryoid_results/unetpredictions/A0A024V0B1_v6_molmap_2p7A_key_atoms_1_possibility.mrc",
+        "sha256": "8a8338b6c9ae2f62b0fa479079b29883014deddb2ea2c5bcfd29f8248c9cb98f"
+      },
+      {
+        "path": "experiments/alpha_experiment/10_22_generated_from_AF/cryoid_results/unetpredictions/A0A024V0B1_v6_molmap_2p7A_secondary_strctures_1_possibility.mrc",
+        "sha256": "16e1621c9e7fc1cbf2c81e70a6560801781d932f9c10f0152d9651201497d3b3"
+      },
+      {
+        "path": "experiments/alpha_experiment/10_22_generated_from_AF/cryoid_results/unetpredictions/A0A024V0B1_v6_molmap_2p7A_secondary_strctures_2_possibility.mrc",
+        "sha256": "890e85ab3d00b5c7489f809a4d38c65ae7385ac578c40cce698dcc9074506deb"
+      },
+      {
+        "path": "experiments/alpha_experiment/10_22_generated_from_AF/cryoid_results/unetpredictions/A0A024V0B1_v6_molmap_2p7A_secondary_strctures_3_possibility.mrc",
+        "sha256": "38219e5bdbedfef58d24156fc946531de81199060293164087acbfce764c928f"
+      },
+      {
+        "path": "experiments/alpha_experiment/10_22_generated_from_AF/cryoid_results/unetpredictions/A0A024V0B1_v6_molmap_2p7A_residue_types_6letter_1_possibility.mrc",
+        "sha256": "77f2834017330bf06385741a47f75fc234fabe104f4465e3c9fd621d04a25383"
+      },
+      {
+        "path": "experiments/alpha_experiment/10_22_generated_from_AF/cryoid_results/unetpredictions/A0A024V0B1_v6_molmap_2p7A_residue_types_6letter_2_possibility.mrc",
+        "sha256": "5800b7e0da9c83553ed236d370cc4ed753ed49603147ee389b1eb6a9bc832b63"
+      },
+      {
+        "path": "experiments/alpha_experiment/10_22_generated_from_AF/cryoid_results/unetpredictions/A0A024V0B1_v6_molmap_2p7A_residue_types_6letter_3_possibility.mrc",
+        "sha256": "b629039af8543adac13e92cdcaf165299541215bb40ebdda173a207f0f4472d7"
+      },
+      {
+        "path": "experiments/alpha_experiment/10_22_generated_from_AF/cryoid_results/unetpredictions/A0A024V0B1_v6_molmap_2p7A_residue_types_6letter_4_possibility.mrc",
+        "sha256": "10ced0c2f69acf9b82614ad0dbc949fb88c6c189f9520370b40a9b745308cc67"
+      },
+      {
+        "path": "experiments/alpha_experiment/10_22_generated_from_AF/cryoid_results/unetpredictions/A0A024V0B1_v6_molmap_2p7A_residue_types_6letter_5_possibility.mrc",
+        "sha256": "90535e19c910c3725fdc2b1449bc87f39296ce7ce5a7a8551c0397230844216b"
+      },
+      {
+        "path": "experiments/alpha_experiment/10_22_generated_from_AF/cryoid_results/unetpredictions/A0A024V0B1_v6_molmap_2p7A_residue_types_6letter_6_possibility.mrc",
+        "sha256": "0fb2cf08feff9a7c0867189d66e37f5b367c12c9ea673fc2df695f5a76a1794b"
+      }
+    ],
+    "candidate_pool_sha256": "117679b85eba40df7b57888d8caacc8524628bc5c0d7bfc1d36342c384e22e5c",
+    "query_count": 9
+  },
+  {
+    "name": "rna_emd47655",
+    "mode": "rna",
+    "query": "experiments/rna_blastn_20261007/inputs/current_generated_queries.fasta",
+    "pool": "experiments/rna_blastn_20261007/inputs/reduced_noncds_pool.fasta",
+    "query_sha256": "fde2f88b9716ba6c7b056ca7bf2680dfb4d53039fa3917fd344eb73003018531",
+    "source": "frozen production queries derived from archived predicted maps",
+    "candidate_pool_sha256": "1ee4427aac471865e3d276c18384f7c029dd98545139c237a08d94fe41a7cfa3",
+    "query_count": 7
+  }
+]

@@ -6,6 +6,7 @@ from typing import Iterable, Mapping
 
 from cryoid_pipeline.models import SequenceMode
 from .sequence_search import SequenceRecord
+from .reduced_alphabet.evalues import negative_log10_composite
 
 
 RANKING_FIELDS = [
@@ -58,13 +59,7 @@ def protein_ranking_rows(
         candidate_id = str(source.get("candidate") or "")
         record = by_id.get(candidate_id)
         composite = str(source.get("composite_evalue") or "")
-        try:
-            import math
-
-            numeric = float(composite)
-            primary = -math.log10(max(numeric, 1e-300)) if math.isfinite(numeric) else ""
-        except (TypeError, ValueError):
-            primary = ""
+        primary = negative_log10_composite(source)
         rows.append(
             {
                 "rank": source.get("rank", len(rows) + 1),

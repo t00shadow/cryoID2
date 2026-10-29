@@ -4,10 +4,11 @@ from pathlib import Path
 
 from G_GUI.qt_compat import QtCore, QtGui, QtWidgets
 
-from D_BLAST_searching.stage import validate_blast_bin_dir
+from G_GUI.diagnostics import check_weights
+from G_GUI.setup_dialogs import show_validation_issues
 from cryoid_pipeline.structure_selection import default_structure_selection
 from cryoid_pipeline.user_config import (
-    resolve_rcl,
+    validate_config_value,
     validate_protein_min_trace_length,
     validate_structure_selection,
 )
@@ -26,22 +27,46 @@ class _SettingsDialog(QtWidgets.QDialog):
         layout.addLayout(row)
 
 
-class ConfigurationsWindow(_SettingsDialog):
-    """Filesystem and executable paths only."""
+class ConfigConflictDialog(QtWidgets.QDialog):
+    def __init__(self, conflict, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Saved settings changed")
+        self.action = "cancel"
+        layout = QtWidgets.QVBoxLayout(self)
+        text = f"These settings changed outside this window:\n{conflict.path}\n\n" + "\n".join(
+            f"{key.replace('_', ' ')}: saved {conflict.saved[key]!r}; your value {conflict.changes[key]!r}"
+            for key in conflict.keys)
+        label = QtWidgets.QLabel(text, self)
+        label.setWordWrap(True)
+        layout.addWidget(label)
+        buttons = QtWidgets.QHBoxLayout()
+        for title, action in (("Reload saved settings", "reload"), ("Keep my edits", "keep"), ("Cancel", "cancel")):
+            button = QtWidgets.QPushButton(title, self)
+            button.clicked.connect(lambda checked=False, action=action: self.choose(action))
+            buttons.addWidget(button)
+        layout.addLayout(buttons)
 
-    def __init__(self, parent=None, *, weights_path="", chimerax_path="",
-                 detected_chimerax_path="", blast_bin_dir="", detected_blast_bin_dir="",
-                 results_directory=""):
+    def choose(self, action):
+        self.action = action
+        self.accept()
+
+
+class ConfigurationsWindow(_SettingsDialog):
+    """Installation paths shared by all projects."""
+
+    def __init__(self, parent=None, *, weights_path="", chimerax_path=""):
         super().__init__(parent)
         self.setWindowTitle("Configurations")
         self.setModal(True)
         self.setMinimumWidth(520)
         main_layout = QtWidgets.QVBoxLayout(self)
+        main_layout.addWidget(QtWidgets.QLabel("These paths apply to all projects.", self))
         form_layout = QtWidgets.QFormLayout()
 
         self.weights_path_edit = QtWidgets.QLineEdit(self)
         self.weights_path_edit.setObjectName("weights_path_edit")
-        self.weights_path_edit.setPlaceholderText("Path to UNet weights directory")
+        self.weights_path_edit.setPlaceholderText("Default: Autodownload published weights.")
+        self.weights_path_edit.setToolTip("Default: Autodownload published weights.")
         self.weights_path_edit.setText(weights_path)
 
         weights_row = QtWidgets.QWidget(self)
@@ -51,12 +76,12 @@ class ConfigurationsWindow(_SettingsDialog):
         self.browse_weights_button = QtWidgets.QPushButton("Browse", weights_row)
         self.browse_weights_button.clicked.connect(self._browse_weights)
         weights_layout.addWidget(self.browse_weights_button)
-        form_layout.addRow("Weights path", weights_row)
+        form_layout.addRow("Custom weights path", weights_row)
 
         self.chimerax_path_edit = QtWidgets.QLineEdit(self)
         self.chimerax_path_edit.setObjectName("chimerax_path_edit")
         self.chimerax_path_edit.setPlaceholderText("Path to ChimeraX executable")
-        self.chimerax_path_edit.setText(chimerax_path or detected_chimerax_path)
+        self.chimerax_path_edit.setText(chimerax_path)
 
         chimerax_row = QtWidgets.QWidget(self)
         chimerax_layout = QtWidgets.QHBoxLayout(chimerax_row)
@@ -67,40 +92,6 @@ class ConfigurationsWindow(_SettingsDialog):
         chimerax_layout.addWidget(self.browse_chimerax_button)
         form_layout.addRow("ChimeraX executable", chimerax_row)
 
-        self.blast_bin_dir_edit = QtWidgets.QLineEdit(self)
-        self.blast_bin_dir_edit.setObjectName("blast_bin_dir_edit")
-        self.blast_bin_dir_edit.setPlaceholderText("Folder containing blastp, blastn, and makeblastdb")
-        self.blast_bin_dir_edit.setText(blast_bin_dir or detected_blast_bin_dir)
-        self.blast_bin_dir_edit.setToolTip(
-            "Select the BLAST+ bin folder. CryoID also checks CRYOID_BLAST_BIN_DIR, "
-            "the active Conda/Python environment, PATH, and common installation folders."
-        )
-        blast_row = QtWidgets.QWidget(self)
-        blast_layout = QtWidgets.QHBoxLayout(blast_row)
-        blast_layout.setContentsMargins(0, 0, 0, 0)
-        blast_layout.addWidget(self.blast_bin_dir_edit)
-        self.browse_blast_button = QtWidgets.QPushButton("Browse", blast_row)
-        self.browse_blast_button.clicked.connect(self._browse_blast)
-        blast_layout.addWidget(self.browse_blast_button)
-
-        form_layout.addRow("BLAST+ bin folder", blast_row)
-
-        self.results_directory_edit = QtWidgets.QLineEdit(str(results_directory), self)
-        self.results_directory_edit.setObjectName("results_directory_edit")
-        self.results_directory_edit.setPlaceholderText("Results storage location")
-        self.results_directory_edit.setToolTip(
-            "Choose a parent folder or an existing cryoid_results folder. "
-            "CryoID stores runs in its cryoid_results directory. Existing files are not moved."
-        )
-        results_row = QtWidgets.QWidget(self)
-        results_layout = QtWidgets.QHBoxLayout(results_row)
-        results_layout.setContentsMargins(0, 0, 0, 0)
-        results_layout.addWidget(self.results_directory_edit)
-        self.browse_results_button = QtWidgets.QPushButton(results_row)
-        self.browse_results_button.clicked.connect(self._browse_results)
-        results_layout.addWidget(self.browse_results_button)
-        form_layout.addRow("Results location", results_row)
-
         browse_icon = QtGui.QIcon(str(Path(__file__).parent / "svg_assets" / "upload-sign-svgrepo-com.svg"))
         if browse_icon.isNull():
             standard = getattr(QtWidgets.QStyle, "StandardPixmap", QtWidgets.QStyle)
@@ -109,8 +100,6 @@ class ConfigurationsWindow(_SettingsDialog):
         for button, tooltip in (
             (self.browse_weights_button, "Browse for weights directory"),
             (self.browse_chimerax_button, "Browse for ChimeraX executable"),
-            (self.browse_blast_button, "Browse for BLAST+ bin folder"),
-            (self.browse_results_button, "Browse for results location"),
         ):
             button.setText("")
             button.setIcon(browse_icon)
@@ -127,19 +116,6 @@ class ConfigurationsWindow(_SettingsDialog):
 
     def chimerax_path(self) -> str:
         return self.chimerax_path_edit.text().strip()
-
-    def blast_bin_dir(self) -> str:
-        return self.blast_bin_dir_edit.text().strip()
-
-    def results_directory(self) -> str:
-        return self.results_directory_edit.text().strip()
-
-    def _browse_results(self) -> None:
-        directory = QtWidgets.QFileDialog.getExistingDirectory(
-            self, "Select results location", self.results_directory()
-        )
-        if directory:
-            self.results_directory_edit.setText(directory)
 
     def _browse_weights(self) -> None:
         start_dir = str(Path(self.weights_path()).expanduser()) if self.weights_path() else ""
@@ -162,27 +138,26 @@ class ConfigurationsWindow(_SettingsDialog):
         if filename:
             self.chimerax_path_edit.setText(filename)
 
-    def _browse_blast(self) -> None:
-        start_dir = self.blast_bin_dir()
-        directory = QtWidgets.QFileDialog.getExistingDirectory(
-            self,
-            "Select BLAST+ bin folder",
-            start_dir,
-        )
-        if directory:
-            self.blast_bin_dir_edit.setText(directory)
-
     def accept(self) -> None:
-        if not self.results_directory():
-            QtWidgets.QMessageBox.warning(self, "Results location required", "Specify where to store results.")
+        issues = []
+        invalid_fields = []
+        for title, field, check in (
+            ("U-Net weights", self.weights_path_edit, check_weights(self.weights_path())),
+        ):
+            if not check.ok:
+                issues.append(f"{title}: {check.detail}")
+                invalid_fields.append(field)
+        from G_GUI.chimerax_launcher import chimerax_executable
+        if self.chimerax_path() and not chimerax_executable(self.chimerax_path()).is_file():
+            issues.append("ChimeraX: The executable was not found. Choose the ChimeraX program file, "
+                          "or leave this optional field empty if you do not use the model viewer.")
+            invalid_fields.append(self.chimerax_path_edit)
+        if issues:
+            show_validation_issues(issues, self)
+            invalid_fields[0].setFocus()
             return
-        if self.blast_bin_dir():
-            try:
-                validated = validate_blast_bin_dir(self.blast_bin_dir())
-            except ValueError as exc:
-                QtWidgets.QMessageBox.warning(self, "Invalid BLAST+ folder", str(exc))
-                return
-            self.blast_bin_dir_edit.setText(str(validated))
+        if self.weights_path():
+            self.weights_path_edit.setText(str(Path(self.weights_path()).expanduser().resolve()))
         super().accept()
 
 
@@ -190,7 +165,8 @@ class OptionsWindow(_SettingsDialog):
     """Run settings, independent of filesystem configuration."""
 
     def __init__(self, parent=None, *, rcl=0.0, sequence_mode="auto",
-                 protein_min_trace_length=10, structure_selection="", keep_tmp=False):
+                 protein_min_trace_length=10, structure_selection="", keep_tmp=False,
+                 device="auto", cpu_threads="auto", devices=()):
         super().__init__(parent)
         self.setWindowTitle("Options")
         self.setModal(True)
@@ -204,10 +180,7 @@ class OptionsWindow(_SettingsDialog):
         self.rcl_edit.setValidator(QtGui.QDoubleValidator(0.0, 1_000_000.0, 3, self))
         rcl_value = float(rcl)
         self.rcl_edit.setText("" if rcl_value == 0.0 else f"{rcl_value:.3f}")
-        self.rcl_edit.setToolTip(
-            "Recommended contour level used only for fresh UNet predictions. "
-            "Zero is used literally; the archived EMD-47655 RNA test used 0.05."
-        )
+        self.rcl_edit.setToolTip("Contour for U-Net predictions")
 
         self.sequence_mode_combo = QtWidgets.QComboBox(self)
         self.sequence_mode_combo.setObjectName("sequence_mode_combo")
@@ -216,9 +189,7 @@ class OptionsWindow(_SettingsDialog):
         self.sequence_mode_combo.addItem("RNA", "rna")
         mode_index = self.sequence_mode_combo.findData(str(sequence_mode or "auto").lower())
         self.sequence_mode_combo.setCurrentIndex(max(0, mode_index))
-        self.sequence_mode_combo.setToolTip(
-            "Auto inspects every candidate FASTA record before UNet inference."
-        )
+        self.sequence_mode_combo.setToolTip("Choose protein, RNA, or auto")
 
         self.protein_min_trace_length_edit = QtWidgets.QLineEdit(self)
         self.protein_min_trace_length_edit.setObjectName("protein_min_trace_length_edit")
@@ -230,10 +201,7 @@ class OptionsWindow(_SettingsDialog):
         self.protein_min_trace_length_edit.setText(
             "" if trace_length_value == 10 else str(trace_length_value)
         )
-        self.protein_min_trace_length_edit.setToolTip(
-            "Minimum number of connected predicted C-alpha nodes retained as a protein "
-            "sequence query. The default is 10."
-        )
+        self.protein_min_trace_length_edit.setToolTip("Minimum protein query length")
 
         self.structure_selection_edit = QtWidgets.QLineEdit(self)
         self.structure_selection_edit.setObjectName("structure_selection_edit")
@@ -243,21 +211,12 @@ class OptionsWindow(_SettingsDialog):
         self.structure_selection_edit.setPlaceholderText(
             f"Default: protein {protein_default.raw}; RNA {rna_default.raw} ({rna_default.numeric:.0%})"
         )
-        self.structure_selection_edit.setToolTip(
-            "Select from the top of sequence_ranking.tsv before structure lookup. "
-            "Use a positive integer for a count (1 means one sequence), or a decimal "
-            "from 0 to 1 for a fraction (0.2 means 20%; 1.0 means 100%). "
-            f"The defaults are protein {protein_default.raw} and "
-            f"RNA {rna_default.raw} ({rna_default.numeric:.0%} of ranked sequences)."
-        )
+        self.structure_selection_edit.setToolTip("Candidate count or fraction")
 
-        self.keep_tmp_checkbox = QtWidgets.QCheckBox("Keep temporary files and tested models", self)
+        self.keep_tmp_checkbox = QtWidgets.QCheckBox("Keep files and tested models", self)
         self.keep_tmp_checkbox.setObjectName("keep_tmp_checkbox")
         self.keep_tmp_checkbox.setChecked(bool(keep_tmp))
-        self.keep_tmp_checkbox.setToolTip(
-            "Keep tracing, search databases, public sequence lists, downloaded candidates, "
-            "and fitting scratch data. Disabled by default."
-        )
+        self.keep_tmp_checkbox.setToolTip("Keep temporary processing files")
         form_layout.addRow("Sequence mode", self.sequence_mode_combo)
         form_layout.addRow(
             "Protein minimum trace length", self.protein_min_trace_length_edit
@@ -269,10 +228,35 @@ class OptionsWindow(_SettingsDialog):
         self._update_mode_controls()
 
         main_layout.addLayout(form_layout)
+        compute_box = QtWidgets.QGroupBox("Compute", self)
+        compute_form = QtWidgets.QFormLayout(compute_box)
+        self.device_combo = QtWidgets.QComboBox(compute_box)
+        self.device_combo.setObjectName("device_combo")
+        self.device_combo.addItem("Auto", "auto")
+        self.device_combo.addItem("CPU", "cpu")
+        for identifier, name in devices:
+            self.device_combo.addItem(f"GPU {identifier.split(':')[-1]}: {name}", identifier)
+        selected_device = validate_config_value("device", device)
+        if selected_device == "cuda" and devices:
+            selected_device = devices[0][0]
+        if self.device_combo.findData(selected_device) < 0:
+            index = selected_device.split(":")[-1] if ":" in selected_device else "0"
+            self.device_combo.addItem(f"GPU {index} (unavailable)", selected_device)
+        self.device_combo.setCurrentIndex(self.device_combo.findData(selected_device))
+        self.device_combo.setToolTip("Choose inference compute device")
+        self.cpu_threads_edit = QtWidgets.QLineEdit(compute_box)
+        self.cpu_threads_edit.setObjectName("cpu_threads_edit")
+        self.cpu_threads_edit.setPlaceholderText("Default: Auto (library defaults)")
+        threads = validate_config_value("cpu_threads", cpu_threads)
+        self.cpu_threads_edit.setText("" if threads == "auto" else threads)
+        self.cpu_threads_edit.setToolTip("Enter Auto or thread count")
+        compute_form.addRow("Device", self.device_combo)
+        compute_form.addRow("CPU threads", self.cpu_threads_edit)
+        main_layout.addWidget(compute_box)
         self._add_buttons(main_layout)
 
     def rcl(self) -> float:
-        return resolve_rcl(self.rcl_edit.text().strip() or None, {})
+        return float(validate_config_value("rcl", self.rcl_edit.text().strip()))
 
     def sequence_mode(self) -> str:
         return str(self.sequence_mode_combo.currentData() or "auto")
@@ -288,21 +272,34 @@ class OptionsWindow(_SettingsDialog):
     def keep_tmp(self) -> bool:
         return bool(self.keep_tmp_checkbox.isChecked())
 
+    def device(self) -> str:
+        return str(self.device_combo.currentData() or "auto")
+
+    def cpu_threads(self) -> str:
+        return validate_config_value("cpu_threads", self.cpu_threads_edit.text().strip())
+
     def _update_mode_controls(self) -> None:
         self.protein_min_trace_length_edit.setEnabled(self.sequence_mode() != "rna")
 
     def accept(self) -> None:
         try:
-            validated_rcl = self.rcl()
+            validate_config_value("device", self.device())
+            threads = self.cpu_threads()
         except ValueError as exc:
-            QtWidgets.QMessageBox.warning(self, "Invalid RCL", str(exc))
+            show_validation_issues([str(exc)], self)
+            return
+        self.cpu_threads_edit.setText("" if threads == "auto" else threads)
+        try:
+            validated_rcl = self.rcl()
+        except ValueError:
+            QtWidgets.QMessageBox.warning(self, "Invalid RCL", "Enter a contour level of 0 or greater, such as 0.05. Leave the field empty to use 0.")
             return
         self.rcl_edit.setText("" if validated_rcl == 0.0 else f"{validated_rcl:.3f}")
         try:
             validated_trace_length = self.protein_min_trace_length()
-        except ValueError as exc:
+        except ValueError:
             QtWidgets.QMessageBox.warning(
-                self, "Invalid protein minimum trace length", str(exc)
+                self, "Invalid protein minimum trace length", "Enter a whole number of 1 or greater. Leave the field empty to use 10."
             )
             return
         self.protein_min_trace_length_edit.setText(
@@ -313,8 +310,10 @@ class OptionsWindow(_SettingsDialog):
                 validated_selection = validate_structure_selection(
                     self.structure_selection()
                 )
-            except ValueError as exc:
-                QtWidgets.QMessageBox.warning(self, "Invalid structure selection", str(exc))
+            except ValueError:
+                QtWidgets.QMessageBox.warning(self, "Invalid structure selection",
+                                              "Enter a positive whole number of candidates (for example, 5), "
+                                              "or a fraction greater than 0 and at most 1.0 (for example, 0.5 for 50%).")
                 return
             self.structure_selection_edit.setText(validated_selection)
         super().accept()

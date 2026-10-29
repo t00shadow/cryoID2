@@ -1,0 +1,159 @@
+{
+  "windows-x86_64": {
+    "version": "2.17.0",
+    "source": "https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/2.17.0/ncbi-blast-2.17.0+-x64-win64.tar.gz",
+    "archive_md5": "dcd973097407a2910061ff4fb51b09fb",
+    "archive_sha256": "ccde8788641e8f4137536aaadedfeac2f3599dbbc6166e701b5d89d19fa79038",
+    "files": [
+      {
+        "path": "windows-x86_64/LICENSE",
+        "size": 1055,
+        "sha256": "03e41388b1a72f2d0830d9fbce8906183e242cfd381f91f7e5a08bb7be1304ad"
+      },
+      {
+        "path": "windows-x86_64/README",
+        "size": 465,
+        "sha256": "93ee79fc880c6908dcb63c90633281d12e26718a4a9a6bbee49b867e9e40bbec"
+      },
+      {
+        "path": "windows-x86_64/bin/blastn.exe",
+        "size": 19409920,
+        "sha256": "edb4642391bc47f4bb791dabf8a125779795070c32c8c888098e4cd6294265b8"
+      },
+      {
+        "path": "windows-x86_64/bin/blastn.exe.manifest",
+        "size": 406,
+        "sha256": "be8918559280a2e74748bf8f6238b568ed7cbf75183b2180a6a8a979a1ebf243"
+      },
+      {
+        "path": "windows-x86_64/bin/blastp.exe",
+        "size": 19402240,
+        "sha256": "e787c13e8dce7318a9bb09459f7d98abac64f45feb5197fd463f1898b77eefe2"
+      },
+      {
+        "path": "windows-x86_64/bin/blastp.exe.manifest",
+        "size": 406,
+        "sha256": "be8918559280a2e74748bf8f6238b568ed7cbf75183b2180a6a8a979a1ebf243"
+      },
+      {
+        "path": "windows-x86_64/bin/makeblastdb.exe",
+        "size": 14923264,
+        "sha256": "7f98495406ff48f1c7e723a067e3d0e682e42df3700fab45494f952e522ca160"
+      },
+      {
+        "path": "windows-x86_64/bin/makeblastdb.exe.manifest",
+        "size": 406,
+        "sha256": "be8918559280a2e74748bf8f6238b568ed7cbf75183b2180a6a8a979a1ebf243"
+      },
+      {
+        "path": "windows-x86_64/bin/ncbi-vdb-md.dll",
+        "size": 3879936,
+        "sha256": "8aa56408b437224013cad0e48d1f0a5b0bb287bcff32dec0faa295623e31ee5d"
+      },
+      {
+        "path": "windows-x86_64/bin/nghttp2.dll",
+        "size": 141312,
+        "sha256": "3b4f8fa83d98cbcf7d74c67cddde615950c85dbea0b937ca425b35dd084d596d"
+      }
+    ]
+  },
+  "linux-x86_64": {
+    "version": "2.17.0",
+    "source": "https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/2.17.0/ncbi-blast-2.17.0+-x64-linux.tar.gz",
+    "archive_md5": "bdec166721de3b55f90a3badc83538e8",
+    "archive_sha256": "3888112d8207831aa47371d93583c601f058f88b5db22dc782438b039a3a411b",
+    "files": [
+      {
+        "path": "linux-x86_64/LICENSE",
+        "size": 1055,
+        "sha256": "03e41388b1a72f2d0830d9fbce8906183e242cfd381f91f7e5a08bb7be1304ad"
+      },
+      {
+        "path": "linux-x86_64/README",
+        "size": 465,
+        "sha256": "93ee79fc880c6908dcb63c90633281d12e26718a4a9a6bbee49b867e9e40bbec"
+      },
+      {
+        "path": "linux-x86_64/bin/blastn",
+        "size": 36057184,
+        "sha256": "33b64bc67d3149cee2459b2f7766b363323df632cf12c099546de00aea9698b5"
+      },
+      {
+        "path": "linux-x86_64/bin/blastp",
+        "size": 36053120,
+        "sha256": "5ce267c04e4988c265357bfbedc64e809545b6fcfae7ff6775266fabbee8ba0e"
+      },
+      {
+        "path": "linux-x86_64/bin/makeblastdb",
+        "size": 26516464,
+        "sha256": "c1ffdcf6f15d1d8d75377cc9f37afa42bc9fa06678903bad77c2641e60778fce"
+      }
+    ]
+  },
+  "darwin-x86_64": {
+    "version": "2.17.0",
+    "source": "https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/2.17.0/ncbi-blast-2.17.0+-x64-macosx.tar.gz",
+    "archive_md5": "cde7979c0edca21da0567ab172b68b0e",
+    "archive_sha256": "0f4cc34dec108ac92a55df676365ce6751171f8377d195c13ee2f59f5e01770c",
+    "files": [
+      {
+        "path": "darwin-x86_64/LICENSE",
+        "size": 1055,
+        "sha256": "03e41388b1a72f2d0830d9fbce8906183e242cfd381f91f7e5a08bb7be1304ad"
+      },
+      {
+        "path": "darwin-x86_64/README",
+        "size": 465,
+        "sha256": "93ee79fc880c6908dcb63c90633281d12e26718a4a9a6bbee49b867e9e40bbec"
+      },
+      {
+        "path": "darwin-x86_64/bin/blastn",
+        "size": 28482784,
+        "sha256": "86f9f64b956b7e64246057ba51f3b5ff38bee8917d05612768dee94c4eba6186"
+      },
+      {
+        "path": "darwin-x86_64/bin/blastp",
+        "size": 28478856,
+        "sha256": "239cd3939e09dd4f352494ea4cc0cdb8e59390c3119c76221bad67379f80a232"
+      },
+      {
+        "path": "darwin-x86_64/bin/makeblastdb",
+        "size": 20233168,
+        "sha256": "5ed589512f56b633fb6daf7a87591723cac03becf6c86b7467b259068feccb1c"
+      }
+    ]
+  },
+  "darwin-arm64": {
+    "version": "2.17.0",
+    "source": "https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/2.17.0/ncbi-blast-2.17.0+-aarch64-macosx.tar.gz",
+    "archive_md5": "8dc685eb284713db76de41a4dabf96ad",
+    "archive_sha256": "8d6739fa133107bce91dbb6b143ec993c9983416244fe502f9c36d585850dc00",
+    "files": [
+      {
+        "path": "darwin-arm64/LICENSE",
+        "size": 1055,
+        "sha256": "03e41388b1a72f2d0830d9fbce8906183e242cfd381f91f7e5a08bb7be1304ad"
+      },
+      {
+        "path": "darwin-arm64/README",
+        "size": 465,
+        "sha256": "93ee79fc880c6908dcb63c90633281d12e26718a4a9a6bbee49b867e9e40bbec"
+      },
+      {
+        "path": "darwin-arm64/bin/blastn",
+        "size": 27400424,
+        "sha256": "f82ab4919beb806745d6dce427001316af8cbda9edab7163af4d5b7ec930a7da"
+      },
+      {
+        "path": "darwin-arm64/bin/blastp",
+        "size": 27400600,
+        "sha256": "753f0695a39ba19b2d351b0bb851b6051169b8b9e22c095fd634cc2a93cddf55"
+      },
+      {
+        "path": "darwin-arm64/bin/makeblastdb",
+        "size": 19534728,
+        "sha256": "e60ccf70a6814e7398d68583855f7af9cddbc6c2c30d096b49e944c06a4e9f9e"
+      }
+    ]
+  }
+}

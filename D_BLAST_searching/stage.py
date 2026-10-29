@@ -1,9 +1,8 @@
 """Stable production API for stage D (sequence identification)."""
 
 from .blast_tools import (
-    autodetect_blast_bin_dir,
     blast_executable,
-    resolve_blast_bin_dir,
+    bundled_blast_bin_dir,
     validate_blast_bin_dir,
 )
 from .protein_search import (
@@ -27,12 +26,11 @@ __all__ = [
     "RnaRankingResult",
     "SequenceModeError",
     "SequenceRecord",
-    "autodetect_blast_bin_dir",
     "blast_executable",
+    "bundled_blast_bin_dir",
     "protein_ranking_rows",
     "rank_rna_candidates",
     "read_sequence_pool",
-    "resolve_blast_bin_dir",
     "resolve_sequence_mode",
     "run_protein_blast_search",
     "validate_blast_bin_dir",

@@ -351,6 +351,9 @@ def DBGenerate(params):
     # get database name
     file_dir = os.path.dirname(params.seqfile)
     file_name = os.path.splitext(os.path.basename(params.seqfile))[0]
+    if getattr(params, 'candidate_ids', None) is not None:
+        # Do not reuse a database made by older versions with raw FASTA IDs.
+        file_name += '_ids_v1'
     if params.seqfile.endswith('.fasta'):
         # dbname = file_dir + '/database/' + file_name[:-6] + '_db'
         dbname = os.path.join(file_dir, file_name + '_db', file_name + '_db')
@@ -363,7 +366,8 @@ def DBGenerate(params):
     if os.path.exists(dbname + '.pin'):
         dbsize = read_dbsize(dbname, params.seqfile)
     else:
-        map_params = Namespace(seqfile=params.seqfile, reverse=False, logger=params.logger)
+        map_params = Namespace(seqfile=params.seqfile, reverse=False, logger=params.logger,
+                               candidate_ids=getattr(params, 'candidate_ids', None))
         dbsize, mapped_seqfile = SeqMap(map_params)
         mkdb_arg = ['makeblastdb', '-in', mapped_seqfile, '-out', dbname, '-dbtype', dbtype, '-parse_seqids']
         makeblastdb(mkdb_arg, dbname, mapped_seqfile)
@@ -380,9 +384,9 @@ def SeqMap(params):             # params.seqfile = queryfile (query file name), 
     # logging and outfile setup
     # logging.basicConfig(filename=params.logfile, level=logging.INFO, format='%(message)s')
 
-    f1 = open(params.seqfile, 'r')
+    f1 = open(params.seqfile, 'r', encoding='utf-8')
     outfile = os.path.splitext(params.seqfile)[0] + '_mapped.fasta'
-    o1 = open(outfile, 'w')
+    o1 = open(outfile, 'w', encoding='utf-8')
 
     # count total number of amino acid in input sequence
     icount = 0
@@ -391,6 +395,13 @@ def SeqMap(params):             # params.seqfile = queryfile (query file name), 
     tem = deque([])
 
     for seq in f1:
+        if seq.startswith('>') and getattr(params, 'candidate_ids', None) is not None:
+            header = seq[1:].strip()
+            identifier = header.split()[0]
+            # NCBI parses pipe-delimited identifiers specially. Only stable
+            # internal tokens go into its ID field; retain the source header
+            # as a description for inspection of the mapped FASTA.
+            seq = f">{params.candidate_ids[identifier]} {header}\n"
         if seq and seq[0][0] != '>' and seq[0][0] != '#':
             #for k, v in aaMapping.iteritems():
                 #seq = seq.replace(k, v)
@@ -667,7 +678,7 @@ task = 'blastp-short'		# Task to execute
 #task = 'blastp'
 matrix = 'PAM30'          # Scoring matrix name
 comp_based_stats = 'F'		# No composition-based statistics
-outfmt = '7 qaccver saccver nident length qlen mismatch gapopen gaps qstart qend sstart send qseq sseq evalue'			# alignment view options, 7 = Tabular with comment lines
+outfmt = '7 qaccver saccver nident length qlen mismatch gapopen gaps qstart qend sstart send qseq sseq evalue bitscore'			# alignment view options, 7 = Tabular with comment lines
 word_size = '2'			# Word size for wordfinder algorithm
 #gapopen = '32767'			# Cost to open a gap.
 #gapextend = '32767'			# Cost to extend a gap.
@@ -702,6 +713,8 @@ def SeqBlast(params):
     blast_arg = ['blastp', '-task', task, '-matrix', matrix, '-db', params.database, '-query', params.query, '-out', output, '-evalue', str(params.evalue), '-comp_based_stats', comp_based_stats,
     '-dbsize', str(params.dbsize), '-searchsp', searchsp, '-word_size', word_size,'-gapopen', str(params.gapscore[0]), '-gapextend', str(params.gapscore[1]),  '-outfmt', outfmt, '-max_target_seqs', str(max_seq)]
 
+    if getattr(params, 'cpu_threads', None) is not None:
+        blast_arg.extend(['-num_threads', str(params.cpu_threads)])
     try:
         proc = subprocess.Popen(blast_arg, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
         out, error = proc.communicate()

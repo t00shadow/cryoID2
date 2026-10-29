@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import math
 import os
 import shutil
 from argparse import Namespace
@@ -14,6 +13,8 @@ from cryoid_pipeline.artifacts import link_input_file
 from cryoid_pipeline.models import SearchHit
 
 from .sequence_search import read_sequence_pool
+from .blast_tools import bundled_blast_bin_dir, validate_blast_bin_dir
+from .reduced_alphabet.evalues import negative_log10_composite
 
 
 ProgressCallback = Callable[[str], None]
@@ -37,16 +38,16 @@ def _require_file(path: Path, label: str) -> Path:
 
 @contextmanager
 def _blast_path(blast_bin_dir: Path | None) -> Iterator[None]:
+    directory = validate_blast_bin_dir(blast_bin_dir) if blast_bin_dir is not None else bundled_blast_bin_dir()
     original = os.environ.get("PATH", "")
-    if blast_bin_dir is not None:
-        os.environ["PATH"] = str(blast_bin_dir) + os.pathsep + original
+    os.environ["PATH"] = str(directory) + os.pathsep + original
     try:
         missing = [name for name in ("blastp", "makeblastdb") if shutil.which(name) is None]
         if missing:
             raise FileNotFoundError(
                 "NCBI BLAST+ executable(s) not found: "
                 + ", ".join(missing)
-                + ". Install BLAST+ or set CRYOID_BLAST_BIN_DIR."
+                + ". Reinstall CryoID to restore its bundled BLAST+ tools."
             )
         yield
     finally:
@@ -70,6 +71,8 @@ def _parse_summary(path: Path) -> list[dict[str, str]]:
                     "composite_evalue": fields[4],
                 }
             )
+            if len(fields) > 5:
+                rows[-1]["composite_log10_evalue"] = fields[5]
     return rows
 
 
@@ -78,16 +81,14 @@ def run_protein_blast_search(
     query_fasta: Path,
     candidate_pool: Path,
     run_dir: Path,
-    repo_root: Path,
     progress: ProgressCallback,
     gap_open: int = 15,
     gap_extend: int = 3,
     blast_bin_dir: Path | None = None,
+    cpu_threads: int | None = None,
 ) -> BlastSearchResult:
-    del repo_root  # Kept in the stable stage API; stage D no longer resolves repository scripts.
     if blast_bin_dir is None:
-        blast_bin_value = os.environ.get("CRYOID_BLAST_BIN_DIR", "").strip()
-        blast_bin_dir = Path(blast_bin_value).expanduser().resolve() if blast_bin_value else None
+        blast_bin_dir = bundled_blast_bin_dir()
     from D_BLAST_searching.reduced_alphabet.search_pool import Search
 
     output_dir = run_dir / "tmp" / "sequence_search"
@@ -122,6 +123,7 @@ def run_protein_blast_search(
         num_candidate=len(candidate_records),
         verbose=True,
         logger=logger,
+        cpu_threads=cpu_threads,
     )
 
     progress(
@@ -165,15 +167,11 @@ def run_protein_blast_search(
     selected_record = pool_records.get(selected_id)
     if selected_record is None:
         raise RuntimeError(f"BLAST selected {selected_id!r}, which is absent from the candidate pool.")
-    try:
-        composite_evalue = float(ranking[0]["composite_evalue"])
-        score = -math.log10(max(composite_evalue, 1e-300))
-    except (TypeError, ValueError):
-        score = 0.0
+    score = negative_log10_composite(ranking[0])
     selected_hit = SearchHit(
         query_id="generated_protein_queries",
         record_id=selected_record.record_id,
-        score=score,
+        score=score if isinstance(score, float) else 0.0,
         sequence=selected_record.sequence,
         description=selected_record.description,
     )
