@@ -65,6 +65,7 @@ class PipelineWorker(QtCore.QObject):
     log = QtCore.pyqtSignal(str)
     progress = QtCore.pyqtSignal(int)
     finished = QtCore.pyqtSignal(object)
+    weights_downloaded = QtCore.pyqtSignal(str)
 
     def __init__(
         self,
@@ -114,8 +115,28 @@ class PipelineWorker(QtCore.QObject):
             stages=[StageResult("CLI command", "error", message)],
         )
 
+    @staticmethod
+    def _download_weights() -> Path:
+        return Path(snapshot_download(
+            repo_id="testaccount153/testupload", 
+            # allow_patterns="*.pth.tar",      # actually need the txt files too, so download the whole repo 
+            # local_dir="TESTING_hf_weights"   # currently just for debugging. Disable in production so weights get stored in huggingface's cache folder instead
+        ))
+
     @QtCore.pyqtSlot()
     def run(self) -> None:
+        # Download weights if weights_path is empty
+        if not self.weights_path:
+            self.log.emit("Downloading weights from Hugging Face (~4GB, give it some time)...")
+            try:
+                self.weights_path = str(self._download_weights() / "train_val_data")   # need to append train_val_data to the path huggingface returns
+            except Exception as exc:
+                self.finished.emit(
+                    self._failure_result(f"Could not download weights: {exc!r}")
+                )
+                return
+            self.weights_downloaded.emit(self.weights_path)
+
         command = [
             sys.executable,
             "-m",
@@ -711,13 +732,6 @@ def main() -> None:
             ui.candidate_pool_edit.setText(filename)
             persist_config(last_candidate_pool=Path(filename).expanduser().resolve())
 
-    def download_weights() -> Path:
-        return Path(snapshot_download(
-            repo_id="testaccount153/testupload", 
-            allow_patterns="*.pth.tar",
-            # local_dir="TESTING_hf_weights"   # currently just for debugging. Disable in production so weights get stored in huggingface's cache folder instead
-        ))
-
     def start_pipeline() -> None:
         density_map = ui.density_map_edit.text().strip()
         candidate_pool = ui.candidate_pool_edit.text().strip()
@@ -729,16 +743,14 @@ def main() -> None:
             append_log("Run blocked: select an output parent directory.")
             return
         weights_path = settings_state.get("weights_path", "").strip()
-        if not weights_path:
-            # Auto-download weights from Hugging Face repo
-            append_log("Downloading weights from Hugging Face repo...")
-            weights_dir = download_weights()
-            settings_state["weights_path"] = str(weights_dir)
-            persist_config(weights_path=weights_dir)
-        weights_dir = Path(weights_path).expanduser().resolve()
-        if not weights_dir.is_dir():
-            append_log(f"Run blocked: weights path does not exist: {weights_dir}")
-            return
+        if weights_path:
+            weights_dir = Path(weights_path).expanduser().resolve()
+            if not weights_dir.is_dir():
+                append_log(f"Run blocked: weights path does not exist: {weights_dir}")
+                return
+        else:
+            # empty so pipelineworker with auto-download weights later
+            weights_dir = ""
         blast_bin_dir = settings_state.get("blast_bin_dir", "").strip()
         if blast_bin_dir:
             try:
@@ -829,7 +841,7 @@ def main() -> None:
                     "project_dir": project_dir,
                     "last_density_map": Path(density_map).expanduser().resolve(),
                     "last_candidate_pool": Path(candidate_pool).expanduser().resolve(),
-                    "weights_path": weights_dir,
+                    "weights_path": settings_state.get("weights_path", ""),
                     "rcl": settings_state.get("rcl", "0"),
                     "chimerax_path": settings_state.get("chimerax_path", ""),
                     "blast_bin_dir": settings_state.get("blast_bin_dir", ""),
@@ -867,8 +879,16 @@ def main() -> None:
                 append_log("Abort finished. Closing window.")
                 QtCore.QTimer.singleShot(0, window.close)
 
+        def on_weights_downloaded(weights_path: str) -> None:
+            updates = {
+                "weights_path": weights_path,
+            }
+            settings_state.update(updates)
+            persist_config(**updates)
+
         thread.started.connect(worker.run)
         worker.log.connect(append_log)
+        worker.weights_downloaded.connect(on_weights_downloaded)
         worker.progress.connect(update_run_progress)
         worker.finished.connect(on_finished)
         worker.finished.connect(thread.quit)
