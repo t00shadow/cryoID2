@@ -77,7 +77,7 @@ bdist_wheel = "D_BLAST_searching.build_support.BundledBlastWheel"
 
 [tool.setuptools.package-data]
 G_GUI = ["svg_assets/*"]
-D_BLAST_searching = ["BUNDLED_BLAST.md", "bundled/manifest.json", "bundled/*/LICENSE", "bundled/*/README", "bundled/*/bin/*", "bundled/*/lib/*", "bundled/*/data/*", "validation/*.json", "validation/*.md"]
+D_BLAST_searching = ["BUNDLED_BLAST.md", "licenses/*.txt", "bundled/manifest.json", "bundled/*/LICENSE", "bundled/*/README", "bundled/*/bin/*", "bundled/*/lib/*", "bundled/*/data/*", "validation/*.json", "validation/*.md"]
 
 [tool.setuptools.exclude-package-data]
 "*" = [

@@ -17,6 +17,13 @@ NCBI describes its software as public domain in its
 [developer information](https://blast.ncbi.nlm.nih.gov/doc/blast-help/developerinfo.html);
 consult the included notices for terms and third-party acknowledgments.
 
+The Windows payload also includes `nghttp2.dll`, an HTTP/2 library used by
+NCBI's networking components. Its MIT copyright and permission notice is
+retained in [`licenses/nghttp2-LICENSE.txt`](licenses/nghttp2-LICENSE.txt)
+and included in Python distributions. The notice comes from
+[nghttp2's upstream COPYING file](https://github.com/nghttp2/nghttp2/blob/master/COPYING).
+These dependency notices do not set the license of CryoID's own code.
+
 ## Runtime behavior
 
 `blast_tools.py` selects the matching private directory for the CLI, GUI,
