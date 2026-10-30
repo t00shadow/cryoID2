@@ -31,9 +31,13 @@ def test_project_without_config_opens_blank(monkeypatch, tmp_path, action_name, 
     save_config(previous_values)
     project = results_project_dir(tmp_path / "blank")
     selected = project.parent
+    if action_name == "New":
+        selected = tmp_path
+    else:
+        gui.ensure_project_dirs(project)
     if with_history:
         run = project / "runs" / "run_20261001_120000"
-        run.mkdir(parents=True)
+        run.mkdir()
         (run / "run_config.json").write_text("broken JSON should never be loaded")
         if action_name == "Open run":
             selected = run
@@ -43,6 +47,10 @@ def test_project_without_config_opens_blank(monkeypatch, tmp_path, action_name, 
     inspected = []
 
     def inspect(dialog):
+        if isinstance(dialog, gui.NewProjectDialog):
+            dialog.name_edit.setText("blank")
+            dialog.location_edit.setText(str(tmp_path))
+            return gui._dialog_accepted_code()
         inspected.append(type(dialog))
         if isinstance(dialog, gui.ConfigurationsWindow):
             assert dialog.weights_path() == previous_values["weights_dir"]
@@ -279,6 +287,10 @@ def test_switching_projects_restores_saved_config_edits_and_reloads_on_restart(m
     monkeypatch.setattr(QtWidgets.QFileDialog, "getExistingDirectory", lambda *args: selection[0])
 
     def inspect(dialog):
+        if isinstance(dialog, gui.NewProjectDialog):
+            dialog.name_edit.setText("C")
+            dialog.location_edit.setText(str(tmp_path))
+            return gui._dialog_accepted_code()
         saved = expected[current[0]]
         if isinstance(dialog, gui.ConfigurationsWindow):
             assert dialog.weights_path() == global_paths["weights_dir"]
@@ -379,10 +391,10 @@ def test_switching_projects_restores_saved_config_edits_and_reloads_on_restart(m
                 assert load_config(projects["A"] / "config.toml")["last_density_map"] == density.text()
                 for name in ("B", "A", "B", "A"):
                     open_project(name)
-                # Opening a new project inherits current values, then gets its own file.
+                # New creates a named project with blank inputs and default options.
                 projects["C"] = results_project_dir(tmp_path / "C")
                 expected["C"] = dict(DEFAULT_CONFIG, project_dir=str(projects["C"]))
-                selection[0] = str(projects["C"].parent)
+                selection[0] = str(tmp_path)
                 actions["New"].trigger()
                 current[0] = "C"
                 check()

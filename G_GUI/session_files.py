@@ -51,6 +51,42 @@ def ensure_project_dirs(project_dir: Path) -> None:
         directory.mkdir(parents=True, exist_ok=True)
 
 
+def is_project_directory(project_dir: Path) -> bool:
+    """Recognize saved projects and identifiable older CryoID outputs."""
+    project = Path(project_dir)
+    if not project.is_dir():
+        return False
+    if (project / "config.toml").is_file():
+        return True
+    if all((project / name).is_dir() for name in ("runs", "best_overall", "unetpredictions")):
+        return True
+    return (
+        any(path.is_file() for path in (project / "runs").glob("run_*/run_config.json"))
+        or any(path.is_file() for path in (project / "unetpredictions").glob("*_prediction_provenance.json"))
+        or any(path.is_file() and path.suffix.lower() in MODEL_SUFFIXES
+               for path in (project / "best_overall").glob("best_*_model.*"))
+    )
+
+
+def discard_uninitialized_project(root: Path, project_dir: Path) -> None:
+    """Remove only empty scaffolding in a folder just reserved by File > New."""
+    root, project = Path(root).resolve(), Path(project_dir).resolve()
+    if (project != root and root not in project.parents) or (project / "config.toml").exists():
+        return
+    # Config writes release this lock before returning an error. No user files
+    # or nonempty directories are removed, even if another process added data.
+    try:
+        (project / ".config.toml.lock").unlink(missing_ok=True)
+    except OSError:
+        pass
+    for path in dict.fromkeys([project / "runs", project / "best_overall",
+                               project / "unetpredictions", project, root]):
+        try:
+            path.rmdir()
+        except OSError:
+            pass
+
+
 def find_project_dir_from_path(path: Path | None) -> Path | None:
     if path is None:
         return None

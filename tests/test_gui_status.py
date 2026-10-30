@@ -319,10 +319,14 @@ def test_gui_opens_with_invalid_saved_options_and_requires_review(monkeypatch, t
     ready = diagnostics.Check("OK", "Available", True)
     monkeypatch.setattr(gui, "collect_diagnostics", lambda *args: diagnostics.Diagnostics(ready, ready, ready, "cpu"))
     monkeypatch.setattr(gui, "PipelineWorker", lambda *args, **kwargs: pytest.fail("Invalid options started a run"))
-    monkeypatch.setattr(QtWidgets.QFileDialog, "getExistingDirectory", lambda *args: str(tmp_path / "new-project"))
+    monkeypatch.setattr(QtWidgets.QFileDialog, "getExistingDirectory", lambda *args: str(tmp_path))
     dialogs, save_options = [], [False]
 
     def inspect(dialog):
+        if isinstance(dialog, gui.NewProjectDialog):
+            dialog.name_edit.setText("new-project")
+            dialog.location_edit.setText(str(tmp_path))
+            return gui._dialog_accepted_code()
         if isinstance(dialog, gui.SetupIssuesDialog):
             dialogs.append(dialog.details.toPlainText())
             dialog.action = "close"
@@ -415,7 +419,13 @@ def test_whole_pipeline_timing_and_progress_reach_gui(monkeypatch, tmp_path, out
     monkeypatch.setattr(gui, "collect_diagnostics", lambda *args: diagnostics.Diagnostics(ready, ready, ready, "cpu"))
     monkeypatch.setattr(gui, "check_weights", lambda path: ready)
     monkeypatch.setattr(gui, "check_blast_tools", lambda: ready)
-    monkeypatch.setattr(QtWidgets.QFileDialog, "getExistingDirectory", lambda *args: str(tmp_path / "new-project"))
+    monkeypatch.setattr(QtWidgets.QFileDialog, "getExistingDirectory", lambda *args: str(tmp_path))
+    def create_project(dialog):
+        assert isinstance(dialog, gui.NewProjectDialog)
+        dialog.name_edit.setText("new-project")
+        dialog.location_edit.setText(str(tmp_path))
+        return gui._dialog_accepted_code()
+    monkeypatch.setattr(gui, "_exec_dialog", create_project)
     now = [0.0]
     monkeypatch.setattr(gui, "RunStatus", lambda **kwargs: RunStatus(clock=lambda: now[0], **kwargs))
     workers = []

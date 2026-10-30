@@ -31,7 +31,7 @@ def test_gui_global_paths_survive_selection_restart_and_job_completion(monkeypat
     save_config(paths["A"])
     save_config(dict(rcl="1.5", last_density_map=str(density), last_candidate_pool=str(pool),
                      weights_dir="obsolete-weights", chimerax_path="obsolete-ChimeraX"), project_b / "config.toml")
-    selection = [str(project_a.parent)]
+    selection = [str(tmp_path)]
     monkeypatch.setattr(gui.QtWidgets.QFileDialog, "getExistingDirectory", lambda *args: selection[0])
 
     class Worker(gui.QtCore.QObject):
@@ -51,6 +51,10 @@ def test_gui_global_paths_survive_selection_restart_and_job_completion(monkeypat
     monkeypatch.setattr(gui, "PipelineWorker", Worker)
 
     def inspect(dialog):
+        if isinstance(dialog, gui.NewProjectDialog):
+            dialog.name_edit.setText("a")
+            dialog.location_edit.setText(str(tmp_path))
+            return gui._dialog_accepted_code()
         if isinstance(dialog, gui.ConfigConflictDialog):
             conflicts.append(dialog)
             dialog.choose(conflict_action[0])

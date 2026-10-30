@@ -73,7 +73,10 @@ cryoid-gui
 
 ## Use (GUI)
 
-1. **File → New:** select a project folder, or **File → Open** to resume one.
+1. **File → New:** enter a folder name and location in **New Project**, then click **Create**.
+   **File → Open:** resume an existing project, its `cryoid_results` folder, or a run folder.
+   The window title identifies the active project. Standard shortcuts are **Ctrl+N** / **Ctrl+O**
+   on Windows/Linux and **⌘N** / **⌘O** on macOS. Project settings save automatically.
 2. **Settings → Configurations:** optionally set **Custom weights path** (shared across projects).
    Leave it empty to autodownload published weights; the downloaded path is saved afterward.
    Optionally select ChimeraX (a `ChimeraX.app` path works on macOS).

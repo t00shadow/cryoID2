@@ -37,6 +37,8 @@ from cryoid_pipeline.user_config import (  # noqa: E402
 from G_GUI.session_files import (
     collect_chimerax_project_files,
     ensure_project_dirs,
+    is_project_directory,
+    discard_uninitialized_project,
     find_project_dir_from_path,
     find_run_dir_from_path,
     flatten_chimerax_session_files,
@@ -50,6 +52,7 @@ from G_GUI.local_config import gui_config_view, save_project_config
 from G_GUI.diagnostics import collect_diagnostics, check_weights, check_blast_tools, folder_write_issue
 from G_GUI.run_status import RunStatus
 from G_GUI.setup_dialogs import SetupIssuesDialog
+from G_GUI.project_dialogs import NewProjectDialog
 from cryoid_pipeline.weights import PUBLISHED_REPO
 
 
@@ -945,6 +948,11 @@ def main() -> None:
         selected = str(local_config_state.get("project_dir") or "").strip()
         return results_project_dir(selected) if selected else None
 
+    def refresh_project_title() -> None:
+        project = current_project_dir()
+        window.setWindowTitle(f"CryoIDv2 — {project.parent.name}" if project else "CryoIDv2")
+        window.setWindowFilePath(str(project_config_path(project)) if project else "")
+
     def clear_input_highlight() -> None:
         _clear_line_edit_highlights(
             (ui.density_map_edit, ui.candidate_pool_edit),
@@ -1254,7 +1262,7 @@ def main() -> None:
 
     window.close_request_handler = handle_close_request
 
-    def activate_project(project: Path) -> None:
+    def activate_project(project: Path, *, create_root: Path | None = None) -> None:
         try:
             latest_global = load_user_config(strict=True)
         except (OSError, ValueError) as exc:
@@ -1263,36 +1271,68 @@ def main() -> None:
         apply_startup_settings(latest_global)
         config_path = project_config_path(project)
         try:
-            loaded = load_effective_config(project, user_config=dict(DEFAULT_CONFIG, **startup_state))
+            loaded = load_effective_config(
+                project, user_config=dict(DEFAULT_CONFIG, **startup_state),
+                use_project_config=create_root is None,
+            )
             saved_settings = loaded.values
+            # Read the destination before saving the outgoing project. When
+            # reopening this project, merge any typed inputs before reloading
+            # so neither local inputs nor external settings edits are lost.
+            same_project = project == current_project_dir()
+            inputs_changed = (
+                ui.density_map_edit.text().strip() != local_config_state.get("last_density_map", "")
+                or ui.candidate_pool_edit.text().strip() != local_config_state.get("last_candidate_pool", "")
+            )
+            if project_state["active"] and (not same_project or inputs_changed):
+                if not persist_config():
+                    return
+                if same_project:
+                    saved_settings = load_effective_config(
+                        project, user_config=dict(DEFAULT_CONFIG, **startup_state)
+                    ).values
         except (OSError, ValueError) as exc:
             QtWidgets.QMessageBox.warning(
                 window, "Could not open project",
                 f"The saved project settings could not be read.\n\n{config_path}\n\n{exc}",
             )
             return
+        created_root = False
         try:
+            if create_root is not None:
+                # Reserve a new folder atomically; never reuse an existing
+                # project or read its settings through File > New.
+                try:
+                    create_root.mkdir()
+                    created_root = True
+                except FileExistsError:
+                    QtWidgets.QMessageBox.warning(
+                        window, "Project folder already exists",
+                        "Choose a different project name, or use File > Open to resume an existing project.\n\n" + str(create_root),
+                    )
+                    return
             ensure_project_dirs(project)
         except OSError as exc:
+            if created_root:
+                discard_uninitialized_project(create_root, project)
             QtWidgets.QMessageBox.warning(window, "Could not open project",
                                           f"The results folders could not be created.\n\n{project}\n\n{exc}")
             return
-        # Read the destination before saving the outgoing project, including
-        # when reopening the current project after a config edit on disk.
-        if project_state["active"] and project != current_project_dir():
-            if not persist_config():
-                return
         saved_settings["project_dir"] = str(project)
         try:
             saved_settings = save_project_config(gui_config_view(saved_settings), project,
                                                  baseline=saved_settings, initialize=True)
             update_config(project_dir=str(project))
         except (OSError, ValueError, TimeoutError) as exc:
+            if created_root:
+                discard_uninitialized_project(create_root, project)
             QtWidgets.QMessageBox.warning(window, "Could not open project",
                                           f"The project configuration could not be saved.\n\n{config_path}\n\n{exc}")
             return
         apply_saved_settings(saved_settings)
         project_state["active"] = True
+        refresh_project_title()
+        append_log(f"{'Created' if create_root is not None else 'Opened'} project: {project}")
         run_status.reset()
         refresh_run_status()
         refresh_result_actions()
@@ -1302,14 +1342,18 @@ def main() -> None:
         if state.get("worker") is not None:
             QtWidgets.QMessageBox.warning(window, "Run active", "Abort or wait for completion before creating a new project.")
             return
-        directory = QtWidgets.QFileDialog.getExistingDirectory(
-            window,
-            "Select or create results parent directory",
-            str(REPO_ROOT),
+        dialog = NewProjectDialog(
+            window, location=current_project_dir().parent.parent if current_project_dir() else REPO_ROOT,
         )
-        if not directory:
+        if _exec_dialog(dialog) != _dialog_accepted_code():
             return
-        activate_project(results_project_dir(directory))
+        try:
+            root = dialog.project_root()
+            project = results_project_dir(root)
+        except (OSError, ValueError) as exc:
+            QtWidgets.QMessageBox.warning(window, "Invalid project location", str(exc))
+            return
+        activate_project(project, create_root=root)
 
     def open_project() -> None:
         if state.get("worker") is not None:
@@ -1322,11 +1366,22 @@ def main() -> None:
         )
         if directory:
             selected = Path(directory).expanduser().resolve()
-            selected_run = find_run_dir_from_path(selected)
-            detected_project = find_project_dir_from_path(selected)
-            if detected_project is None and selected_run is not None and selected_run.parent.name == "runs":
-                detected_project = selected_run.parent.parent
-            project = results_project_dir(detected_project or selected)
+            project = results_project_dir(selected)
+            # An explicitly selected project takes priority over an ancestor
+            # project when the user creates projects inside another folder.
+            if not project.is_dir():
+                selected_run = find_run_dir_from_path(selected)
+                detected_project = find_project_dir_from_path(selected)
+                if detected_project is None and selected_run is not None and selected_run.parent.name == "runs":
+                    detected_project = selected_run.parent.parent
+                project = results_project_dir(detected_project or selected)
+            if not is_project_directory(project):
+                QtWidgets.QMessageBox.warning(
+                    window, "No CryoID project found",
+                    "Select an existing project, its cryoid_results folder, or a run folder. "
+                    "Use File > New to create a project.\n\n" + str(selected),
+                )
+                return
             activate_project(project)
 
     def launch_files(files: list[Path]) -> bool:
@@ -1429,6 +1484,11 @@ def main() -> None:
         ui.menuFile.clear()
         ui.menuFile.addAction(ui.actionNew)
         ui.menuFile.addAction(ui.actionOpen)
+        ui.actionNew.setToolTip("Create a new project folder with blank inputs")
+        ui.actionOpen.setToolTip("Resume an existing CryoID project or run")
+        standard_keys = getattr(QtGui.QKeySequence, "StandardKey", QtGui.QKeySequence)
+        ui.actionNew.setShortcuts(QtGui.QKeySequence.keyBindings(standard_keys.New))
+        ui.actionOpen.setShortcuts(QtGui.QKeySequence.keyBindings(standard_keys.Open))
         ui.menuView.clear()
         ui.menuView.addAction(sequence_ranking_action)
         ui.menuView.addAction(ui.actionModel)
@@ -1470,6 +1530,7 @@ def main() -> None:
             ui.candidate_pool_edit.setText(str(pool_path))
 
     restore_startup_state()
+    refresh_project_title()
     refresh_result_actions()
     ui.log_edit.clear()
     append_log(startup_status_message())
