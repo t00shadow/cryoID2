@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Callable
 
 
-PUBLISHED_REPO = "testaccount153/testupload"
+PUBLISHED_REPO = "testaccount153/cryoID2"
 PUBLISHED_REVISION = "3ae72b857d69e16dbfecc3af875733de55ef39a7"
 MODELS = ("secondary_strctures", "key_atoms", "residue_types_6letter")
 # Sizes belong to the pinned revision, not a moving branch. Apart from allowing
