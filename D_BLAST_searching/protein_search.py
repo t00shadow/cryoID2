@@ -13,7 +13,7 @@ from cryoid_pipeline.artifacts import link_input_file
 from cryoid_pipeline.models import SearchHit
 
 from .sequence_search import read_sequence_pool
-from .blast_tools import bundled_blast_bin_dir, validate_blast_bin_dir
+from .blast_tools import runtime_blast_bin_dir, validate_blast_bin_dir
 from .reduced_alphabet.evalues import negative_log10_composite
 
 
@@ -38,7 +38,7 @@ def _require_file(path: Path, label: str) -> Path:
 
 @contextmanager
 def _blast_path(blast_bin_dir: Path | None) -> Iterator[None]:
-    directory = validate_blast_bin_dir(blast_bin_dir) if blast_bin_dir is not None else bundled_blast_bin_dir()
+    directory = validate_blast_bin_dir(blast_bin_dir) if blast_bin_dir is not None else runtime_blast_bin_dir()
     original = os.environ.get("PATH", "")
     os.environ["PATH"] = str(directory) + os.pathsep + original
     try:
@@ -88,7 +88,7 @@ def run_protein_blast_search(
     cpu_threads: int | None = None,
 ) -> BlastSearchResult:
     if blast_bin_dir is None:
-        blast_bin_dir = bundled_blast_bin_dir()
+        blast_bin_dir = runtime_blast_bin_dir()
     from D_BLAST_searching.reduced_alphabet.search_pool import Search
 
     output_dir = run_dir / "tmp" / "sequence_search"

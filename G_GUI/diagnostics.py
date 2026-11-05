@@ -16,7 +16,7 @@ from cryoid_pipeline import __version__
 from cryoid_pipeline.preflight import check_environment, exercise_torch
 from D_BLAST_searching.blast_tools import (
     BLAST_PROGRAMS, BLAST_VERSION, BUNDLE_ROOT, bundled_platform_key,
-    bundled_blast_bin_dir, blast_executable,
+    runtime_blast_bin_dir, verify_managed_blast, blast_executable,
 )
 
 
@@ -65,12 +65,16 @@ def check_weights(value: str) -> Check:
 
 def check_blast_tools() -> Check:
     try:
-        directory = bundled_blast_bin_dir()
+        directory = runtime_blast_bin_dir()
     except RuntimeError as exc:
-        return Check("Unsupported platform", str(exc), False)
+        summary = "Needs setup" if "Conda-managed" in str(exc) else "Unsupported runtime" if "glibc" in str(exc) else "Unsupported platform"
+        return Check(summary, str(exc), False)
     except (OSError, ValueError):
         return Check("Needs repair", "CryoID's bundled BLAST+ tools are missing or cannot be opened. "
                      "Reinstall CryoID to restore the search tools.", False)
+    managed = not directory.resolve().is_relative_to(BUNDLE_ROOT.resolve())
+    source = "Conda / CPU" if managed else "Bundled / CPU"
+    repair = "Recreate the CryoID Conda environment to restore its search tools." if managed else "Reinstall CryoID to restore its bundled search tools."
     versions, failures, technical = [], [], []
 
     def run(program, *arguments):
@@ -81,21 +85,25 @@ def check_blast_tools() -> Check:
         )
 
     try:
-        manifest = json.loads((BUNDLE_ROOT / "manifest.json").read_text(encoding="utf-8"))
-        payload = manifest[bundled_platform_key()]
-        if payload["version"] != BLAST_VERSION:
-            raise ValueError("Bundled BLAST manifest version does not match CryoID")
-        for item in payload["files"]:
-            path = BUNDLE_ROOT / item["path"]
-            with path.open("rb") as handle:
-                digest = hashlib.sha256()
-                for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-                    digest.update(chunk)
-            if path.stat().st_size != item["size"] or digest.hexdigest() != item["sha256"]:
-                raise ValueError(f"Bundled BLAST file failed integrity validation: {path.name}")
+        if managed:
+            verify_managed_blast(directory)
+        else:
+            manifest = json.loads((BUNDLE_ROOT / "manifest.json").read_text(encoding="utf-8"))
+            payload = manifest[bundled_platform_key()]
+            if payload["version"] != BLAST_VERSION:
+                raise ValueError("Bundled BLAST manifest version does not match CryoID")
+            for item in payload["files"]:
+                path = BUNDLE_ROOT / item["path"]
+                with path.open("rb") as handle:
+                    digest = hashlib.sha256()
+                    for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                        digest.update(chunk)
+                if path.stat().st_size != item["size"] or digest.hexdigest() != item["sha256"]:
+                    raise ValueError(f"Bundled BLAST file failed integrity validation: {path.name}")
     except Exception as exc:
-        return Check("Needs repair", "CryoID's bundled BLAST+ files failed integrity validation. "
-                     "Reinstall CryoID to restore its search tools.", False, str(exc))
+        return Check("Needs repair", "CryoID's BLAST+ files failed integrity validation. "
+                     + ("Recreate the CryoID Conda environment to restore its search tools." if managed else
+                        "Reinstall CryoID to restore its search tools."), False, str(exc))
     for program in BLAST_PROGRAMS:
         try:
             result = run(program, "-version")
@@ -104,10 +112,10 @@ def check_blast_tools() -> Check:
                 raise ValueError(f"Expected {program}: {BLAST_VERSION}+; received {output!r}")
             versions.append(output.splitlines()[0])
         except subprocess.TimeoutExpired as exc:
-            failures.append(f"{program} did not respond. Reinstall CryoID and use Settings > Check setup again.")
+            failures.append(f"{program} did not respond. {repair} Use Settings > Check setup again.")
             technical.append(str(exc))
         except Exception as exc:
-            failures.append(f"{program} could not run with the required version {BLAST_VERSION}+. Reinstall CryoID to restore its bundled search tools.")
+            failures.append(f"{program} could not run with the required version {BLAST_VERSION}+. {repair}")
             technical.append(f"{type(exc).__name__}: {exc}")
     if not failures:
         try:
@@ -127,9 +135,9 @@ def check_blast_tools() -> Check:
                         raise ValueError(f"{program} self-test did not return the expected sequence")
             versions.append("Integrity, database creation, protein and nucleotide searches: OK")
         except Exception as exc:
-            failures.append("BLAST+ database/search self-test failed. Check temporary-folder permissions and reinstall CryoID if needed.")
+            failures.append(f"BLAST+ database/search self-test failed. Check temporary-folder permissions. {repair}")
             technical.append(f"{type(exc).__name__}: {exc}")
-    return Check("Needs attention" if failures else "Bundled / CPU",
+    return Check("Needs attention" if failures else source,
                  "\n".join(failures) + f"\nFolder: {directory}" if failures else f"{directory}\n" + "\n".join(versions),
                  not failures, "\n".join(technical))
 

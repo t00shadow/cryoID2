@@ -4,7 +4,9 @@ Identify protein or RNA sequences and structures from cryo-EM density maps
 
 ## Requirements
 
-- Linux/Windows x86-64, or macOS 14+ on Intel or Apple Silicon.
+- Linux x86-64 (**glibc >=2.17** with the Conda installer), Windows x86-64,
+  or macOS 14+ on Intel or Apple Silicon. Pip-only Linux installs require
+  **glibc >=2.28 and zlib >=1.2.9** for the included BLAST binaries.
 - For conda installations: [Miniforge](https://conda-forge.org/download/) **25.9.1-0+ (recommended)** or
   [Conda](https://docs.conda.io/projects/conda/en/stable/user-guide/install/)
   **25.5.1+**.
@@ -76,8 +78,24 @@ cryoid-gui
 
 Use **64-bit CPython 3.10–3.13** on a supported architecture. The Conda setup
 uses Python 3.11, installs native packages through Conda, and runs environment
-validation after installation. On older Linux systems such as EICN, use this
-route if compatible PyPI wheels are unavailable.
+validation after installation. Conda supplies compatible compiled Python
+packages when PyPI wheels are unavailable. On glibc 2.17–2.27 systems such as
+Scientific Linux 7/CentOS 7, the installer automatically adds a pinned Bioconda
+BLAST+ 2.17.0 build to the new environment. CryoID verifies that package's source,
+build, checksum, and installed executable/library hashes, then tests all three
+programs. Other platforms use the shipped BLAST payload.
+
+The default environment can select a CPU PyTorch build. For NVIDIA GPUs supported
+by PyTorch 2.5.1/CUDA 11.8, including GTX 1080 Ti, choose the tested CUDA profile:
+
+```bash
+python -m cryoid_pipeline.create_conda_env --cuda118
+```
+
+This installs the CUDA wheel and validates `cuda:0` after setup. CUDA also needs
+a compatible NVIDIA driver and GPU architecture; run
+`python -m cryoid_pipeline.preflight --gui --device cuda:0` to recheck the device.
+Newer GPUs can require a newer PyTorch/CUDA build.
 
 For a pip installation, `--only-binary=:all:` prevents dependencies from silently
 falling back to source compilation, including pandas, PyQt6, and Pillow. If pip
@@ -101,10 +119,10 @@ The GUI checks setup at startup, after configuration changes, and again before
 each run. It blocks inference on unsupported Python/architecture, missing or
 incompatible declared dependency versions (including transitive requirements
 such as Pillow), failed native imports, or failed PyTorch NumPy interchange and
-3-D convolution on the selected device. BLAST validation verifies the bundled
+3-D convolution on the selected device. BLAST validation verifies the selected
 files' SHA-256 checksums, requires BLAST+ 2.17.0 for all three executables, and
 creates tiny databases to test protein and nucleotide searches. System BLAST
-installations are not used. ChimeraX is optional and does not block inference.
+installations found through PATH are not used. ChimeraX is optional and does not block inference.
 
 These checks do not load the multi-GiB checkpoints: checkpoint/model
 compatibility is checked when weights load. Small device checks also cannot

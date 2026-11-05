@@ -7,6 +7,7 @@ import pytest
 
 from cryoid_pipeline import preflight
 from G_GUI import diagnostics
+from D_BLAST_searching import blast_tools
 
 
 @pytest.fixture
@@ -101,7 +102,7 @@ def blast_bundle(tmp_path, monkeypatch):
     (tmp_path / "manifest.json").write_text(json.dumps(manifest))
     monkeypatch.setattr(diagnostics, "BUNDLE_ROOT", tmp_path)
     monkeypatch.setattr(diagnostics, "bundled_platform_key", lambda: "test-platform")
-    monkeypatch.setattr(diagnostics, "bundled_blast_bin_dir", lambda: directory)
+    monkeypatch.setattr(diagnostics, "runtime_blast_bin_dir", lambda: directory)
     monkeypatch.setattr(diagnostics, "blast_executable", lambda program, directory: program)
     return executable
 
@@ -182,3 +183,27 @@ def test_installed_wheel_requirements_come_from_metadata(monkeypatch, tmp_path):
         metadata={"Requires-Python": ">=3.10,<3.14"}, requires=required,
     ))
     assert preflight.project_requirements() == (">=3.10,<3.14", required, {})
+
+
+@pytest.mark.parametrize("name,release,blocked", [
+    ("glibc", "2.17", True), ("glibc", "2.28", False),
+    ("glibc", "2.36", False), ("musl", "1.2.5", True), ("", "", True),
+])
+def test_linux_runtime_requirement_matches_bundled_blast(monkeypatch, name, release, blocked):
+    monkeypatch.setattr(blast_tools.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(blast_tools.platform, "libc_ver", lambda: (name, release))
+    issue = blast_tools.linux_runtime_issue()
+    assert bool(issue) == blocked
+    if blocked:
+        assert "glibc 2.28" in issue
+        assert "host/container" in issue
+
+
+def test_gui_reports_incompatible_host_runtime_instead_of_reinstall_advice(monkeypatch):
+    monkeypatch.setattr(diagnostics, "runtime_blast_bin_dir", lambda: (_ for _ in ()).throw(
+        RuntimeError("Bundled BLAST requires glibc 2.28; host has glibc 2.17. Use a supported host/container.")))
+    report = diagnostics.check_blast_tools()
+    assert not report.ok
+    assert report.summary == "Unsupported runtime"
+    assert "glibc 2.17" in report.detail
+    assert "Reinstall" not in report.detail

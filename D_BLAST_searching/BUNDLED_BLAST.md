@@ -3,8 +3,10 @@
 CryoID ships NCBI BLAST+ **2.17.0** for **Windows x86-64**, **Linux x86-64**,
 **macOS Intel (x86-64)** and **macOS Apple Silicon (arm64)**.
 It remains a Python package: freezing CryoID into an executable is unnecessary.
-All four payloads are included in source checkouts and Python wheels. Normal setup
-and execution never download BLAST or look for a system installation.
+All four payloads are included in source checkouts and Python wheels. Normal pip
+setup and execution use those payloads. The Conda installer supplies the pinned
+compatibility build described below on older Linux hosts. Execution never searches
+PATH for a BLAST installation or downloads BLAST.
 
 `bundled/<platform>/bin/` contains `blastp`, `blastn`, and `makeblastdb`, plus
 the Windows DLLs and executable manifests supplied by NCBI. Each platform's
@@ -27,7 +29,8 @@ These dependency notices do not set the license of CryoID's own code.
 ## Runtime behavior
 
 `blast_tools.py` selects the matching private directory for the CLI, GUI,
-protein search, and RNA structure lookup. BLAST requires no user configuration.
+protein search, and RNA structure lookup. On older Linux it selects the verified
+BLAST package in the active Python's Conda prefix. BLAST requires no user configuration.
 
 BLAST still performs the same CPU search with unchanged search arguments,
 scoring, and ranking code. CUDA accelerates U-Net inference only. Missing or
@@ -35,9 +38,21 @@ broken bundled tools produce an installation repair message in Check setup.
 An unrelated system BLAST installation is never used as a fallback.
 
 Linux uses the upstream dynamically linked executables and standard OS runtime
-libraries: glibc, zlib, bzip2, libgomp, and libgcc. These resolved on Ubuntu in
+libraries: **glibc >=2.28**, **zlib >=1.2.9**, bzip2, libgomp, and libgcc. These resolved on Ubuntu in
 WSL during validation. A minimal Linux image may need its distribution's
 runtime packages; this bundle does not supply a complete Linux userspace.
+Scientific Linux 7/CentOS 7 (glibc 2.17) cannot execute this upstream payload.
+For glibc 2.17–2.27, the Conda helper automatically installs
+[`bioconda::blast=2.17.0=hb02a186_1`](https://anaconda.org/bioconda/blast/files)
+with its native runtime dependencies. The artifact SHA-256 is
+`d506d022ca8ab1346dc816cbcbe3e798d7f104714e14dea1d750db9dec47c205`.
+The resolver accepts only that build in `sys.prefix`, checks its Conda package
+record, and verifies post-relocation hashes for the three executables and NCBI
+support libraries. Setup then verifies versions, database creation, and protein
+and nucleotide searches. Conda owns this package and its dependency notices;
+those libraries are not copied into the CryoID wheel. An unrelated BLAST on PATH
+or in another environment is never used. Pip-only installation on these older
+hosts requires using the Conda helper or a distribution rebuilt for the older ABI.
 Wheels preserve Linux and macOS executable permissions even when built on Windows.
 The Mac payloads are the official `x64-macosx` and `aarch64-macosx` archives;
 their Mach-O deployment target is macOS 14.0. They link only to Apple system

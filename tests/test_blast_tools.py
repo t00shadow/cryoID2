@@ -12,6 +12,7 @@ from D_BLAST_searching.blast_tools import (
     BLAST_PROGRAMS,
     blast_executable,
     bundled_blast_bin_dir,
+    runtime_blast_bin_dir,
     validate_blast_bin_dir,
 )
 from D_BLAST_searching.reduced_alphabet.search_support import QueryMap
@@ -39,9 +40,9 @@ class BlastToolTests(unittest.TestCase):
             self.assertEqual(validate_blast_bin_dir(linux, system="linux"), linux.resolve())
 
     def test_bundle_is_selected_despite_obsolete_paths_and_environment(self) -> None:
-        expected = bundled_blast_bin_dir()
+        expected = runtime_blast_bin_dir()
         with patch.dict(os.environ, {"PATH": "", "CRYOID_BLAST_BIN_DIR": "missing"}):
-            self.assertEqual(bundled_blast_bin_dir(), expected)
+            self.assertEqual(runtime_blast_bin_dir(), expected)
             for program in BLAST_PROGRAMS:
                 self.assertEqual(Path(blast_executable(program)).parent, expected)
 

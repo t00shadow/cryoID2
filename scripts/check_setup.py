@@ -17,9 +17,9 @@ import tempfile
 from importlib.metadata import version
 
 
-def check_setup(*, gui: bool = False, expected_site: Path | None = None) -> dict:
+def check_setup(*, gui: bool = False, expected_site: Path | None = None, device: str = "cpu") -> dict:
     report = {"platform": platform.platform(), "machine": platform.machine(),
-              "python": platform.python_version(), "executable": sys.executable, "checks": {}}
+              "python": platform.python_version(), "executable": sys.executable, "device": device, "checks": {}}
     checks = report["checks"]
     for module, distribution in (
         ("Bio", "biopython"), ("gemmi", "gemmi"), ("matplotlib", "matplotlib"),
@@ -52,19 +52,19 @@ def check_setup(*, gui: bool = False, expected_site: Path | None = None) -> dict
     checks["stage_imports"] = True
     # Import alone misses the NumPy 2 / Intel PyTorch ABI incompatibility.
     array = np.arange(8, dtype=np.float32)
-    np.testing.assert_array_equal(torch.from_numpy(array).numpy(), array)
+    np.testing.assert_array_equal(torch.from_numpy(array).to(device).cpu().numpy(), array)
     previous_threads = torch.get_num_threads()
     try:
         torch.set_num_threads(min(2, previous_threads))
         # The real model's operations with small feature counts keep this check
         # fast. Scientific validation with pretrained checkpoints is separate.
-        model = UNET(1, 2, features=[2, 4]).eval()
+        model = UNET(1, 2, features=[2, 4]).to(device).eval()
         with torch.no_grad():
-            output = model(torch.ones(1, 1, 8, 8, 8))
+            output = model(torch.ones(1, 1, 8, 8, 8, device=device))
         assert output.shape == (1, 2, 8, 8, 8) and torch.isfinite(output).all()
     finally:
         torch.set_num_threads(previous_threads)
-    checks["cpu_unet_and_numpy_bridge"] = True
+    checks["cpu_unet_and_numpy_bridge" if device == "cpu" else "cuda_unet_and_numpy_bridge"] = True
     for bits in (16, 32):
         result = getattr(parasail, f"sw_striped_{bits}")("ACDEFGHIK", "ACDEFGHIK", 11, 1, parasail.blosum62)
         assert result.score == 53 and not result.saturated, result.score
@@ -118,7 +118,7 @@ def check_setup(*, gui: bool = False, expected_site: Path | None = None) -> dict
                 dialog.show()
                 app.processEvents()
                 dialog.close()
-            diagnostics = collect_diagnostics("", "cpu")
+            diagnostics = collect_diagnostics("", device)
             assert diagnostics.blast.ok, diagnostics.blast
             assert diagnostics.compute.ok, diagnostics.compute
             assert not diagnostics.dependency_issues, diagnostics.dependency_issues
@@ -137,8 +137,9 @@ def main() -> None:
     parser.add_argument("--gui", action="store_true")
     parser.add_argument("--report", type=Path)
     parser.add_argument("--expected-site", type=Path, help="Require production imports to come from this wheel installation.")
+    parser.add_argument("--device", default="cpu", help="CPU or CUDA device for the real small U-Net and GUI diagnostics (default: cpu).")
     args = parser.parse_args()
-    report = check_setup(gui=args.gui, expected_site=args.expected_site)
+    report = check_setup(gui=args.gui, expected_site=args.expected_site, device=args.device)
     output = json.dumps(report, indent=2) + "\n"
     if args.report:
         args.report.write_text(output, encoding="utf-8")

@@ -581,6 +581,7 @@ def test_weight_check_lists_all_missing_files_without_python_errors(tmp_path):
 
 def test_missing_bundle_has_repair_message(monkeypatch, tmp_path):
     monkeypatch.setattr("D_BLAST_searching.blast_tools.BUNDLE_ROOT", tmp_path)
+    monkeypatch.setattr("D_BLAST_searching.blast_tools.needs_managed_linux_blast", lambda: False)
     blast = diagnostics.check_blast_tools()
     assert not blast.ok
     assert "Reinstall CryoID" in blast.detail

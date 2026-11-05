@@ -38,7 +38,7 @@ def main():
     # No PATH discovery, saved BLAST configuration, or scientific libraries.
     os.environ["PATH"] = ""
     os.environ["CRYOID_BLAST_BIN_DIR"] = "invalid-legacy-override"
-    directory = tools.bundled_blast_bin_dir()
+    directory = tools.runtime_blast_bin_dir()
     versions = {}
     for program in tools.BLAST_PROGRAMS:
         executable = Path(tools.blast_executable(program))

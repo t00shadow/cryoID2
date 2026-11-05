@@ -3,6 +3,7 @@
 from .blast_tools import (
     blast_executable,
     bundled_blast_bin_dir,
+    runtime_blast_bin_dir,
     validate_blast_bin_dir,
 )
 from .protein_search import (
@@ -28,6 +29,7 @@ __all__ = [
     "SequenceRecord",
     "blast_executable",
     "bundled_blast_bin_dir",
+    "runtime_blast_bin_dir",
     "protein_ranking_rows",
     "rank_rna_candidates",
     "read_sequence_pool",
