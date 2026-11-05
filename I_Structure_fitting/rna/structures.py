@@ -8,6 +8,8 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
+from contextlib import ExitStack
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -221,20 +223,47 @@ def ensure_public_rna_database(
                 raise RuntimeError("Downloaded PDB sequence archive contains no pure RNA chains.")
             _write_fasta(parsed, staged_fasta)
             makeblastdb = _executable("makeblastdb", blast_bin_dir)
-            subprocess.run(
-                [
-                    makeblastdb,
-                    "-in",
-                    str(staged_fasta),
-                    "-dbtype",
-                    "nucl",
-                    "-out",
-                    str(staged_blast),
-                ],
-                check=True,
-                capture_output=True,
-                text=True,
+            needs_safe_workspace = any(
+                char.isspace()
+                for path in (staged_fasta, staged_blast)
+                for char in str(path)
             )
+
+            with ExitStack() as stack:
+                if needs_safe_workspace:
+                    workspace = Path(stack.enter_context(
+                        tempfile.TemporaryDirectory(
+                            prefix="cryoid_blast_",
+                            dir="/tmp" if os.name != "nt" else None,
+                        )
+                    ))
+                    safe_fasta = workspace / staged_fasta.name
+                    safe_blast = workspace / staged_blast.name
+                    shutil.copy2(staged_fasta, safe_fasta)
+                else:
+                    safe_fasta = staged_fasta
+                    safe_blast = staged_blast
+
+                subprocess.run(
+                    [
+                        makeblastdb,
+                        "-in", str(safe_fasta),
+                        "-dbtype", "nucl",
+                        "-out", str(safe_blast),
+                    ],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+
+                if needs_safe_workspace:
+                    for database_file in workspace.glob(f"{safe_blast.name}.*"):
+                        if database_file.is_file():
+                            shutil.copy2(
+                                database_file,
+                                staging / database_file.name,
+                            )
+
             if not _blast_database_exists(staged_blast):
                 raise RuntimeError("makeblastdb did not create an RNA nucleotide database.")
             snapshot_name = _sha256(staged_archive)
@@ -405,26 +434,58 @@ def run_rna_structure_pipeline(
         "ranked loci against public PDB RNA chains."
     )
     progress_percent(64)
-    command = [
-        _executable("blastn", blast_bin_dir),
-        "-task",
-        "blastn",
-        "-query",
-        str(query_path),
-        "-db",
-        str(database.blast_prefix),
-        "-evalue",
-        "1e-3",
-        "-max_target_seqs",
-        "100",
-        "-outfmt",
-        "6 " + " ".join(BLAST_FIELDS),
-        "-out",
-        str(blast_path),
-    ]
-    if cpu_threads is not None:
-        command.extend(["-num_threads", str(cpu_threads)])
-    subprocess.run(command, check=True, capture_output=True, text=True)
+    needs_safe_workspace = any(
+        char.isspace()
+        for path in (query_path, database.blast_prefix, blast_path)
+        for char in str(path)
+    )
+
+    with ExitStack() as stack:
+        if needs_safe_workspace:
+            workspace = Path(stack.enter_context(
+                tempfile.TemporaryDirectory(
+                    prefix="cryoid_blast_",
+                    dir="/tmp" if os.name != "nt" else None,
+                )
+            ))
+            safe_query = workspace / query_path.name
+            safe_database = workspace / database.blast_prefix.name
+            safe_output = workspace / blast_path.name
+
+            shutil.copy2(query_path, safe_query)
+
+            for database_file in database.blast_prefix.parent.glob(
+                f"{database.blast_prefix.name}.*"
+            ):
+                if (
+                    database_file.is_file()
+                    and database_file.name != f"{database.blast_prefix.name}.fasta"
+                ):
+                    shutil.copy2(database_file, workspace / database_file.name)
+        else:
+            safe_query = query_path
+            safe_database = database.blast_prefix
+            safe_output = blast_path
+
+        command = [
+            _executable("blastn", blast_bin_dir),
+            "-task", "blastn",
+            "-query", str(safe_query),
+            "-db", str(safe_database),
+            "-evalue", "1e-3",
+            "-max_target_seqs", "100",
+            "-outfmt", "6 " + " ".join(BLAST_FIELDS),
+            "-out", str(safe_output),
+        ]
+
+        if cpu_threads is not None:
+            command.extend(["-num_threads", str(cpu_threads)])
+
+        subprocess.run(command, check=True, capture_output=True, text=True)
+
+        if needs_safe_workspace:
+            shutil.copy2(safe_output, blast_path)
+
     check_cancel()
     chain_sequences = _read_fasta(database.fasta_path)
     hits_by_query: dict[str, list[dict[str, object]]] = {}

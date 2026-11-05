@@ -54,12 +54,25 @@ class PublicRnaDatabaseTests(unittest.TestCase):
         return project
 
     @staticmethod
-    def _subprocess(command, **_kwargs):
+    def _subprocess(command, **kwargs):
         if "makeblastdb" in str(command[0]):
+            for flag in ("-in", "-out"):
+                value = str(command[command.index(flag) + 1])
+                assert not any(char.isspace() for char in value), (flag, value)
+
             prefix = Path(command[command.index("-out") + 1])
+
+            if not prefix.is_absolute():
+                prefix = Path(kwargs.get("cwd") or Path.cwd()) / prefix
+
             prefix.with_suffix(".nin").write_bytes(b"database")
             return SimpleNamespace(stdout="", stderr="", returncode=0)
-        return SimpleNamespace(stdout="blastn: 2.16.0+\n", stderr="", returncode=0)
+
+        return SimpleNamespace(
+            stdout="blastn: 2.16.0+\n",
+            stderr="",
+            returncode=0,
+        )
 
     def test_first_download_builds_a_versioned_validated_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -76,7 +89,7 @@ class PublicRnaDatabaseTests(unittest.TestCase):
                 patch("I_Structure_fitting.rna.structures.subprocess.run", side_effect=self._subprocess),
             ):
                 result = ensure_public_rna_database(
-                    root / "project", progress=lambda _message: None, check_cancel=lambda: None
+                    root / "RNA for Star", progress=lambda _message: None, check_cancel=lambda: None
                 )
             self.assertTrue(result.fasta_path.is_file())
             self.assertIn("ACGT", result.fasta_path.read_text(encoding="ascii"))
