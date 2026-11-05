@@ -80,10 +80,14 @@ def test_blast_only_gets_thread_flag_for_manual_choice(monkeypatch, threads):
         assert commands[0][-2:] == ["-num_threads", "4"]
 
 
-def test_gui_compute_defaults_and_gpu_names():
+@pytest.fixture(scope="session")
+def qt_app():
     from G_GUI.qt_compat import QtWidgets
+    return QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+
+
+def test_gui_compute_defaults_and_gpu_names(qt_app):
     from G_GUI.settings_dialogs import OptionsWindow
-    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
     default = OptionsWindow()
     selected = OptionsWindow(device="cuda:1", cpu_threads="4",
                              devices=[("cuda:0", "Test GPU A"), ("cuda:1", "Test GPU B")])
