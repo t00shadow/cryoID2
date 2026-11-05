@@ -52,7 +52,8 @@ Alternatively, install Python 3.13 **64-bit (x64)** and use PowerShell:
 ```powershell
 # One-time setup
 py -3.13 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e ".[gui]"
+.\.venv\Scripts\python.exe -m pip install --only-binary=:all: -e ".[gui]"
+.\.venv\Scripts\python.exe -m cryoid_pipeline.preflight --gui
 
 # Run CryoID
 .\.venv\Scripts\Activate.ps1
@@ -70,6 +71,45 @@ python -m cryoid_pipeline.create_conda_env
 conda activate cryoid
 cryoid-gui
 ```
+
+### Installation validation and CLI-only installs
+
+Use **64-bit CPython 3.10–3.13** on a supported architecture. The Conda setup
+uses Python 3.11, installs native packages through Conda, and runs environment
+validation after installation. On older Linux systems such as EICN, use this
+route if compatible PyPI wheels are unavailable.
+
+For a pip installation, `--only-binary=:all:` prevents dependencies from silently
+falling back to source compilation, including pandas, PyQt6, and Pillow. If pip
+reports no compatible distribution, use the Conda setup or a supported Python
+and platform combination. See [pip's binary package options](https://pip.pypa.io/en/stable/cli/pip_install/#cmdoption-only-binary).
+
+To install **only the CLI**, without a Qt dependency:
+
+```bash
+python -m pip install --only-binary=:all: -e .
+python -m cryoid_pipeline.preflight
+```
+
+`python -m pip install -e .` also installs only the CLI, but allows source builds
+of dependencies. To add the GUI later, install `'.[gui]'` (PyQt6) or
+`'.[gui-pyqt5]'` in the same environment. Afterward, run
+`python -m cryoid_pipeline.preflight --gui`. Add `--device cuda:0` to test a CUDA build and GPU driver;
+the headless check defaults to CPU and exits nonzero on failure.
+
+The GUI checks setup at startup, after configuration changes, and again before
+each run. It blocks inference on unsupported Python/architecture, missing or
+incompatible declared dependency versions (including transitive requirements
+such as Pillow), failed native imports, or failed PyTorch NumPy interchange and
+3-D convolution on the selected device. BLAST validation verifies the bundled
+files' SHA-256 checksums, requires BLAST+ 2.17.0 for all three executables, and
+creates tiny databases to test protein and nucleotide searches. System BLAST
+installations are not used. ChimeraX is optional and does not block inference.
+
+These checks do not load the multi-GiB checkpoints: checkpoint/model
+compatibility is checked when weights load. Small device checks also cannot
+guarantee enough memory for every map. The headless check does not test display
+server availability, even with `--gui`; the GUI needs a working desktop/display connection.
 
 ## Use (GUI)
 

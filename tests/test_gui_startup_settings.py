@@ -126,6 +126,7 @@ def test_gui_global_paths_survive_selection_restart_and_job_completion(monkeypat
                 assert len(conflicts) == 1 and not workers
                 conflict_action[0] = "keep"
                 run.click()
+                settle()
                 assert len(conflicts) == 2 and len(workers) == 1
                 worker = workers[-1]
                 assert worker.args[3] == paths["B"]["weights_dir"]

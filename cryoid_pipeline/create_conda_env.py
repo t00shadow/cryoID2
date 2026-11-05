@@ -74,7 +74,15 @@ def main() -> int:
             if isinstance(value, str):
                 command.append(value)
     try:
-        return subprocess.run(command, cwd=ROOT).returncode
+        result = subprocess.run(command, cwd=ROOT).returncode
+        if result or args.dry_run:
+            return result
+        target_env = (["--prefix", str(args.prefix.expanduser().resolve())] if args.prefix
+                      else ["--name", args.name or "cryoid"])
+        return subprocess.run(
+            [conda, "run", *target_env, "python", "-m", "cryoid_pipeline.preflight", "--gui"],
+            cwd=ROOT,
+        ).returncode
     finally:
         temporary.unlink(missing_ok=True)
 

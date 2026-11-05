@@ -39,8 +39,8 @@ def test_diagnostics_distinguishes_cpu_selection_from_available_cuda(monkeypatch
     monkeypatch.setattr(torch.cuda, "device_count", lambda: 1)
     monkeypatch.setattr(torch.cuda, "get_device_name", lambda index: "Test GPU")
     monkeypatch.setattr(diagnostics, "check_blast_tools", lambda *args, **kwargs: diagnostics.Check("OK", str(tmp_path), True))
-    monkeypatch.setattr(diagnostics, "blast_executable", lambda name, path: name)
-    monkeypatch.setattr(diagnostics.subprocess, "run", lambda *args, **kwargs: SimpleNamespace(stdout="blast 2.16", stderr=""))
+    exercised = []
+    monkeypatch.setattr(diagnostics, "exercise_torch", exercised.append)
     report = diagnostics.collect_diagnostics("", "cpu")
     assert report.compute.summary == "CPU"
     assert report.device == "cpu"
@@ -56,11 +56,10 @@ def test_diagnostics_distinguishes_cpu_selection_from_available_cuda(monkeypatch
     report = diagnostics.collect_diagnostics("", "cuda:2")
     assert not report.compute.ok
     assert "unavailable" in report.compute.detail
+    assert exercised == ["cpu", "cuda:0"]
 
 
 def test_broken_blast_executable_is_reported(monkeypatch, tmp_path):
-    monkeypatch.setattr(diagnostics, "check_blast_tools", lambda *args, **kwargs: diagnostics.Check("OK", str(tmp_path), True))
-    monkeypatch.setattr(diagnostics, "blast_executable", lambda name, path: name)
     def fail(*args, **kwargs):
         raise OSError("invalid executable")
     monkeypatch.setattr(diagnostics.subprocess, "run", fail)
@@ -262,6 +261,14 @@ def test_blocked_run_reveals_issues_and_check_setup_restores_availability(monkey
             action[0] = "close"
             check_setup.trigger()
             assert summaries[-1].startswith("Good")
+            # A fresh Run check must reject a changed environment even when
+            # the cached startup report was valid.
+            report[0] = Diagnostics(ready, ready, ready, "cpu",
+                                    dependency_issues=["pandas: incompatible installed version"])
+            button.click()
+            settle()
+            assert "pandas" in dialogs[-1] and "incompatible installed version" in dialogs[-1]
+            assert button.property("blocked")
             window.findChild(QtWidgets.QLineEdit, "density_map_edit").clear()
             assert button.property("blocked")
             action[0] = "close"

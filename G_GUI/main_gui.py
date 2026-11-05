@@ -7,10 +7,12 @@ from pathlib import Path
 
 try:
     from G_GUI.qt_compat import QtCore, QtGui, QtWidgets
-except ImportError as exc:
+except (ImportError, OSError) as exc:
     raise SystemExit(
-        "CryoID GUI cannot start because no Qt binding is installed. "
-        "Install one GUI extra, for example `pip install .[gui-pyqt6]` or `pip install .[gui-pyqt5]`."
+        "CryoID GUI cannot load a working Qt binding. "
+        "Install or repair one GUI extra with the same Python, for example "
+        "`python -m pip install --only-binary=:all: -e .[gui]` or `python -m pip install -e .[gui-pyqt5]`. "
+        f"Qt error: {exc}"
     ) from exc
 
 from G_GUI.gui_skin import CryoIDUI
@@ -694,7 +696,7 @@ def main() -> None:
     }
     close_state = {"pending": False}
     run_status = RunStatus(history_path=default_config_path().with_name("timing_history.json"))
-    diagnostics_state = {"thread": None, "pending": False, "report": None, "error": ""}
+    diagnostics_state = {"thread": None, "pending": False, "report": None, "error": "", "run_requested": False}
 
     def finish_diagnostics_on_exit() -> None:
         worker = diagnostics_state["thread"]
@@ -783,7 +785,8 @@ def main() -> None:
         refresh_diagnostics()
         show_setup_issues()
 
-    def refresh_diagnostics() -> None:
+    def refresh_diagnostics(*, run_after_checks: bool = False) -> None:
+        diagnostics_state["run_requested"] = run_after_checks
         if diagnostics_state["thread"] is not None:
             diagnostics_state["pending"] = True
             return
@@ -822,6 +825,9 @@ def main() -> None:
                     window.move(screen.availableGeometry().center() - window.rect().center())
                 app.setQuitOnLastWindowClosed(True)
                 window.show()
+            if diagnostics_state["run_requested"]:
+                diagnostics_state["run_requested"] = False
+                start_pipeline(setup_checked=True)
 
         worker.report.connect(checked)
         worker.failed.connect(check_failed)
@@ -1038,11 +1044,16 @@ def main() -> None:
             ui.candidate_pool_edit.setText(filename)
             persist_config(last_candidate_pool=Path(filename).expanduser().resolve())
 
-    def start_pipeline() -> None:
+    def start_pipeline(*_args, setup_checked: bool = False) -> None:
         if readiness_issues():
             show_setup_issues()
             return
         if not persist_startup_settings(snapshot=True):
+            return
+        if not setup_checked:
+            # Recheck in the background so a repaired/changed environment or
+            # bundle cannot be accepted using a stale startup report.
+            refresh_diagnostics(run_after_checks=True)
             return
         density_map = ui.density_map_edit.text().strip()
         candidate_pool = ui.candidate_pool_edit.text().strip()
@@ -1059,11 +1070,6 @@ def main() -> None:
         report = diagnostics_state["report"]
         report.weights = weights_check
         if not weights_check.ok:
-            refresh_run_availability()
-            show_setup_issues()
-            return
-        report.blast = check_blast_tools()
-        if not report.blast.ok:
             refresh_run_availability()
             show_setup_issues()
             return
