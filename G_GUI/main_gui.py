@@ -622,6 +622,13 @@ def main() -> None:
         raise SystemExit(f"CryoID GUI cannot start: {display_issue}")
 
     app = QtWidgets.QApplication.instance() or QtWidgets.QApplication(sys.argv)
+    app.setApplicationName("CryoID2")
+    app.setApplicationDisplayName("CryoID2")
+
+    icon_path = Path(__file__).resolve().parent / "svg_assets" / "cryoid_app_icon.svg"
+    app_icon = QtGui.QIcon(str(icon_path))
+    app.setWindowIcon(app_icon)
+
     app.setQuitOnLastWindowClosed(False)
     app.setStyle("Fusion")
     # Keep inherited widget fonts consistent when Qt repolishes a new theme.
@@ -632,6 +639,7 @@ def main() -> None:
     ui = CryoIDUI()
     ui.setup(window)
     window.setWindowTitle("CryoIDv2")
+    window.setWindowIcon(app_icon)
     theme_preferences = QtCore.QSettings("CryoID", "GUI")
     current_theme = str(theme_preferences.value("theme", "light"))
     startup_pending = True
