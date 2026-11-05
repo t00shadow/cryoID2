@@ -128,7 +128,7 @@ class CryoIDPipeline:
             else None
         )
         self.keep_tmp = bool(keep_tmp)
-        self.blast_bin_dir = stage_d_identification.bundled_blast_bin_dir()
+        self.blast_bin_dir = stage_d_identification.runtime_blast_bin_dir()
 
     def run(
         self,

@@ -8,6 +8,7 @@ import pytest
 
 from D_BLAST_searching import blast_tools as tools
 from G_GUI import diagnostics
+from cryoid_pipeline.orchestrator import CryoIDPipeline
 
 
 @pytest.fixture
@@ -41,6 +42,12 @@ def test_only_active_prefix_is_used_despite_path_and_retired_override(managed_pr
     for name in tools.BLAST_PROGRAMS:
         assert Path(tools.blast_executable(name)) == prefix / "bin" / name
     tools.verify_managed_blast(prefix / "bin")
+
+
+def test_pipeline_uses_the_verified_runtime_selection_on_legacy_linux(managed_prefix):
+    prefix, _, _ = managed_prefix
+    pipeline = CryoIDPipeline(project_dir=prefix / "project", user_config={}, unet_device="cpu")
+    assert pipeline.blast_bin_dir == prefix / "bin"
 
 
 @pytest.mark.parametrize("field,value", [
