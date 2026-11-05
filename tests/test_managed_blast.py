@@ -79,6 +79,8 @@ def test_missing_package_never_uses_another_blast_on_path(managed_prefix, monkey
 
 
 def test_modern_linux_keeps_using_the_shipped_payload(managed_prefix, monkeypatch):
+    import platform
+    monkeypatch.setattr(platform, "machine", lambda: "x86_64")
     prefix, _, _ = managed_prefix
     monkeypatch.setattr(tools.platform, "libc_ver", lambda: ("glibc", "2.28"))
     expected = tools.BUNDLE_ROOT / "linux-x86_64" / "bin"

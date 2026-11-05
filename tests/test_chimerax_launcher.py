@@ -18,7 +18,11 @@ def test_chimerax_uses_current_override_and_explicit_path_priority(tmp_path):
 def test_retired_chimerax_override_is_not_an_alias(tmp_path):
     retired = tmp_path / "retired.exe"
     retired.write_bytes(b"program")
-    with patch.dict(os.environ, {"CHIMERAX_PATH": str(retired)}, clear=True):
+    with (
+        patch.dict(os.environ, {"CHIMERAX_PATH": str(retired)}, clear=True),
+        patch("cryoid_pipeline.startup_config.platform.system", return_value="Linux"),
+        patch("cryoid_pipeline.startup_config.shutil.which", return_value=None),
+    ):
         with pytest.raises(FileNotFoundError, match="CRYOID_CHIMERAX_PATH"):
             find_chimerax()
 
@@ -46,5 +50,15 @@ def test_macos_discovers_user_applications(tmp_path, monkeypatch):
     monkeypatch.setattr(launcher.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(launcher.shutil, "which", lambda _: None)
     monkeypatch.setattr(launcher.Path, "home", lambda: tmp_path)
+
+    original_glob = launcher.Path.glob
+
+    def isolated_glob(path, pattern):
+        if str(path) == "/Applications":
+            return iter(())
+        return original_glob(path, pattern)
+
+    monkeypatch.setattr(launcher.Path, "glob", isolated_glob)
+
     with patch.dict(os.environ, {}, clear=True):
         assert original_find() == executable

@@ -145,6 +145,8 @@ def test_gpu_is_detected_without_installation_flags_and_checked_before_app_insta
     monkeypatch.setattr(create_conda_env, "ROOT", tmp_path)
     monkeypatch.setattr(create_conda_env.sys, "argv", ["create_conda_env"])
     monkeypatch.setattr(create_conda_env.sys, "platform", "linux")
+    monkeypatch.setattr(blast_tools.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(blast_tools.platform, "machine", lambda: "x86_64")
     hardware = {"driver_api": 11020, "devices": [{"capability": [6, 1], "name": "GTX 1080 Ti"}]}
     monkeypatch.setattr(create_conda_env, "probe_cuda", lambda: hardware)
     monkeypatch.setattr(blast_tools, "linux_runtime_issue", lambda: None)
