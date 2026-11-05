@@ -5,6 +5,7 @@ Run with Conda's base Python: python -m cryoid_pipeline.create_conda_env.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 from pathlib import Path
 import re
@@ -13,6 +14,8 @@ import subprocess
 import struct
 import sys
 import tempfile
+
+from .install_hardware import TorchProfile, clean_environment, cpu_profile, probe_cuda, select_torch_profile
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -37,18 +40,95 @@ def select_environment(source: str, platform: str) -> str:
     return "\n".join(lines) + "\n"
 
 
-def installation_environment(source: str, platform: str, *, managed_blast: bool = False, cuda118: bool = False) -> str:
+def installation_environment(source: str, platform: str, *, managed_blast: bool = False) -> str:
+    """Create native dependencies first; install selected Torch and the app later.
+
+    This separates CUDA download/driver failures from Conda solve failures and
+    keeps CPU recovery from overwriting a Conda-owned PyTorch installation.
+    """
     selected = select_environment(source, platform)
     if managed_blast:
         from D_BLAST_searching.blast_tools import BLAST_VERSION, MANAGED_BLAST_BUILD
         selected = selected.replace("dependencies:\n", f"dependencies:\n  - blast={BLAST_VERSION}={MANAGED_BLAST_BUILD}\n", 1)
-    if cuda118:
-        lines = [line for line in selected.splitlines() if not re.match(r"\s*- pytorch(?:[<>=]|\s|$)", line)]
-        index = lines.index("  - pip:") + 1
-        lines[index:index] = ["      - --extra-index-url https://download.pytorch.org/whl/cu118",
-                              "      - torch==2.5.1+cu118"]
-        selected = "\n".join(lines) + "\n"
-    return selected
+    lines = selected.splitlines()
+    # The shared template's pip section is last. The app is installed only
+    # after the selected Torch build has executed successfully.
+    if "  - pip:" in lines:
+        lines = lines[:lines.index("  - pip:")]
+    if not platform.startswith("osx"):
+        lines = [line for line in lines if not re.match(r"\s*- pytorch(?:[<>=]|\s|$)", line)]
+    return "\n".join(lines) + "\n"
+
+
+def install_runtime(conda: str, target_env: list[str], target: str,
+                    profile: TorchProfile, hardware: dict) -> int:
+    environment = clean_environment()
+    prefix = [conda, "run", "--no-capture-output", *target_env, "python"]
+
+    def run(arguments, **kwargs):
+        return subprocess.run([*prefix, *arguments], cwd=ROOT, env=environment, **kwargs).returncode
+
+    def install(profile):
+        if profile.requirement is None:
+            return 0  # macOS Torch was installed by Conda with the native packages.
+        return run(["-m", "pip", "install", "--only-binary=:all:", "--upgrade",
+                    "--index-url", profile.index, "--extra-index-url", "https://pypi.org/simple",
+                    profile.requirement])
+
+    def check(profile):
+        code = ("import torch; from cryoid_pipeline.preflight import exercise_torch; "
+                "torch.set_num_threads(2); ")
+        if profile.cuda:
+            code += ("assert torch.cuda.is_available(), 'CUDA unavailable'; "
+                     "assert torch.cuda.device_count()>0, 'No visible CUDA devices'; "
+                     "[(exercise_torch('cuda:'+str(i)), print('CUDA execution passed:', i, "
+                     "torch.cuda.get_device_name(i), flush=True)) for i in range(torch.cuda.device_count())]")
+        else:
+            code += "exercise_torch('cpu'); print('CPU execution passed.', flush=True)"
+            if profile.requirement:
+                code += "; assert torch.version.cuda is None, 'Expected CPU-only PyTorch'"
+        # Driver initialization and native kernels can crash or hang: isolate
+        # the check and recover only the new environment, never the host driver.
+        supervisor = ("import subprocess,sys\n"
+                      "try:\n"
+                      " result=subprocess.run([sys.executable, '-c', sys.argv[1]], timeout=90)\n"
+                      " sys.exit(result.returncode)\n"
+                      "except subprocess.TimeoutExpired:\n"
+                      " print('PyTorch execution timed out.', file=sys.stderr)\n"
+                      " sys.exit(1)\n")
+        try:
+            return run(["-c", supervisor, code], timeout=120)
+        except (OSError, subprocess.SubprocessError) as exc:
+            print(f"PyTorch execution check failed: {exc}", file=sys.stderr)
+            return 1
+
+    selected = profile
+    result = install(selected)
+    if not result:
+        result = check(selected)
+    fallback = ""
+    if result and selected.cuda:
+        fallback = f"{selected.name} installation or execution failed (exit {result})."
+        print(f"{fallback} Installing and validating CPU support automatically.", file=sys.stderr)
+        selected = cpu_profile(target, fallback)
+        result = install(selected)
+        if not result:
+            result = check(selected)
+    if result:
+        return result
+    result = run(["-m", "pip", "install", "--only-binary=:all:", "-e", ".[gui,dev]"])
+    if result:
+        return result
+    result = run(["-m", "cryoid_pipeline.preflight", "--gui", "--device", "cuda:0" if selected.cuda else "cpu"])
+    if result:
+        return result
+    report = json.dumps({"platform": target, "hardware": hardware, "requested_profile": profile.name,
+                         "installed_profile": selected.name, "reason": selected.reason, "fallback": fallback})
+    result = run(["-c", "import sys; from pathlib import Path; "
+                  "Path(sys.prefix, 'cryoid-installation.json').write_text(sys.argv[1], encoding='utf-8')", report])
+    if not result:
+        print(f"CryoID setup passed. Compute: {selected.name}. Runtime device selection remains Auto.", file=sys.stderr)
+    return result
 
 
 def main() -> int:
@@ -60,15 +140,11 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--yes", action="store_true")
-    parser.add_argument("--cuda118", action="store_true",
-                        help="Install PyTorch 2.5.1 CUDA 11.8 wheels for compatible NVIDIA GPUs on Linux/Windows x86-64.")
     args = parser.parse_args()
     host = {"win32": "win-64", "linux": "linux-64", "darwin": "osx"}.get(sys.platform)
     if host is None:
         parser.error(f"Unsupported operating system: {sys.platform}")
     target = args.platform or host
-    if args.cuda118 and target.startswith("osx"):
-        parser.error("--cuda118 supports Linux/Windows x86-64; Macs use CPU.")
     if args.platform and target.split("-")[0] != host.split("-")[0] and not args.dry_run:
         parser.error("Cross-platform creation is supported only with --dry-run.")
     from D_BLAST_searching.blast_tools import bundled_platform_key, linux_runtime_issue, needs_managed_linux_blast
@@ -93,8 +169,13 @@ def main() -> int:
             parser.error("CryoID setup requires Conda >=25.5.1. Install Miniforge >=25.9.1-0 and use its base Python.")
     except (OSError, subprocess.SubprocessError) as exc:
         parser.error(f"Could not check Conda: {exc}. Use a working Miniforge >=25.9.1-0 installation.")
+    # Do not use the host GPU when previewing a different platform.
+    hardware = (probe_cuda() if target in {"linux-64", "win-64"} and target == host
+                else {"devices": [], "reason": "CPU selected for macOS or a cross-platform preview."})
+    profile = select_torch_profile(target, hardware)
+    print(f"Automatic compute selection: {profile.name}. {profile.reason}", file=sys.stderr)
     content = installation_environment((ROOT / "environment.yml").read_text(encoding="utf-8"), target,
-                                       managed_blast=managed_blast, cuda118=args.cuda118)
+                                       managed_blast=managed_blast)
     if managed_blast:
         print("Using the pinned Conda-managed BLAST+ 2.17.0 build for this older Linux host.", file=sys.stderr)
     # Conda resolves pip's editable path relative to the YAML location. Keep
@@ -115,18 +196,12 @@ def main() -> int:
             if isinstance(value, str):
                 command.append(value)
     try:
-        result = subprocess.run(command, cwd=ROOT).returncode
+        result = subprocess.run(command, cwd=ROOT, env=clean_environment()).returncode
         if result or args.dry_run:
             return result
         target_env = (["--prefix", str(args.prefix.expanduser().resolve())] if args.prefix
                       else ["--name", args.name or "cryoid"])
-        check_command = [conda, "run", *target_env, "python", "-m", "cryoid_pipeline.preflight", "--gui"]
-        if args.cuda118:
-            check_command.extend(["--device", "cuda:0"])
-        return subprocess.run(
-            check_command,
-            cwd=ROOT,
-        ).returncode
+        return install_runtime(conda, target_env, target, profile, hardware)
     finally:
         temporary.unlink(missing_ok=True)
 

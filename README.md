@@ -74,7 +74,7 @@ conda activate cryoid
 cryoid-gui
 ```
 
-### Installation validation and CLI-only installs
+### Automatic installation and validation
 
 Use **64-bit CPython 3.10–3.13** on a supported architecture. The Conda setup
 uses Python 3.11, installs native packages through Conda, and runs environment
@@ -85,17 +85,34 @@ BLAST+ 2.17.0 build to the new environment. CryoID verifies that package's sourc
 build, checksum, and installed executable/library hashes, then tests all three
 programs. Other platforms use the shipped BLAST payload.
 
-The default environment can select a CPU PyTorch build. For NVIDIA GPUs supported
-by PyTorch 2.5.1/CUDA 11.8, including GTX 1080 Ti, choose the tested CUDA profile:
+Use the same installation command on every supported system:
 
 ```bash
-python -m cryoid_pipeline.create_conda_env --cuda118
+python -m cryoid_pipeline.create_conda_env
 ```
 
-This installs the CUDA wheel and validates `cuda:0` after setup. CUDA also needs
-a compatible NVIDIA driver and GPU architecture; run
-`python -m cryoid_pipeline.preflight --gui --device cuda:0` to recheck the device.
-Newer GPUs can require a newer PyTorch/CUDA build.
+The installer inspects the operating system, glibc, visible NVIDIA GPUs, and
+CUDA driver before choosing PyTorch. It selects the pinned CUDA 11.8 build for
+compatible older GPUs (including GTX 1080 Ti), or CUDA 12.8 for supported
+Blackwell GPUs when the driver and operating system support that wheel.
+Macs and systems without a compatible visible NVIDIA GPU use CPU.
+
+No GPU installation flag is needed. CUDA installation is followed by real
+PyTorch/NumPy 3-D convolution checks on every visible device. If CUDA installation
+or execution fails, setup automatically installs and validates CPU-only PyTorch
+and explains the fallback. Dependency or BLAST failures still stop installation.
+The final compute selection is printed and saved as `cryoid-installation.json`
+inside the new environment. The GUI's **Auto** device setting then uses CUDA
+when available, otherwise CPU.
+
+Setup does not change system GPU drivers. GPUs hidden by a scheduler or absent
+from a cluster login node cannot be detected; install in a GPU-allocated session
+to enable automatic GPU selection there. Unsupported GPU/driver combinations,
+including newer CUDA wheels on glibc below 2.28, fall back to CPU. This provides
+one installation workflow within the system requirements above; it cannot make
+unsupported operating systems or hardware compatible.
+
+### Optional pip and CLI-only installation
 
 For a pip installation, `--only-binary=:all:` prevents dependencies from silently
 falling back to source compilation, including pandas, PyQt6, and Pillow. If pip

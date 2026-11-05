@@ -6,6 +6,12 @@ from types import SimpleNamespace
 from cryoid_pipeline import create_conda_env
 from D_BLAST_searching import blast_tools
 from cryoid_pipeline.create_conda_env import select_environment
+from cryoid_pipeline.install_hardware import cpu_profile, select_torch_profile
+
+
+@pytest.fixture(autouse=True)
+def no_host_gpu_dependency(monkeypatch):
+    monkeypatch.setattr(create_conda_env, "probe_cuda", lambda: {"devices": [], "reason": "Test CPU host"})
 
 
 @pytest.mark.parametrize("platform", ["linux-64", "osx-64", "osx-arm64", "win-64"])
@@ -50,11 +56,12 @@ def test_conda_creation_validates_target_environment_and_propagates_failures(
     if create_code or "--dry-run" in args:
         assert len(calls) == 1
     else:
-        assert calls[1][-4:] == ["python", "-m", "cryoid_pipeline.preflight", "--gui"]
+        assert any("cryoid_pipeline.preflight" in call for call in calls) == (check_code == 0)
+        target_call = calls[1]
         if "--prefix" in args:
-            assert calls[1][2:4] == ["--prefix", str(create_conda_env.Path("custom-prefix").resolve())]
+            assert target_call[3:5] == ["--prefix", str(create_conda_env.Path("custom-prefix").resolve())]
         else:
-            assert calls[1][2:4] == ["--name", "custom" if "--name" in args else "cryoid"]
+            assert target_call[3:5] == ["--name", "custom" if "--name" in args else "cryoid"]
     assert not list(tmp_path.glob(".cryoid-env-*.yml"))
 
 
@@ -99,14 +106,17 @@ def test_old_or_unrecognized_conda_is_rejected_before_installation(monkeypatch, 
     assert not list(tmp_path.iterdir())
 
 
-def test_cuda_profile_uses_one_pinned_torch_provider_and_managed_blast():
+def test_native_stage_defers_torch_and_app_until_hardware_is_selected():
     source = (Path(__file__).parents[1] / "environment.yml").read_text()
-    selected = create_conda_env.installation_environment(source, "linux-64", managed_blast=True, cuda118=True)
+    selected = create_conda_env.installation_environment(source, "linux-64", managed_blast=True)
     assert f"blast={blast_tools.BLAST_VERSION}={blast_tools.MANAGED_BLAST_BUILD}" in selected
     assert "  - pytorch" not in selected
-    assert "torch==2.5.1+cu118" in selected
-    assert "--extra-index-url https://download.pytorch.org/whl/cu118" in selected
-    assert "-e .[gui,dev]" in selected
+    assert "  - pip\n" in selected
+    assert "  - pip:" not in selected
+    assert "-e .[gui,dev]" not in selected
+    mac = create_conda_env.installation_environment(source, "osx-arm64")
+    assert "  - pytorch" in mac
+    assert "  - pip:" not in mac
 
 
 def test_legacy_linux_installer_selects_verified_conda_blast(monkeypatch, tmp_path):
@@ -129,11 +139,14 @@ def test_legacy_linux_installer_selects_verified_conda_blast(monkeypatch, tmp_pa
     assert create_conda_env.main() == 1
 
 
-def test_cuda_profile_checks_cuda_before_installation_is_accepted(monkeypatch, tmp_path):
+def test_gpu_is_detected_without_installation_flags_and_checked_before_app_install(monkeypatch, tmp_path):
     source = (Path(__file__).parents[1] / "environment.yml").read_text()
     (tmp_path / "environment.yml").write_text(source)
     monkeypatch.setattr(create_conda_env, "ROOT", tmp_path)
-    monkeypatch.setattr(create_conda_env.sys, "argv", ["create_conda_env", "--cuda118"])
+    monkeypatch.setattr(create_conda_env.sys, "argv", ["create_conda_env"])
+    monkeypatch.setattr(create_conda_env.sys, "platform", "linux")
+    hardware = {"driver_api": 11020, "devices": [{"capability": [6, 1], "name": "GTX 1080 Ti"}]}
+    monkeypatch.setattr(create_conda_env, "probe_cuda", lambda: hardware)
     monkeypatch.setattr(blast_tools, "linux_runtime_issue", lambda: None)
     monkeypatch.setenv("CONDA_EXE", "test-conda")
     commands = []
@@ -142,4 +155,74 @@ def test_cuda_profile_checks_cuda_before_installation_is_accepted(monkeypatch, t
         return SimpleNamespace(stdout="conda 25.9.1", returncode=0)
     monkeypatch.setattr(create_conda_env.subprocess, "run", run)
     assert create_conda_env.main() == 0
-    assert commands[-1][-2:] == ["--device", "cuda:0"]
+    assert any(command[-1] == "torch==2.5.1+cu118" for command in commands)
+    probe = next(i for i, command in enumerate(commands) if any("CUDA execution passed" in argument for argument in command))
+    app = next(i for i, command in enumerate(commands) if ".[gui,dev]" in command)
+    assert probe < app
+    assert any(command[-2:] == ["--device", "cuda:0"] for command in commands)
+    assert '"installed_profile": "cu118"' in commands[-1][-1]
+
+
+@pytest.mark.parametrize("failure", ["download", "execution", "crash", "timeout"])
+def test_failed_cuda_automatically_installs_cpu_and_never_reports_gpu_success(monkeypatch, tmp_path, failure):
+    monkeypatch.setattr(create_conda_env, "ROOT", tmp_path)
+    hardware = {"driver_api": 11020, "devices": [{"capability": [6, 1]}]}
+    profile = select_torch_profile("linux-64", hardware)
+    calls = []
+    def run(command, **kwargs):
+        calls.append(command)
+        if command[-1] == "torch==2.5.1+cu118" and failure == "download":
+            return SimpleNamespace(returncode=1)
+        if any("CUDA execution passed" in argument for argument in command):
+            if failure == "timeout":
+                raise create_conda_env.subprocess.TimeoutExpired(command, 120)
+            return SimpleNamespace(returncode=-11 if failure == "crash" else 1)
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr(create_conda_env.subprocess, "run", run)
+    assert create_conda_env.install_runtime("conda", ["--prefix", str(tmp_path)], "linux-64", profile, hardware) == 0
+    assert any(command[-1] == "torch==2.5.1+cpu" for command in calls)
+    assert any(command[-2:] == ["--device", "cpu"] for command in calls)
+    assert not any(command[-2:] == ["--device", "cuda:0"] for command in calls)
+    assert '"installed_profile": "cpu"' in calls[-1][-1]
+    assert "failed" in calls[-1][-1]
+
+
+def test_cpu_failure_is_not_reported_as_success(monkeypatch, tmp_path):
+    monkeypatch.setattr(create_conda_env, "ROOT", tmp_path)
+    calls = []
+    def run(command, **kwargs):
+        calls.append(command)
+        return SimpleNamespace(returncode=1)
+    monkeypatch.setattr(create_conda_env.subprocess, "run", run)
+    assert create_conda_env.install_runtime("conda", ["--name", "new"], "win-64", cpu_profile("win-64", "No GPU"), {}) == 1
+    assert len(calls) == 1
+
+
+def test_failed_blast_or_dependency_validation_is_not_hidden_by_cpu_fallback(monkeypatch, tmp_path):
+    monkeypatch.setattr(create_conda_env, "ROOT", tmp_path)
+    calls = []
+    def run(command, **kwargs):
+        calls.append(command)
+        return SimpleNamespace(returncode=1 if "cryoid_pipeline.preflight" in command else 0)
+    monkeypatch.setattr(create_conda_env.subprocess, "run", run)
+    hardware = {"driver_api": 11020, "devices": [{"capability": [6, 1]}]}
+    assert create_conda_env.install_runtime("conda", ["--name", "new"], "linux-64", select_torch_profile("linux-64", hardware), hardware) == 1
+    assert not any(command[-1] == "torch==2.5.1+cpu" for command in calls)
+    assert "cryoid_pipeline.preflight" in calls[-1]
+
+
+def test_mac_uses_native_conda_torch_and_never_installs_cuda_wheel(monkeypatch, tmp_path):
+    monkeypatch.setattr(create_conda_env, "ROOT", tmp_path)
+    calls = []
+    monkeypatch.setattr(create_conda_env.subprocess, "run", lambda command, **kwargs: calls.append(command) or SimpleNamespace(returncode=0))
+    assert create_conda_env.install_runtime("conda", ["--name", "new"], "osx-arm64", cpu_profile("osx-arm64", "Mac"), {}) == 0
+    assert not any(any("torch==" in argument for argument in command) for command in calls)
+    assert any(command[-2:] == ["--device", "cpu"] for command in calls)
+
+
+def test_removed_cuda_flag_is_not_required_or_advertised(monkeypatch, capsys):
+    monkeypatch.setattr(create_conda_env.sys, "argv", ["create_conda_env", "--help"])
+    with pytest.raises(SystemExit) as exit:
+        create_conda_env.main()
+    assert exit.value.code == 0
+    assert "--cuda118" not in capsys.readouterr().out
