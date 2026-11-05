@@ -622,6 +622,13 @@ def main() -> None:
         raise SystemExit(f"CryoID GUI cannot start: {display_issue}")
 
     app = QtWidgets.QApplication.instance() or QtWidgets.QApplication(sys.argv)
+    app.setApplicationName("CryoID2")
+    app.setApplicationDisplayName("CryoID2")
+
+    icon_path = Path(__file__).resolve().parent / "svg_assets" / "cryoid_app_icon.svg"
+    app_icon = QtGui.QIcon(str(icon_path))
+    app.setWindowIcon(app_icon)
+
     app.setQuitOnLastWindowClosed(False)
     app.setStyle("Fusion")
     # Keep inherited widget fonts consistent when Qt repolishes a new theme.
@@ -632,6 +639,7 @@ def main() -> None:
     ui = CryoIDUI()
     ui.setup(window)
     window.setWindowTitle("CryoIDv2")
+    window.setWindowIcon(app_icon)
     theme_preferences = QtCore.QSettings("CryoID", "GUI")
     current_theme = str(theme_preferences.value("theme", "light"))
     startup_pending = True
@@ -1473,17 +1481,23 @@ def main() -> None:
         message = f"Could not open the default browser.\n\n{url}"
         QtWidgets.QMessageBox.warning(window, f"Could not open {name}", message)
 
+    def update_theme_action() -> None:
+        target = "Light" if current_theme == "dark" else "Dark"
+        theme_action.setText(f"Switch to {target} Mode")
+        theme_action.setToolTip(f"Switch to {target.lower()} mode")
+
     def toggle_theme() -> None:
         nonlocal current_theme
         current_theme = "light" if current_theme == "dark" else "dark"
         theme_preferences.setValue("theme", current_theme)
         theme_action.setChecked(current_theme == "dark")
+        update_theme_action()
         apply_theme(app, window, ui, current_theme)
 
     theme_action = QtGui.QAction("Theme", window)
     theme_action.setCheckable(True)
     theme_action.setChecked(current_theme == "dark")
-    theme_action.setToolTip("Switch light or dark theme")
+    update_theme_action()
     theme_action.triggered.connect(toggle_theme)
 
     def configure_menus() -> None:
