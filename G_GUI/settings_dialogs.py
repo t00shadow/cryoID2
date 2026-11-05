@@ -235,13 +235,24 @@ class OptionsWindow(_SettingsDialog):
         self.device_combo.addItem("Auto", "auto")
         self.device_combo.addItem("CPU", "cpu")
         for identifier, name in devices:
-            self.device_combo.addItem(f"GPU {identifier.split(':')[-1]}: {name}", identifier)
+            label = name if identifier == "mps" else f"GPU {identifier.split(':')[-1]}: {name}"
+            self.device_combo.addItem(label, identifier)
         selected_device = validate_config_value("device", device)
-        if selected_device == "cuda" and devices:
-            selected_device = devices[0][0]
+        if selected_device == "cuda":
+            cuda_devices = [
+                identifier for identifier, _ in devices
+                if identifier.startswith("cuda:")
+            ]
+            if cuda_devices:
+                selected_device = cuda_devices[0]
         if self.device_combo.findData(selected_device) < 0:
             index = selected_device.split(":")[-1] if ":" in selected_device else "0"
-            self.device_combo.addItem(f"GPU {index} (unavailable)", selected_device)
+            label = (
+                "Apple GPU (unavailable)"
+                if selected_device == "mps"
+                else f"GPU {index} (unavailable)"
+            )
+            self.device_combo.addItem(label, selected_device)
         self.device_combo.setCurrentIndex(self.device_combo.findData(selected_device))
         self.device_combo.setToolTip("Choose inference compute device")
         self.cpu_threads_edit = QtWidgets.QLineEdit(compute_box)

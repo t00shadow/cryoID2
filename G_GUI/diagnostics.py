@@ -175,12 +175,21 @@ def collect_diagnostics(weights_path: str, device: str | None) -> Diagnostics:
     selected_device = device or "cpu"
     try:
         import torch
-        lines.append(f"PyTorch: {torch.__version__}; CUDA build: {torch.version.cuda or 'CPU only'}")
+        lines.append(f"PyTorch: {torch.__version__}; CUDA build: {torch.version.cuda or 'none'}")
         available = torch.cuda.is_available()
         if available:
             devices = [(f"cuda:{index}", torch.cuda.get_device_name(index))
                        for index in range(torch.cuda.device_count())]
-        selected_device = device or ("cuda:0" if available else "cpu")
+        mps_backend = getattr(getattr(torch, "backends", None), "mps", None)
+        mps_available = bool(
+            mps_backend is not None and mps_backend.is_available()
+        )
+        if mps_available:
+            devices.append(("mps", "Apple GPU (Metal)"))
+
+        selected_device = device if device not in (None, "", "auto") else (
+            "cuda:0" if available else "mps" if mps_available else "cpu"
+        )
         target = torch.device(selected_device)
         cuda_detail = (
             "; ".join(f"{index}: {torch.cuda.get_device_name(index)}"
@@ -196,6 +205,19 @@ def collect_diagnostics(weights_path: str, device: str | None) -> Diagnostics:
                                 "version and a compatible GPU driver.", False)
             else:
                 compute = Check("GPU / CUDA", f"U-Net: {selected_device} ({torch.cuda.get_device_name(index)})", True)
+        elif target.type == "mps":
+            if mps_available:
+                compute = Check(
+                    "GPU / MPS",
+                    "U-Net uses Apple GPU acceleration via Metal.",
+                    True,
+                )
+            else:
+                compute = Check(
+                    "GPU unavailable",
+                    "Apple Metal (MPS) is unavailable in this PyTorch environment.",
+                    False,
+                )
         elif target.type == "cpu":
             compute = Check("CPU", f"U-Net uses CPU. CUDA: {cuda_detail}", True)
         else:

@@ -426,8 +426,8 @@ def resolve_device(argument: str | None, config: Mapping[str, Any] | None = None
 
 def validate_device(value: str | None) -> str:
     device = str(value or "auto").strip().lower()
-    if device not in {"auto", "cpu", "cuda"} and not re.fullmatch(r"cuda:\d+", device):
-        raise ValueError("Device must be auto, cpu, or a CUDA GPU such as cuda:0.")
+    if device not in {"auto", "cpu", "cuda", "mps"} and not re.fullmatch(r"cuda:\d+", device):
+        raise ValueError("Device must be auto, cpu, mps, or a CUDA GPU such as cuda:0.")
     return device
 
 

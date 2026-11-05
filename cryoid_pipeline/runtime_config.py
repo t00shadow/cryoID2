@@ -18,7 +18,12 @@ def default_unet_device() -> str:
         import torch
     except ImportError:
         return "cpu"
-    return "cuda:0" if torch.cuda.is_available() else "cpu"
+    if torch.cuda.is_available():
+        return "cuda:0"
+    mps_backend = getattr(getattr(torch, "backends", None), "mps", None)
+    if mps_backend is not None and mps_backend.is_available():
+        return "mps"
+    return "cpu"
 
 
 def display_problem() -> str | None:

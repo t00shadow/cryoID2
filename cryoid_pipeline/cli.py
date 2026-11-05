@@ -344,7 +344,7 @@ def _add_run_options(parser: argparse.ArgumentParser, *, startup_paths: bool = T
     parser.add_argument(
         "--device",
         default=None,
-        help="Inference device: auto, cpu, or cuda:N. Auto selects CUDA when available, otherwise CPU.",
+        help="Inference device: auto, cpu, mps, or cuda:N. Auto prefers CUDA, then Apple MPS, then CPU.",
     )
     parser.add_argument(
         "--cpu-threads", default=None, metavar="auto|N",
