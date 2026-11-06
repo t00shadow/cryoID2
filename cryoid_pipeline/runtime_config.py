@@ -20,10 +20,23 @@ def default_unet_device() -> str:
         return "cpu"
     if torch.cuda.is_available():
         return "cuda:0"
-    mps_backend = getattr(getattr(torch, "backends", None), "mps", None)
-    if mps_backend is not None and mps_backend.is_available():
+    if mps_unet_problem() is None:
         return "mps"
     return "cpu"
+
+
+def mps_unet_problem() -> str | None:
+    """Check actual U-Net operations, since MPS availability alone is insufficient."""
+    try:
+        import torch
+        backend = getattr(getattr(torch, "backends", None), "mps", None)
+        if backend is None or not backend.is_available():
+            return "Apple Metal (MPS) is unavailable in this PyTorch environment."
+        from .preflight import exercise_torch
+        exercise_torch("mps")
+    except Exception as exc:
+        return f"Apple Metal (MPS) cannot run U-Net in this environment: {type(exc).__name__}: {exc}"
+    return None
 
 
 def display_problem() -> str | None:

@@ -89,6 +89,19 @@ def test_torch_numpy_abi_failure_is_reported(monkeypatch):
     assert "NumPy ABI unavailable" in report.compute.technical_detail
 
 
+@pytest.mark.parametrize("unsupported_transpose", [False, True])
+def test_unet_execution_probe_covers_decoder_operations(monkeypatch, unsupported_transpose):
+    import torch
+    if unsupported_transpose:
+        def unsupported(*args, **kwargs):
+            raise RuntimeError("ConvTranspose3D is not supported on MPS")
+        monkeypatch.setattr(torch.nn.ConvTranspose3d, "forward", unsupported)
+        with pytest.raises(RuntimeError, match="ConvTranspose3D"):
+            preflight.exercise_unet("cpu")
+    else:
+        preflight.exercise_unet("cpu")
+
+
 @pytest.fixture
 def blast_bundle(tmp_path, monkeypatch):
     directory = tmp_path / "test-platform" / "bin"

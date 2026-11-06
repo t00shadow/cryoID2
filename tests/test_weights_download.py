@@ -187,7 +187,7 @@ def test_cancellation_during_transfer_is_not_reported_as_failure(hub):
 def science(monkeypatch, tmp_path):
     """Keep CLI/config/events real while replacing expensive scientific stages."""
     seen = []
-    def prediction(self, density, run_dir, progress, percent, check_cancel, mode):
+    def prediction(self, density, run_dir, progress, percent, check_cancel, mode, *, status=None, configuration_key=None):
         assert not weights.weights_problems(self.unet_weights_dir)
         seen.append(self.unet_weights_dir)
         return StageResult("Prediction maps", "ok", "Test inference"), PredictionBundle(

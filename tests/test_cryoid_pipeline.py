@@ -294,7 +294,8 @@ class CryoIDProjectPipelineTests(unittest.TestCase):
             def status(event):
                 now[0] += 0.1
                 timing.set_stage(event)
-                seen_stages.append(timing.stage)
+                if not event.get("kind"):
+                    seen_stages.append(timing.stage)
                 self.assertTrue(timing.eta.startswith("~"))
 
             def progress(value):
@@ -574,14 +575,19 @@ class CryoIDProjectPipelineTests(unittest.TestCase):
             def fail_struct_fetch(*_args, **_kwargs):
                 raise AssertionError("Struct-fetch must not run in identification-only mode")
 
+            events = []
             result = CryoIDPipeline(
                 project_dir=project,
                 struct_fetch_runner=fail_struct_fetch,
                 unet_runner=self._fake_unet_runner,
                 protein_query_runner=self._fake_query_runner,
                 protein_blast_runner=self._fake_blast_runner,
-            ).run(density_map, pool, stop_after_identification=True)
+            ).run(density_map, pool, stop_after_identification=True, status=events.append)
 
+            stage_events = [event for event in events if "stage_index" in event]
+            self.assertEqual([event["stage_index"] for event in stage_events], [1, 2, 3, 4, 5])
+            self.assertEqual({event["stage_total"] for event in stage_events}, {5})
+            self.assertEqual(stage_events[-1]["name"], "Finalizing outputs")
             statuses = {stage.name: stage.status for stage in result.stages}
             self.assertEqual(statuses["Protein query generation"], "ok")
             self.assertEqual(statuses["Protein candidate BLAST"], "ok")

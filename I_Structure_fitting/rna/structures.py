@@ -325,13 +325,13 @@ def _read_fasta(path: Path) -> dict[str, str]:
                 continue
             if line.startswith(">"):
                 if name is not None:
-                    records[name.upper()] = "".join(chunks).upper()
+                    records[_canonical_chain(name)[0]] = "".join(chunks).upper()
                 name = line[1:].split()[0]
                 chunks = []
             elif name is not None:
                 chunks.append(line)
     if name is not None:
-        records[name.upper()] = "".join(chunks).upper()
+        records[_canonical_chain(name)[0]] = "".join(chunks).upper()
     return records
 
 
@@ -340,9 +340,9 @@ def _canonical_chain(subject: str) -> tuple[str, str, str]:
     if match:
         pdb_id, chain_id = match.group(1).upper(), match.group(2)
         return f"{pdb_id}_{chain_id}", pdb_id, chain_id
-    pdb_chain = subject.upper()
-    pdb_id, _, chain_id = pdb_chain.partition("_")
-    return pdb_chain, pdb_id, chain_id
+    pdb_id, _, chain_id = subject.partition("_")
+    pdb_id = pdb_id.upper()
+    return f"{pdb_id}_{chain_id}", pdb_id, chain_id
 
 
 def _write_tsv(path: Path, rows: list[dict[str, object]], fields: list[str]) -> Path:
@@ -363,13 +363,13 @@ def select_structure_hits(
 ) -> tuple[list[dict[str, str]], list[dict[str, str]], list[dict[str, object]]]:
     selected_loci = select_ranked_rows(ranking, selection)
     structured = [
-        row for row in selected_loci if row["candidate_id"].upper() in hits_by_query
+        row for row in selected_loci if row["candidate_id"] in hits_by_query
     ]
     selected: list[dict[str, object]] = []
     seen_sequences: set[str] = set()
     for locus in structured:
         kept = 0
-        for hit in hits_by_query[locus["candidate_id"].upper()]:
+        for hit in hits_by_query[locus["candidate_id"]]:
             sequence = str(hit["structure_sequence"])
             if sequence in seen_sequences:
                 continue
@@ -494,12 +494,12 @@ def run_rna_structure_pipeline(
             if float(raw["evalue"]) > 1e-3 or float(raw["qcovs"]) < 30.0:
                 continue
             chain_name, pdb_id, chain_id = _canonical_chain(raw["sseqid"])
-            sequence = chain_sequences.get(raw["sseqid"].upper()) or chain_sequences.get(chain_name.upper())
+            sequence = chain_sequences.get(chain_name)
             if sequence is None:
                 continue
-            hits_by_query.setdefault(raw["qseqid"].upper(), []).append(
+            hits_by_query.setdefault(raw["qseqid"], []).append(
                 {
-                    "query": raw["qseqid"].upper(),
+                    "query": raw["qseqid"],
                     "pdb_chain": chain_name,
                     "pdb_id": pdb_id,
                     "chain_id": chain_id,
@@ -523,8 +523,8 @@ def run_rna_structure_pipeline(
         {
             "original_rank": row["rank"],
             "candidate_id": row["candidate_id"],
-            "qualifying_hit_count": len(hits_by_query.get(row["candidate_id"].upper(), [])),
-            "has_qualifying_structure": row["candidate_id"].upper() in hits_by_query,
+            "qualifying_hit_count": len(hits_by_query.get(row["candidate_id"], [])),
+            "has_qualifying_structure": row["candidate_id"] in hits_by_query,
         }
         for row in selected_loci
     ]

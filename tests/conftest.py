@@ -5,6 +5,12 @@ import sys
 import pytest
 
 
+@pytest.fixture(scope="session")
+def qt_app():
+    from G_GUI.qt_compat import QtWidgets
+    return QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+
+
 @pytest.fixture(autouse=True)
 def isolated_user_settings(monkeypatch, tmp_path):
     # Tests use small fake bundles; never fetch multi-GB production checkpoints.

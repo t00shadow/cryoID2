@@ -1,0 +1,8 @@
+include environment.yml
+prune scripts
+prune training
+recursive-include tests *.py *.fasta *.txt *.tsv *.json *.md
+recursive-exclude * __pycache__ *.py[cod]
+# Keep only the root README in source distributions.
+global-exclude README.md
+include README.md

@@ -105,6 +105,45 @@ def test_subsecond_gpu_samples_update_bar_and_eta_without_warmup():
     assert 600 < status.remaining_seconds < initial  # Later CPU stages remain.
 
 
+def test_structured_cube_events_preserve_existing_display_and_estimates():
+    clock = Clock()
+    legacy, structured = RunStatus(clock), RunStatus(clock)
+    for status in (legacy, structured):
+        status.start("cuda:0")
+        status.set_stage({"name": "U-Net prediction", "device": "cuda:0"})
+    structured.set_stage(dict(kind="inference_device", device="cuda:0"))
+    for model in ("secondary_strctures", "key_atoms", "residue_types_6letter"):
+        legacy.consume_log(f"UNet inference: loading {model} checkpoint test.tar")
+        structured.set_stage(dict(kind="model_loading", model=model, checkpoint="test.tar"))
+        assert structured.description == legacy.description
+        for count in range(21):
+            clock.advance(.02)
+            legacy.consume_log(f"UNet {model}: predicted cube {count}/20")
+            structured.set_stage(dict(kind="model_progress", model=model, completed=count, total=20))
+            assert (structured.description, structured.percent, structured.eta, structured.device) == (
+                legacy.description, legacy.percent, legacy.eta, legacy.device)
+    structured.set_stage(dict(kind="prediction_finished", device="reused"))
+    assert structured._reused_predictions
+
+
+def test_checkpoint_reuse_does_not_train_timing_on_instant_stages(tmp_path):
+    history = tmp_path / "timings.json"
+    completed_run(history)
+    before = history.read_bytes()
+    clock = Clock()
+    status = RunStatus(clock, history_path=history)
+    status.start("cpu")
+    status.set_stage(dict(kind="run_reused"))
+    status.finish("Complete")
+    assert history.read_bytes() == before
+    status.start("cpu")
+    status.set_stage(dict(name="Backbone tracing / query generation", device="cpu"))
+    status.set_stage(dict(name="Backbone tracing / query generation", kind="stage_reused"))
+    clock.advance(.001)
+    status.set_stage(dict(name="BLAST+ sequence search", device="cpu"))
+    assert status._durations[2] is None
+
+
 def test_estimate_survives_long_stalls_and_waits_for_confirmed_completion(tmp_path):
     history = tmp_path / "timing.json"
     completed_run(history)

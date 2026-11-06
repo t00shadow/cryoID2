@@ -21,7 +21,10 @@ from .models import (
     SearchHit,
     SequenceMode,
     StageResult,
+    pipeline_result_from_dict,
+    pipeline_result_to_dict,
 )
+from .checkpoints import Checkpoints, atomic_json, json_value, project_lock
 from .runtime_config import RuntimeConfig
 from .compute import cpu_thread_limit
 from .weights import resolve_weights, pipeline_percent, DOWNLOAD_START, DOWNLOAD_END
@@ -142,12 +145,72 @@ class CryoIDPipeline:
         command_line: str | None = None,
         stop_after_identification: bool = False,
     ) -> PipelineResult:
-        with cpu_thread_limit(self.cpu_threads):
-            return self._run(
-                density_map, candidate_pool, progress=progress, progress_percent=progress_percent,
-                status=status, should_cancel=should_cancel, command_line=command_line,
-                stop_after_identification=stop_after_identification,
-            )
+        checkpoints = Checkpoints(self.project_dir) if Checkpoints.supported(self) else None
+        with project_lock(self.project_dir):
+            # Completed runs are inspected before creating a new run directory.
+            if checkpoints is not None and not (should_cancel and should_cancel()):
+                try:
+                    if any(self.output_root.glob("run_*/checkpoints/complete.json")):
+                        self._configure_checkpoints(checkpoints, Path(density_map), Path(candidate_pool),
+                                                    stop_after_identification, cached_weights=True)
+                        found = checkpoints.find("complete", checkpoints.request)
+                        if found is not None:
+                            checkpoints.assert_sources_unchanged()
+                            result = pipeline_result_from_dict(found[1]["payload"]["result"])
+                            result.output_files = [p for p in result.output_files if p.is_file()]
+                            if progress:
+                                progress(f"Run already completed with matching scientific inputs/settings: {result.run_dir}. No stages were rerun.")
+                            if status:
+                                status({"name": "Run already completed", "kind": "run_reused", "device": "reused"})
+                            if progress_percent:
+                                progress_percent(100)
+                            return result
+                except (OSError, ValueError, KeyError, TypeError):
+                    # Unverifiable legacy/corrupt metadata never authorizes reuse.
+                    pass
+            with cpu_thread_limit(self.cpu_threads):
+                result = self._run(
+                    density_map, candidate_pool, progress=progress, progress_percent=progress_percent,
+                    status=status, should_cancel=should_cancel, command_line=command_line,
+                    stop_after_identification=stop_after_identification, checkpoints=checkpoints,
+                )
+            if checkpoints is not None and checkpoints.request and all(s.status == "ok" for s in result.stages):
+                required = [result.run_dir / "checkpoints" / name for name in
+                            ("tracing/manifest.json", "search/manifest.json")]
+                if not stop_after_identification:
+                    required.append(result.run_dir / "checkpoints/structure.json")
+                if all(p.is_file() for p in required):
+                    files = self._checkpoint_outputs(result.run_dir, result.output_files, predictions=True)
+                    manifest = checkpoints.save("complete", result.run_dir, checkpoints.request,
+                                                {"result": pipeline_result_to_dict(result)}, files)
+                    result.output_files.append(manifest)
+            return result
+
+    def _configure_checkpoints(self, checkpoints, density, pool, stop, *, cached_weights=False):
+        _requested, mode, _records = stage_d_identification.resolve_sequence_mode(pool, self.sequence_mode)
+        if cached_weights and self.unet_runner is None:
+            from .weights import auto_download_needed, weights_problems, PUBLISHED_REVISION
+            if auto_download_needed(self.unet_weights_dir):
+                from huggingface_hub.constants import HF_HUB_CACHE
+                candidate = Path(HF_HUB_CACHE) / "models--cryoid2--cryoID2" / "snapshots" / PUBLISHED_REVISION / "train_val_data"
+                if weights_problems(candidate):
+                    raise FileNotFoundError("Published weights need recovery before checkpoints can be validated")
+                self.unet_weights_dir = candidate
+        checkpoints.configure(self, density.resolve(), pool.resolve(), mode, stop)
+
+    def _checkpoint_outputs(self, run, files, *, predictions=False):
+        result = []
+        for item in files:
+            path = Path(item).resolve()
+            if not path.is_file():
+                continue
+            if predictions and path.is_relative_to(self.project_dir / "unetpredictions"):
+                result.append(path)
+            elif path.is_relative_to(run):
+                relative = path.relative_to(run)
+                if relative.parts[0] not in {"tmp", "intermediates"} and path.name != "pipeline.log":
+                    result.append(path)
+        return list(dict.fromkeys(result))
 
     def _run(
         self,
@@ -160,6 +223,7 @@ class CryoIDPipeline:
         should_cancel: CancelCheck | None = None,
         command_line: str | None = None,
         stop_after_identification: bool = False,
+        checkpoints: Checkpoints | None = None,
     ) -> PipelineResult:
         progress = progress or (lambda _message: None)
         progress_percent = progress_percent or (lambda _value: None)
@@ -204,10 +268,17 @@ class CryoIDPipeline:
         def emit(message: str) -> None:
             record_log(message, emit_to_user=True)
 
+        stage_number = 0
+
         def set_stage(name: str, device: str = "cpu") -> None:
+            nonlocal stage_number
             record_log(f"Stage: {name}; device: {device}", emit_to_user=True)
             if status is not None:
-                status({"name": name, "device": device})
+                event = {"name": name, "device": device}
+                if name != "Cancelling / cleanup":
+                    stage_number += 1
+                    event.update(stage_index=stage_number, stage_total=5 if stop_after_identification else 6)
+                status(event)
 
         current_percent = -1
         with_download = False
@@ -321,6 +392,8 @@ class CryoIDPipeline:
                     self.unet_weights_dir, log=emit, status=weights_status, check_cancel=check_cancel,
                 )
                 check_cancel()
+            if checkpoints is not None:
+                self._configure_checkpoints(checkpoints, density_path, pool_path, stop_after_identification)
             set_percent(3)
             set_stage("U-Net prediction", self.unet_device)
             prediction_stage, prediction_bundle = self._run_unet_predictions(
@@ -330,8 +403,14 @@ class CryoIDPipeline:
                 set_percent,
                 check_cancel,
                 effective_mode,
+                status=status,
+                configuration_key=checkpoints.keys["prediction"] if checkpoints is not None else None,
             )
             stages.append(prediction_stage)
+            if prediction_stage.status == "ok" and status is not None:
+                status({"name": "U-Net prediction", "kind": "prediction_finished",
+                        "device": prediction_stage.details.get("device", "custom runner"),
+                        "generated_file_count": prediction_stage.details.get("generated_file_count", 0)})
             if prediction_bundle is not None:
                 output_files.extend(prediction_bundle.output_files)
             emit(f"{prediction_stage.name}: {prediction_stage.message}")
@@ -339,7 +418,17 @@ class CryoIDPipeline:
             check_cancel()
 
             set_stage("Backbone tracing / query generation")
-            if effective_mode == "protein":
+            tracing_key = (checkpoints.stage_key("tracing", prediction_bundle.output_files)
+                           if checkpoints is not None and prediction_bundle is not None else None)
+            tracing_cache = checkpoints.find("tracing", tracing_key) if tracing_key else None
+            if tracing_cache:
+                cached = checkpoints.materialize(tracing_cache, run_dir)
+                query_stage = StageResult(**cached["stage"])
+                query_bundle = QueryBundle(Path(cached["query"]), cached["source"], [Path(p) for p in cached["outputs"]])
+                emit(f"Checkpoint: reused completed backbone tracing/query generation from {tracing_cache[0].parent}.")
+                if status:
+                    status({"name": "Backbone tracing / query generation", "kind": "stage_reused", "device": "cpu"})
+            elif effective_mode == "protein":
                 query_stage, query_bundle = self._run_protein_query_generation(
                     prediction_bundle=prediction_bundle,
                     run_dir=run_dir,
@@ -351,6 +440,16 @@ class CryoIDPipeline:
                     run_dir=run_dir,
                     progress=emit,
                 )
+            if tracing_key and query_stage.status == "ok" and query_bundle is not None:
+                if not tracing_cache:
+                    promoted, mapping = checkpoints.promote(run_dir, "tracing", [query_bundle.query_fasta, *query_bundle.output_files])
+                    query_bundle = QueryBundle(Path(mapping[str(query_bundle.query_fasta.resolve())]), query_bundle.source, promoted)
+                    query_stage.outputs["query_fasta"] = str(query_bundle.query_fasta)
+                manifest = checkpoints.save("tracing", run_dir, tracing_key,
+                                            {"stage": json_value(query_stage), "query": str(query_bundle.query_fasta),
+                                             "source": query_bundle.source, "outputs": json_value(query_bundle.output_files)},
+                                            query_bundle.output_files)
+                output_files.append(manifest)
             stages.append(query_stage)
             if query_bundle is not None:
                 output_files.extend(query_bundle.output_files)
@@ -359,7 +458,20 @@ class CryoIDPipeline:
             check_cancel()
 
             set_stage("BLAST+ sequence search" if effective_mode == "protein" else "RNA sequence ranking")
-            if effective_mode == "protein":
+            search_key = (checkpoints.stage_key("search", [query_bundle.query_fasta])
+                          if checkpoints is not None and query_bundle is not None else None)
+            search_cache = checkpoints.find("search", search_key) if search_key else None
+            if search_cache:
+                cached = checkpoints.materialize(search_cache, run_dir)
+                search_stage = StageResult(**cached["stage"])
+                selected_hit = SearchHit(**cached["hit"]) if cached["hit"] else None
+                search_outputs = [Path(p) for p in cached["outputs"]]
+                ranking_path = Path(cached["ranking"])
+                emit(f"Checkpoint: reused completed sequence search/ranking from {search_cache[0].parent}.")
+                if status:
+                    status({"name": "BLAST+ sequence search" if effective_mode == "protein" else "RNA sequence ranking",
+                            "kind": "stage_reused", "device": "cpu"})
+            elif effective_mode == "protein":
                 search_stage, selected_hit, search_outputs, ranking_path = self._run_protein_blast(
                     query_bundle=query_bundle,
                     candidate_pool=pool_path,
@@ -374,6 +486,15 @@ class CryoIDPipeline:
                     progress=emit,
                     check_cancel=check_cancel,
                 )
+            if search_key and search_stage.status == "ok" and ranking_path is not None:
+                if not search_cache:
+                    search_outputs, mapping = checkpoints.promote(run_dir, "search", [*search_outputs, ranking_path])
+                    search_stage.outputs = {k: mapping.get(str(Path(v).resolve()), v) if v else v
+                                            for k, v in search_stage.outputs.items()}
+                manifest = checkpoints.save("search", run_dir, search_key,
+                                            {"stage": json_value(search_stage), "hit": json_value(selected_hit),
+                                             "outputs": json_value(search_outputs), "ranking": str(ranking_path)}, search_outputs)
+                output_files.append(manifest)
             stages.append(search_stage)
             output_files.extend(search_outputs)
             emit(f"{search_stage.name}: {search_stage.message}")
@@ -381,6 +502,7 @@ class CryoIDPipeline:
             check_cancel()
 
             if stop_after_identification:
+                set_stage("Finalizing outputs")
                 stages.append(
                     StageResult(
                         "Pipeline scope",
@@ -408,7 +530,29 @@ class CryoIDPipeline:
                 return result
 
             set_stage("Structure fetching / fitting")
-            if effective_mode == "protein":
+            structure_key = (checkpoints.stage_key("structure", [ranking_path, *prediction_bundle.output_files])
+                             if checkpoints is not None and ranking_path is not None and prediction_bundle is not None else None)
+            structure_cache = checkpoints.find("structure", structure_key) if structure_key else None
+            if structure_cache:
+                cached = checkpoints.materialize(structure_cache, run_dir)
+                struct_stage = StageResult(**cached["stage"])
+                struct_outputs = [Path(p) for p in cached["outputs"]]
+                summary = run_dir / "alignment_summary.csv"
+                if summary.is_file():
+                    with summary.open(encoding="utf-8", newline="") as handle:
+                        reader = csv.DictReader(handle)
+                        fields, rows = reader.fieldnames, list(reader)
+                    old_run = structure_cache[0].parent.parent
+                    rows = Checkpoints.remap(rows, old_run, run_dir)
+                    with summary.open("w", encoding="utf-8", newline="") as handle:
+                        writer = csv.DictWriter(handle, fieldnames=fields)
+                        writer.writeheader()
+                        writer.writerows(rows)
+                    struct_outputs.extend(self._update_best_overall(run_dir, rows))
+                emit(f"Checkpoint: reused completed structure fetching/fitting from {structure_cache[0].parent}.")
+                if status:
+                    status({"name": "Structure fetching / fitting", "kind": "stage_reused", "device": "cpu"})
+            elif effective_mode == "protein":
                 struct_stage, struct_outputs = self._run_struct_fetch(
                     run_dir=run_dir,
                     density_map=density_path,
@@ -431,6 +575,22 @@ class CryoIDPipeline:
                     progress_percent=set_percent,
                     check_cancel=check_cancel,
                 )
+            if structure_key and struct_stage.status == "ok":
+                durable = self._checkpoint_outputs(run_dir, struct_outputs)
+                # A completed traversal with transient candidate errors remains
+                # retryable; only fully completed scientific stages are cached.
+                summary = run_dir / "alignment_summary.csv"
+                errors = False
+                if summary.is_file():
+                    with summary.open(encoding="utf-8", newline="") as handle:
+                        errors = any(row.get("status", "").strip().lower() in {"error", "download_error"}
+                                     for row in csv.DictReader(handle))
+                if durable and not errors:
+                    manifest = checkpoints.save("structure", run_dir, structure_key,
+                                                {"stage": json_value(struct_stage), "outputs": json_value(durable)}, durable)
+                    output_files.append(manifest)
+                elif errors:
+                    emit("Warning: some structure candidates failed. Completed tracing/search are retained; structure fitting will retry on the next Run.")
             stages.append(struct_stage)
             output_files.extend(struct_outputs)
             emit(f"{struct_stage.name}: {struct_stage.message}")
@@ -548,6 +708,8 @@ class CryoIDPipeline:
     def _cleanup_tmp_and_intermediates(self, run_dir: Path) -> list[Path]:
         if self.keep_tmp:
             return []
+        run_root = run_dir.resolve()
+        run_root.relative_to(self.output_root.resolve())
         removed: list[Path] = []
         for path in (
             run_dir / "tmp",
@@ -557,6 +719,7 @@ class CryoIDPipeline:
         ):
             if not path.exists():
                 continue
+            path.resolve().relative_to(run_root)
             if path.is_dir():
                 shutil.rmtree(path)
             else:
@@ -567,6 +730,7 @@ class CryoIDPipeline:
         ):
             if not path.exists():
                 continue
+            path.resolve().relative_to(run_root)
             if path.is_dir():
                 shutil.rmtree(path)
             else:
@@ -576,6 +740,7 @@ class CryoIDPipeline:
 
     def _cleanup_unfinished_products(self, run_dir: Path, *, preserve: list[Path]) -> list[Path]:
         run_root = run_dir.resolve()
+        run_root.relative_to(self.output_root.resolve())
         preserved: set[Path] = set()
         for path in preserve:
             try:
@@ -669,6 +834,9 @@ class CryoIDPipeline:
         progress_percent: PercentCallback,
         check_cancel: CancellationCheckpoint,
         mode: SequenceMode,
+        *,
+        status: Callable[[dict[str, Any]], None] | None = None,
+        configuration_key: str | None = None,
     ) -> tuple[StageResult, PredictionBundle | None]:
         effective_rcl = self._effective_unet_rcl(mode)
         output_root = self.project_dir / "unetpredictions"
@@ -690,6 +858,16 @@ class CryoIDPipeline:
                     prediction_paths=required_paths,
                     weights_dir=self.unet_weights_dir,
                 )
+                if provenance_ok and configuration_key:
+                    saved_key = _manifest.get("checkpoint_configuration")
+                    if saved_key is not None and saved_key != configuration_key:
+                        provenance_ok = False
+                        provenance_reason = "prediction implementation or dependency configuration changed"
+                    elif saved_key is None:
+                        # Adopt an existing fully verified prediction cache;
+                        # future implementation changes will invalidate it.
+                        _manifest["checkpoint_configuration"] = configuration_key
+                        stage_c_prediction.write_prediction_manifest(provenance_path, _manifest)
             except (OSError, KeyError, TypeError, ValueError) as exc:
                 provenance_ok = False
                 provenance_reason = f"provenance verification failed: {exc}"
@@ -752,6 +930,7 @@ class CryoIDPipeline:
                     progress_percent=progress_percent,
                     should_cancel=check_cancel,
                     mode=mode,
+                    status=status,
                 )
                 bundle = result.bundle
                 device = result.device
@@ -773,6 +952,8 @@ class CryoIDPipeline:
                 weights_dir=self.unet_weights_dir,
                 source="custom_runner" if self.unet_runner is not None else "checkpoint_inference",
             )
+            if configuration_key is not None:
+                manifest["checkpoint_configuration"] = configuration_key
             stage_c_prediction.write_prediction_manifest(provenance_path, manifest)
             if provenance_path not in bundle.output_files:
                 bundle.output_files.append(provenance_path)
@@ -931,7 +1112,9 @@ class CryoIDPipeline:
             return backups
         backup_dir = tmp_root / "existing_project_predictions"
         candidates = [
-            *sorted(possibility.glob(f"{prefix}_*_possibility.mrc")),
+            # Enumerate owned outputs literally: glob metacharacters in the
+            # map name and overlapping prefixes must not select another map.
+            *self._required_prediction_paths(density_map, output_root),
             stage_c_prediction.prediction_manifest_path(output_root, prefix),
         ]
         for path in candidates:
@@ -1001,6 +1184,8 @@ class CryoIDPipeline:
                 ),
                 bundle,
             )
+        except PipelineCancelled:
+            raise
         except (FileNotFoundError, ImportError, ModuleNotFoundError) as exc:
             return (
                 StageResult(
@@ -1087,6 +1272,8 @@ class CryoIDPipeline:
                 outputs,
                 ranking_path,
             )
+        except PipelineCancelled:
+            raise
         except FileNotFoundError as exc:
             return (
                 StageResult("Protein candidate BLAST", "blocked_missing_input", str(exc)),
@@ -1141,6 +1328,8 @@ class CryoIDPipeline:
                 ),
                 bundle,
             )
+        except PipelineCancelled:
+            raise
         except (FileNotFoundError, ImportError, ModuleNotFoundError) as exc:
             return StageResult("RNA query generation", "blocked_missing_input", str(exc)), None
         except Exception as exc:
@@ -1833,7 +2022,7 @@ class CryoIDPipeline:
         with ranking_path.open("r", encoding="utf-8", newline="") as handle:
             ranking_rows = list(csv.DictReader(handle, delimiter="\t"))
         ranking_by_id = {
-            str(row.get("candidate_id") or "").upper(): row for row in ranking_rows
+            str(row.get("candidate_id") or ""): row for row in ranking_rows
         }
         fit_summary = work_dir / "fit_summary.json"
         try:
@@ -1860,7 +2049,7 @@ class CryoIDPipeline:
         for index, row in enumerate(rows, start=1):
             retained = row is best
             query_id = str(row.get("query") or "")
-            ranking_row = ranking_by_id.get(query_id.upper(), {})
+            ranking_row = ranking_by_id.get(query_id, {})
             sequence_id = str(ranking_row.get("candidate_id") or query_id)
             source_path = Path(str(row.get("source_model") or ""))
             aligned_path = Path(str(row.get("fitted_path") or ""))
@@ -1910,7 +2099,7 @@ class CryoIDPipeline:
         with selected_path.open("w", encoding="utf-8", newline="\n") as handle:
             if best is not None:
                 query_id = str(best.get("query") or "")
-                ranking_row = ranking_by_id.get(query_id.upper(), {})
+                ranking_row = ranking_by_id.get(query_id, {})
                 sequence_id = str(ranking_row.get("candidate_id") or query_id)
                 sequence = str(ranking_row.get("sequence") or "")
                 if sequence:
@@ -1941,11 +2130,19 @@ class CryoIDPipeline:
         best_dir.mkdir(parents=True, exist_ok=True)
         outputs: list[Path] = []
         candidates: dict[str, list[dict[str, str]]] = {"alphafold": [], "experimental": []}
+        validator = Checkpoints(self.project_dir)
         for summary_path in sorted((self.project_dir / "runs").glob("run_*/alignment_summary.csv")):
             try:
+                checkpoint = summary_path.parent / "checkpoints/structure.json"
+                if checkpoint.exists():
+                    saved = json.loads(checkpoint.read_text(encoding="utf-8"))
+                    if any(validator.digest(validator.safe_path(item["path"])) != {
+                        "size": item["size"], "sha256": item["sha256"]
+                    } for item in saved["files"]):
+                        continue  # A damaged prior run must not become the project winner.
                 with summary_path.open("r", encoding="utf-8", newline="") as handle:
                     rows = list(csv.DictReader(handle))
-            except OSError:
+            except (OSError, ValueError, KeyError, TypeError):
                 continue
             for row in rows:
                 source_type = str(row.get("source_type") or "")
@@ -2103,4 +2300,4 @@ class CryoIDPipeline:
             "output_files": [str(path) for path in output_files],
         }
         run_config_path.parent.mkdir(parents=True, exist_ok=True)
-        run_config_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        atomic_json(run_config_path, payload)

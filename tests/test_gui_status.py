@@ -33,6 +33,41 @@ def test_weights_check_rejects_missing_and_empty_checkpoints(tmp_path):
     assert "checkpoint is empty" in result.detail
 
 
+def test_setup_actions_follow_current_issues():
+    from G_GUI.setup_dialogs import SetupIssuesDialog
+
+    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    dialog = SetupIssuesDialog(["Project: select a project with File > New or Open."])
+    try:
+        dialog.show()
+        app.processEvents()
+
+        def visible_actions():
+            return {name for name, button in dialog.action_buttons.items() if button.isVisible()}
+
+        assert visible_actions() == {"new_project", "open_project"}
+        for title in ("Project folder", "Project configuration"):
+            dialog.update_issues([f"{title}: choose a usable project."])
+            assert visible_actions() == {"new_project", "open_project"}
+        dialog.update_issues(["Project: select a project.", "U-Net weights: choose valid weights."])
+        assert visible_actions() == {"new_project", "open_project", "configure"}
+        dialog.update_issues(["U-Net weights: choose valid weights."])
+        assert visible_actions() == {"configure"}
+        dialog.update_issues(["U-Net device: selected CUDA device is unavailable."])
+        assert visible_actions() == {"options"}
+        dialog.action_buttons["options"].click()
+        assert dialog.action == "options"
+        dialog.show()
+        for issues in (["BLAST+: reinstall damaged executables."],
+                       ["Density map: select an input file."],
+                       ["pandas: incompatible installed version"],
+                       ["Dependency and configuration checks are still running. Please wait."], []):
+            dialog.update_issues(issues)
+            assert visible_actions() == set()
+    finally:
+        dialog.close()
+
+
 def test_diagnostics_distinguishes_cpu_selection_from_available_cuda(monkeypatch, tmp_path):
     import torch
     monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
@@ -57,6 +92,34 @@ def test_diagnostics_distinguishes_cpu_selection_from_available_cuda(monkeypatch
     assert not report.compute.ok
     assert "unavailable" in report.compute.detail
     assert exercised == ["cpu", "cuda:0"]
+
+
+@pytest.mark.parametrize("compatible", [True, False])
+@pytest.mark.parametrize("selection", ["auto", "mps"])
+def test_diagnostics_checks_mps_operations_before_selecting_gpu(monkeypatch, compatible, selection):
+    import torch
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+    monkeypatch.setattr(torch.backends.mps, "is_available", lambda: True)
+    problem = None if compatible else "ConvTranspose3D is not supported on MPS"
+    monkeypatch.setattr(diagnostics, "mps_unet_problem", lambda: problem)
+    monkeypatch.setattr(diagnostics, "check_environment", lambda *args: ([], []))
+    monkeypatch.setattr(diagnostics, "check_blast_tools", lambda: diagnostics.Check("OK", "OK", True))
+    exercised = []
+    monkeypatch.setattr(diagnostics, "exercise_torch", exercised.append)
+    report = diagnostics.collect_diagnostics("", selection)
+    if compatible:
+        assert report.compute.ok and report.device == "mps"
+        assert ("mps", "Apple GPU (Metal)") in report.devices
+        assert exercised == []  # Already exercised by the shared MPS compatibility check.
+    else:
+        assert not report.devices
+        if selection == "auto":
+            assert report.compute.ok and report.device == "cpu"
+            assert exercised == ["cpu"]
+            assert any(problem in line for line in report.lines)
+        else:
+            assert not report.compute.ok and report.device == "mps"
+            assert problem in report.compute.detail and "Select CPU or Auto" in report.compute.detail
 
 
 def test_broken_blast_executable_is_reported(monkeypatch, tmp_path):
@@ -191,6 +254,8 @@ def test_blocked_run_reveals_issues_and_check_setup_restores_availability(monkey
     from cryoid_pipeline.user_config import DEFAULT_CONFIG
     from G_GUI.diagnostics import Check, Diagnostics
 
+    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    existing_windows = set(app.topLevelWidgets())
     density, pool = tmp_path / "input.mrc", tmp_path / "pool.fasta"
     density.write_bytes(b"input")
     pool.write_text(">candidate\nMAGST\n")
@@ -222,7 +287,8 @@ def test_blocked_run_reveals_issues_and_check_setup_restores_availability(monkey
     monkeypatch.setattr(gui, "_exec_dialog", inspect_dialog)
 
     def execute(app):
-        window = next(w for w in app.topLevelWidgets() if isinstance(w, gui.CryoIDMainWindow))
+        window = next(w for w in app.topLevelWidgets()
+                      if isinstance(w, gui.CryoIDMainWindow) and w not in existing_windows)
         assert not window.isVisible()
         assert not any(w.isVisible() for w in app.topLevelWidgets())
         button = window.findChild(QtWidgets.QPushButton, "run_button")

@@ -145,8 +145,10 @@ def fit_rna_structures(
         try:
             source_model_path = structures_dir / f"{pdb_id}.cif"
             download_structure(pdb_id, source_model_path)
-            safe_chain = hit["chain_id"].replace("/", "_").replace("\\", "_")
-            model_path = output_dir / "isolated_chains" / f"{pdb_id}_{safe_chain}.cif"
+            # Chain IDs are case-sensitive; encode them so A/a also remain
+            # separate files on case-insensitive Windows/macOS filesystems.
+            storage_id = f"{pdb_id}_chain_{hit['chain_id'].encode('utf-8').hex()}"
+            model_path = output_dir / "isolated_chains" / f"{storage_id}.cif"
             extract_chain(source_model_path, hit["chain_id"], model_path)
         except Exception as exc:
             row = {
@@ -161,8 +163,8 @@ def fit_rna_structures(
             )
             progress(f"RNA structure fitting: {pdb_chain} preparation failed: {exc!r}")
             continue
-        fitted_path = fitted_dir / f"{pdb_chain}_rawfield.cif"
-        case_run = scratch_dir / pdb_chain
+        fitted_path = fitted_dir / f"{storage_id}_rawfield.cif"
+        case_run = scratch_dir / storage_id
         meta = {
             "case_key": f"rna_structure_fit_{pdb_chain}",
             "gene_id": hit.get("query") or pdb_chain,

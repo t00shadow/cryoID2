@@ -25,10 +25,14 @@ class SetupIssuesDialog(QtWidgets.QDialog):
         self.details.setWordWrapMode(wrap_modes.WrapAtWordBoundaryOrAnywhere)
         layout.addWidget(self.details, 1)
         buttons = QtWidgets.QHBoxLayout()
+        self.action_buttons = {}
         if not validation:
-            configure = QtWidgets.QPushButton("Configurations", self)
-            configure.clicked.connect(lambda: self.choose("configure"))
-            buttons.addWidget(configure)
+            for action, title in (("new_project", "New project"), ("open_project", "Open project"),
+                                  ("configure", "Configurations"), ("options", "Options")):
+                button = QtWidgets.QPushButton(title, self)
+                button.clicked.connect(lambda checked=False, action=action: self.choose(action))
+                buttons.addWidget(button)
+                self.action_buttons[action] = button
         buttons.addStretch()
         close = QtWidgets.QPushButton("Close", self)
         close.clicked.connect(lambda: self.choose("close"))
@@ -40,6 +44,12 @@ class SetupIssuesDialog(QtWidgets.QDialog):
         if issues == self._issues:
             return
         self._issues = list(issues)
+        titles = {issue.partition(": ")[0] for issue in issues}
+        project_issue = bool(titles & {"Project", "Project folder", "Project configuration"})
+        relevant = {"new_project": project_issue, "open_project": project_issue,
+                    "configure": "U-Net weights" in titles, "options": "U-Net device" in titles}
+        for action, button in self.action_buttons.items():
+            button.setVisible(relevant[action])
         self.summary.setText(
             "Settings were not saved. Fix the following items:" if self.validation else
             f"{len(issues)} {'item needs' if len(issues) == 1 else 'items need'} attention before you can run:"

@@ -116,6 +116,7 @@ class PipelineWorker(QtCore.QObject):
         self.log.emit(message)
 
     def _failure_result(self, message: str) -> PipelineResult:
+        self._publish(f"[ERROR] {message}")
         return PipelineResult(
             run_dir=self.project_dir,
             stages=[StageResult("CLI command", "error", message)],
@@ -155,7 +156,6 @@ class PipelineWorker(QtCore.QObject):
         command.append("--keep-tmp" if self.keep_tmp else "--no-keep-tmp")
 
         command_text = format_command(command)
-        self._publish(f"Command: {command_text}")
         env = os.environ.copy()
         # The GUI forwards its reviewed options explicitly; an empty structure
         # selector means mode defaults, not an inherited environment override.
@@ -197,6 +197,7 @@ class PipelineWorker(QtCore.QObject):
                     result = pipeline_result_from_dict(event["result"])
             return_code = self._process.wait()
         except Exception as exc:
+            self._publish(f"Command: {command_text}")
             result = self._failure_result(f"Could not run CryoID CLI: {exc!r}")
         finally:
             self._process = None
@@ -206,8 +207,6 @@ class PipelineWorker(QtCore.QObject):
             result = self._failure_result(
                 f"CryoID CLI exited with status {return_code} without returning a pipeline result."
             )
-        elif return_code not in (None, 0):
-            self._publish(f"Command exited with status {return_code}.")
         self.finished.emit(result)
 
 
@@ -623,7 +622,7 @@ def main() -> None:
 
     app = QtWidgets.QApplication.instance() or QtWidgets.QApplication(sys.argv)
     app.setApplicationName("CryoID2")
-    app.setApplicationDisplayName("CryoID2")
+    app.setApplicationDisplayName("cryoidv2")
 
     icon_path = Path(__file__).resolve().parent / "svg_assets" / "cryoid_app_icon.svg"
     app_icon = QtGui.QIcon(str(icon_path))
@@ -638,7 +637,7 @@ def main() -> None:
     window = CryoIDMainWindow()
     ui = CryoIDUI()
     ui.setup(window)
-    window.setWindowTitle("CryoIDv2")
+    window.setWindowTitle("cryoidv2")
     window.setWindowIcon(app_icon)
     theme_preferences = QtCore.QSettings("CryoID", "GUI")
     current_theme = str(theme_preferences.value("theme", "light"))
@@ -743,7 +742,9 @@ def main() -> None:
         run_status.set_stage(event)
         refresh_run_status()
 
-    def append_log(message: str) -> None:
+    def append_log(message: str, *, mirror_to_console: bool = True) -> None:
+        if mirror_to_console:
+            print(str(message), flush=True)
         ui.log_edit.appendPlainText(str(message))
         if state.get("worker") is not None:
             run_status.consume_log(str(message))
@@ -788,6 +789,12 @@ def main() -> None:
         refresh.stop()
         if dialog.action == "configure":
             open_configurations()
+        elif dialog.action == "new_project":
+            new_project()
+        elif dialog.action == "open_project":
+            open_project()
+        elif dialog.action == "options":
+            open_options()
 
     def check_setup() -> None:
         refresh_diagnostics()
@@ -964,7 +971,7 @@ def main() -> None:
 
     def refresh_project_title() -> None:
         project = current_project_dir()
-        window.setWindowTitle(f"CryoIDv2 — {project.parent.name}" if project else "CryoIDv2")
+        window.setWindowTitle("cryoidv2")
         window.setWindowFilePath(str(project_config_path(project)) if project else "")
 
     def clear_input_highlight() -> None:
@@ -1132,7 +1139,6 @@ def main() -> None:
         refresh_run_status()
         run_clock.start()
         clear_input_highlight()
-        append_log("Starting cryoID pipeline...")
 
         thread = QtCore.QThread(window)
         worker = PipelineWorker(
@@ -1169,8 +1175,6 @@ def main() -> None:
             state["worker"] = None
             refresh_run_availability()
             if hasattr(result, "stages"):
-                for stage in result.stages:
-                    append_log(f"{stage.name}: {stage.status} - {stage.message}")
                 ambiguous_mode = next(
                     (
                         stage
@@ -1206,31 +1210,13 @@ def main() -> None:
                     **config_updates,
                 )
                 refresh_result_actions()
-                log_path = Path(result.run_dir) / "pipeline.log"
-                if log_path.is_file():
-                    append_log(f"Run log: {log_path}")
-                if result.selected_hit is not None:
-                    append_log(
-                        f"Top sequence: {result.selected_hit.record_id} "
-                        f"(score {result.selected_hit.score:.3f})"
-                    )
-                statuses = {str(stage.status) for stage in result.stages}
-                if "error" in statuses:
-                    append_log("Run finished with errors.")
-                elif "skipped" in statuses:
-                    append_log("Run cancelled.")
-                elif any(status.startswith("blocked") for status in statuses):
-                    append_log("Run blocked before completion.")
-                else:
-                    append_log("Run finished.")
-            else:
-                append_log("Run finished.")
             if close_after_abort:
                 append_log("Abort finished. Closing window.")
                 QtCore.QTimer.singleShot(0, window.close)
 
         thread.started.connect(worker.run)
-        worker.log.connect(append_log)
+        # The worker already mirrors each CLI line to the parent console.
+        worker.log.connect(lambda message: append_log(message, mirror_to_console=False))
         worker.progress.connect(update_run_progress)
         worker.status.connect(update_stage)
         worker.finished.connect(on_finished)
@@ -1483,8 +1469,8 @@ def main() -> None:
 
     def update_theme_action() -> None:
         target = "Light" if current_theme == "dark" else "Dark"
-        theme_action.setText(f"Switch to {target} Mode")
-        theme_action.setToolTip(f"Switch to {target.lower()} mode")
+        theme_action.setText(f"{target} mode")
+        theme_action.setToolTip(f"{target} mode")
 
     def toggle_theme() -> None:
         nonlocal current_theme

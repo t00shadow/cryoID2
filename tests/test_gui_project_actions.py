@@ -12,6 +12,86 @@ from G_GUI.diagnostics import Check, Diagnostics
 from cryoid_pipeline.user_config import DEFAULT_CONFIG, load_config, results_project_dir, save_config
 
 
+@pytest.mark.parametrize("action", ["new_project", "open_project"])
+def test_blocked_run_project_action_opens_project_workflow(monkeypatch, tmp_path, action):
+    app = gui.QtWidgets.QApplication.instance() or gui.QtWidgets.QApplication([])
+    existing_windows = set(app.topLevelWidgets())
+    errors = []
+    monkeypatch.setattr(sys, "excepthook", lambda kind, error, tb: errors.append(error))
+    ready = Check("OK", "Available", True)
+    monkeypatch.setattr(gui, "collect_diagnostics", lambda *args: Diagnostics(ready, ready, ready, "cpu"))
+    monkeypatch.setattr(gui, "PipelineWorker", lambda *args, **kwargs: pytest.fail("Blocked Run started inference"))
+    density, pool = tmp_path / "input.mrc", tmp_path / "pool.fasta"
+    density.write_bytes(b"input")
+    pool.write_text(">candidate\nMAGST\n")
+    root = tmp_path / "chosen-project"
+    project = results_project_dir(root)
+    if action == "open_project":
+        gui.ensure_project_dirs(project)
+        save_config(dict(DEFAULT_CONFIG, project_dir=str(project)), project / "config.toml")
+    pickers = []
+
+    def pick_project(*args):
+        pickers.append(args[1])
+        return str(root)
+
+    monkeypatch.setattr(gui.QtWidgets.QFileDialog, "getExistingDirectory", pick_project)
+    dialogs = []
+
+    def inspect(dialog):
+        dialogs.append(type(dialog))
+        if isinstance(dialog, gui.SetupIssuesDialog):
+            assert "Project" in dialog.details.toPlainText()
+            assert not dialog.action_buttons["configure"].isVisibleTo(dialog)
+            assert not dialog.action_buttons[action].isHidden()
+            dialog.action_buttons[action].click()
+            return gui._dialog_accepted_code()
+        assert isinstance(dialog, gui.NewProjectDialog)
+        dialog.name_edit.setText(root.name)
+        dialog.location_edit.setText(str(tmp_path))
+        return gui._dialog_accepted_code()
+
+    monkeypatch.setattr(gui, "_exec_dialog", inspect)
+
+    def execute(app):
+        window = next(w for w in app.topLevelWidgets()
+                      if isinstance(w, gui.CryoIDMainWindow) and w not in existing_windows)
+        run = window.findChild(gui.QtWidgets.QPushButton, "run_button")
+
+        def settle():
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                app.processEvents()
+                assert not errors, errors
+                if not run.property("checking") and not any(
+                    t.isRunning() for t in window.findChildren(gui.DiagnosticsWorker)
+                ):
+                    return
+                time.sleep(.001)
+            pytest.fail("GUI checks did not finish")
+
+        try:
+            settle()
+            window.findChild(gui.QtWidgets.QLineEdit, "density_map_edit").setText(str(density))
+            window.findChild(gui.QtWidgets.QLineEdit, "candidate_pool_edit").setText(str(pool))
+            assert run.property("blocked")
+            run.click()
+            settle()
+            assert load_config()["project_dir"] == str(project)
+            assert (project / "config.toml").is_file()
+            assert dialogs == ([gui.SetupIssuesDialog, gui.NewProjectDialog] if action == "new_project"
+                               else [gui.SetupIssuesDialog])
+            assert len(pickers) == (1 if action == "open_project" else 0)
+        finally:
+            window.close()
+        return 0
+
+    monkeypatch.setattr(gui.QtWidgets.QApplication, "exec", execute)
+    with pytest.raises(SystemExit) as exited:
+        gui.main()
+    assert exited.value.code == 0
+
+
 @pytest.mark.parametrize("scenario", [
     "new", "new_nested", "existing_project", "existing_nonproject", "open_empty",
     "cancel_new", "close_new", "save_failure", "creation_failure",
@@ -135,7 +215,7 @@ def test_new_creates_and_open_only_resumes(monkeypatch, tmp_path, scenario):
             assert old_result.read_bytes() == old_bytes
             if scenario in {"new", "new_nested"}:
                 assert not warnings
-                assert window.windowTitle() == "CryoIDv2 — new-project"
+                assert window.windowTitle() == "cryoidv2"
                 assert f"Created project: {project}" in window.findChild(
                     gui.QtWidgets.QPlainTextEdit, "log_edit"
                 ).toPlainText()
@@ -165,7 +245,7 @@ def test_new_creates_and_open_only_resumes(monkeypatch, tmp_path, scenario):
                 assert saved["last_candidate_pool"] == pool.text()
                 assert saved["rcl"] == ("2.5" if scenario.endswith("external") else "1.5")
             else:
-                assert window.windowTitle() == "CryoIDv2 — previous"
+                assert window.windowTitle() == "cryoidv2"
                 assert density.text() == old_values["last_density_map"]
                 assert pool.text() == old_values["last_candidate_pool"]
                 assert load_config()["project_dir"] == str(previous)
@@ -362,7 +442,7 @@ def test_real_dialogs_shortcuts_create_open_and_cancel(monkeypatch, tmp_path):
             press("New", [("project", ("First", tmp_path))])
             assert not picker_calls  # New must not begin with a Select Folder dialog.
             assert (first / "config.toml").is_file()
-            assert window.windowTitle() == "CryoIDv2 — First"
+            assert window.windowTitle() == "cryoidv2"
             density = window.findChild(gui.QtWidgets.QLineEdit, "density_map_edit")
             pool = window.findChild(gui.QtWidgets.QLineEdit, "candidate_pool_edit")
             density.setText(str(tmp_path / "first.mrc"))
@@ -370,15 +450,15 @@ def test_real_dialogs_shortcuts_create_open_and_cancel(monkeypatch, tmp_path):
             press("New", [("project", ("Second", tmp_path))])
             assert not picker_calls
             assert density.text() == pool.text() == ""
-            assert window.windowTitle() == "CryoIDv2 — Second"
+            assert window.windowTitle() == "cryoidv2"
             assert load_config(first / "config.toml")["last_density_map"] == str(tmp_path / "first.mrc")
             press("Open", [("folder", first.parent)])
             assert density.text() == str(tmp_path / "first.mrc")
             assert pool.text() == str(tmp_path / "first.fasta")
-            assert window.windowTitle() == "CryoIDv2 — First"
+            assert window.windowTitle() == "cryoidv2"
             press("Open", [("folder_cancel", None)])
             press("New", [("project", None)])
-            assert window.windowTitle() == "CryoIDv2 — First"
+            assert window.windowTitle() == "cryoidv2"
             assert load_config()["project_dir"] == str(first)
             assert (second / "config.toml").is_file()
         finally:

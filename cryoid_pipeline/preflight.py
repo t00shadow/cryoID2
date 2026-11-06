@@ -128,8 +128,26 @@ def exercise_torch(device: str) -> None:
         output = torch.nn.functional.conv3d(tensor, kernel, padding=1).cpu().numpy()
         if not np.array_equal(output, source):
             raise RuntimeError("PyTorch/NumPy convolution check returned incorrect results")
+        if target.type == "mps":
+            exercise_unet(device)
         if target.type == "cuda":
             torch.cuda.synchronize(target)
+
+
+def exercise_unet(device: str) -> None:
+    """Run a small U-Net through pooling, normalization, and transposed convolution."""
+    import numpy as np
+    import torch
+    from C_Unet_model_predicting.model import UNET
+
+    with torch.inference_mode():
+        model = UNET(1, 2, features=(2, 4)).eval().to(device)
+        source = torch.ones((1, 1, 8, 8, 8), device=device, dtype=torch.float32)
+        output = torch.softmax(model(source), dim=1).cpu().numpy()
+        if output.shape != (1, 2, 8, 8, 8) or not np.isfinite(output).all():
+            raise RuntimeError("U-Net execution check returned invalid predictions")
+        if not np.allclose(output.sum(axis=1), 1.0):
+            raise RuntimeError("U-Net execution check returned invalid probabilities")
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -33,6 +33,20 @@ class FakeUNET(torch.nn.Module):
 
 
 class UnetInferenceTests(unittest.TestCase):
+    def test_mps_device_event_reports_apple_gpu(self) -> None:
+        events = []
+        with (
+            patch("C_Unet_model_predicting.unet_inference.validate_weights"),
+            patch("C_Unet_model_predicting.unet_inference.select_device", return_value="mps"),
+            patch("C_Unet_model_predicting.unet_inference.load_weights_metadata",
+                  side_effect=RuntimeError("stop after device event")),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "stop after device event"):
+                run_unet_inference(Path("input.mrc"), Path("predictions"),
+                                   weights_dir=Path("weights"), device="mps", status=events.append)
+        self.assertEqual(events, [{"name": "U-Net prediction", "device": "mps",
+                                   "kind": "inference_device", "device_name": "Apple GPU (Metal)"}])
+
     def _write_map(self, path: Path) -> None:
         data = np.arange(1, 65, dtype=np.float32).reshape(4, 4, 4)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -71,6 +85,7 @@ class UnetInferenceTests(unittest.TestCase):
             self._write_weights(weights_dir)
 
             percents: list[int] = []
+            events: list[dict] = []
             with patch("C_Unet_model_predicting.unet_inference.UNET", FakeUNET):
                 result = run_unet_inference(
                     map_path,
@@ -79,8 +94,20 @@ class UnetInferenceTests(unittest.TestCase):
                     device="cpu",
                     tmp_root=tmp_root,
                     progress_percent=percents.append,
+                    status=events.append,
                 )
 
+            self.assertEqual(events[0]["kind"], "inference_device")
+            self.assertEqual(events[0]["device"], "cpu")
+            for index, model_type in enumerate(("secondary_strctures", "key_atoms", "residue_types_6letter"), 1):
+                model_events = [e for e in events if e.get("model") == model_type]
+                self.assertEqual(model_events[0]["kind"], "model_loading")
+                self.assertEqual(model_events[0]["model_index"], index)
+                self.assertEqual(model_events[-1]["kind"], "model_finished")
+                counts = [e for e in model_events if e["kind"] == "model_progress"]
+                self.assertEqual(counts[0]["completed"], 0)
+                self.assertGreater(counts[-1]["total"], 0)
+                self.assertEqual(counts[-1]["completed"], counts[-1]["total"])
             self.assertEqual(result.bundle.layout, "checkpoint_inference")
             self.assertEqual(percents[0], 5)
             self.assertEqual(percents[-1], 55)

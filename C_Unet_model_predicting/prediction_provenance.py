@@ -141,14 +141,37 @@ def verify_prediction_manifest(
         return False, "prediction provenance manifest is missing", None
     try:
         manifest = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         return False, f"prediction provenance manifest is unreadable: {exc}", None
+    if not isinstance(manifest, dict):
+        return False, "prediction provenance must contain a JSON object", None
     if manifest.get("schema") != "cryoid-prediction-provenance":
         return False, "prediction provenance schema is not recognized", manifest
-    if int(manifest.get("schema_version", -1)) != SCHEMA_VERSION:
+    if type(manifest.get("schema_version")) is not int or manifest["schema_version"] != SCHEMA_VERSION:
         return False, "prediction provenance schema version does not match", manifest
 
-    map_meta = manifest.get("density_map") or {}
+    map_meta = manifest.get("density_map")
+    if not isinstance(map_meta, dict):
+        return False, "prediction density-map metadata is invalid", manifest
+    try:
+        if "rcl" not in manifest:
+            return False, "prediction provenance RCL is missing", manifest
+        stored_rcl = validate_rcl(manifest["rcl"])
+    except ValueError:
+        return False, "prediction provenance RCL is invalid", manifest
+    outputs = manifest.get("outputs")
+    if not isinstance(outputs, list) or not outputs or not all(
+        isinstance(item, dict) and isinstance(item.get("name"), str) and item["name"]
+        and isinstance(item.get("sha256"), str) for item in outputs
+    ):
+        return False, "prediction output metadata is invalid", manifest
+    if len({item["name"] for item in outputs}) != len(outputs):
+        return False, "prediction output metadata contains duplicate filenames", manifest
+    recorded_weights = manifest.get("weights")
+    if recorded_weights is not None and not isinstance(recorded_weights, dict):
+        return False, "prediction weights metadata is invalid", manifest
+    if "source" in manifest and not isinstance(manifest["source"], str):
+        return False, "prediction source metadata is invalid", manifest
     map_path = Path(density_map).expanduser().resolve()
     if map_meta.get("sha256") != sha256_file(map_path):
         return False, "input density-map checksum changed", manifest
@@ -162,13 +185,12 @@ def verify_prediction_manifest(
             return False, "prediction normalization predates the MRC axis correction", manifest
     elif normalization != NORMALIZATION:
         return False, "prediction normalization version does not match", manifest
-    if validate_rcl(manifest.get("rcl")) != validate_rcl(rcl):
+    if stored_rcl != validate_rcl(rcl):
         return False, "RCL changed", manifest
 
     expected_outputs = {
         str(item.get("name")): item
-        for item in manifest.get("outputs", [])
-        if isinstance(item, dict) and item.get("name")
+        for item in outputs
     }
     requested_paths = [Path(item).expanduser().resolve() for item in prediction_paths]
     if set(expected_outputs) != {item.name for item in requested_paths}:
@@ -180,7 +202,6 @@ def verify_prediction_manifest(
         if output_meta.get("sha256") != sha256_file(output):
             return False, f"prediction checksum changed: {output.name}", manifest
 
-    recorded_weights = manifest.get("weights")
     if weights_dir is not None:
         if not recorded_weights:
             if manifest.get("source") in {"archived_paper_predictions", "imported_predictions"}:

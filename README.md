@@ -4,18 +4,52 @@ Identify protein or RNA sequences and structures from cryo-EM density maps
 
 ## Requirements
 
-- Linux x86-64 (**glibc >=2.17** with the Conda installer), Windows x86-64,
-  or macOS 14+ on Intel or Apple Silicon. Pip-only Linux installs require
-  **glibc >=2.28 and zlib >=1.2.9** for the included BLAST binaries.
-- For conda installations: [Miniforge](https://conda-forge.org/download/) **25.9.1-0+ (recommended)** or
+- **Minimum OS and CPU architecture:** a **64-bit** system running **Linux x86-64
+  with glibc >=2.17** (Conda installer), **Windows 10 version 1809+ or Windows 11
+  x86-64**, or **macOS 14+ on Intel x86-64 or Apple Silicon arm64**.
+  The Windows GUI minimum follows [Qt's platform requirements](https://doc.qt.io/qt-6.10/supported-platforms.html#windows).
+- **Installer and Python:** [Miniforge](https://conda-forge.org/download/) **25.9.1-0+ (recommended)** or
   [Conda](https://docs.conda.io/projects/conda/en/stable/user-guide/install/)
-  **25.5.1+**.
-- A density map (`.mrc`, `.map`, `.ccp4`) and candidate FASTA. Published U-Net
-  weights download automatically on first use (about 3 GiB); local weights are optional.
-- Internet access for public structures. [ChimeraX](https://www.cgl.ucsf.edu/chimerax/)
-  is optional for viewing models.
+  **25.5.1+**, initialized for your terminal. The installer creates **64-bit
+  CPython 3.11** and installs Python/native dependencies automatically; CryoID's
+  application supports CPython **3.10–3.13**.
+- **GUI display:** a working desktop or remote graphical session. Linux needs
+  an accessible X11 display (including XWayland or SSH X11 forwarding) and Qt's
+  [X11/XCB, xkbcommon, font, and graphics runtime libraries](https://doc.qt.io/qt-6/linux-requirements.html).
+  Conda supplies many of these libraries, but does not supply a display server.
+  A terminal-only SSH session cannot display the GUI.
+- **Native runtimes:** Linux needs the standard C/C++ and OpenMP runtimes
+  (`libgcc`, `libstdc++`, `libgomp`) and compression libraries (`zlib`, `bzip2`).
+  On **glibc 2.17–2.27**, the installer supplies a compatible BLAST build and its
+  dependencies. On **glibc >=2.28**, the bundled BLAST executables also require
+  **zlib >=1.2.9**. These bundled-BLAST requirements apply to pip-only Linux installs
+  as well; see [BLAST runtime details](D_BLAST_searching/BUNDLED_BLAST.md#runtime-behavior).
+  Windows needs the **x64 Microsoft Visual C++ v14 runtime**; Conda normally supplies
+  it. If runtime DLLs are missing, install Microsoft's [supported x64 Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist/).
+- **Compute:** a GPU is optional; CPU execution is supported on all listed platforms.
+  NVIDIA acceleration on Linux/Windows requires a supported GPU and compatible
+  installed driver. CUDA 11.x minor compatibility starts at driver **450.80.02
+  (Linux) / 452.39 (Windows)**, subject to successful execution checks; see
+  [NVIDIA's compatibility limits](https://docs.nvidia.com/deploy/cuda-compatibility/minor-version-compatibility.html).
+  Supported Blackwell GPUs need a CUDA 12.8-capable driver and, on Linux,
+  **glibc >=2.28**. The installer selects and tests a build automatically, or uses
+  CPU. A separately installed CUDA toolkit is unnecessary. On Macs, Auto uses
+  Apple Metal (MPS) when the installed PyTorch and macOS can run the U-Net's
+  operations; otherwise it uses CPU. An explicit MPS selection reports an error
+  if the compatibility check fails. BLAST+ and other pipeline stages use CPU.
+  For automatic GPU installation on a cluster, run setup in a GPU-allocated session.
+- **Storage and permissions:** writable locations for the source checkout during
+  setup, Conda environment/package cache, model cache, temporary files, and project
+  outputs. Executables must be allowed to run from the installation and temporary
+  directories. Published weights alone occupy about **3.03 GiB**; allow additional
+  space for packages, downloads, structure caches, maps, and results.
+- **Network and input:** HTTPS access for installation packages, first-use model
+  downloads (unless local weights are supplied), and public structure retrieval.
+  Provide a density map (`.mrc`, `.map`, `.ccp4`) and candidate FASTA.
+  [ChimeraX](https://www.cgl.ucsf.edu/chimerax/) is optional for viewing models
+  and has its own system requirements.
 
-NOTE: Linux/Windows can use NVIDIA CUDA with compatible PyTorch; Macs use CPU.
+The same Conda installation command below is used on every supported system.
 
 ## Install and launch
 
@@ -113,3 +147,38 @@ cryoid config --project /path/to/project set rcl 0.25
 
 Add `--project /path/to/project` to `cryoid run` to choose another project.
 `init` is optional. See `cryoid run --help` for options.
+
+## Running on HPC
+
+Run the CLI on an allocated compute node using your site's scheduler (Slurm,
+PBS, LSF, etc.). No X11 forwarding is needed.
+Use the Conda installation above, in a GPU-allocated session for automatic GPU
+detection. Use persistent project storage accessible from compute nodes, along
+with accessible inputs/source; downloads need network access or pre-staged data.
+
+Save this as `run-cryoid.sh`, replacing the paths:
+
+```bash
+#!/bin/bash
+set -e
+source /path/to/miniforge3/etc/profile.d/conda.sh
+conda activate cryoid
+python -m cryoid_pipeline.preflight
+cryoid run --project /server/project --map /server/map.mrc \
+  --pool /server/candidates.fasta --cpu-threads 4
+```
+
+Example submissions for [Slurm](https://slurm.schedmd.com/sbatch.html) or
+[PBS Pro/OpenPBS](https://help.altair.com/2021.1.1/PBSProfessional/PBS2021.1.1.pdf).
+The resource values are examples, not minimum requirements. Adapt account,
+queue/partition, GPU binding, memory, and time to your site and workload:
+
+```bash
+# Slurm: one node, four CPU cores, one GPU
+sbatch --nodes=1 --ntasks=1 --cpus-per-task=4 --gres=gpu:1 \
+  --mem=32G --time=04:00:00 --output=cryoid-%j.log run-cryoid.sh
+
+# PBS Pro/OpenPBS: same example resources; joined scheduler output
+qsub -N cryoid -l select=1:ncpus=4:ngpus=1:mem=32gb \
+  -l walltime=04:00:00 -j oe run-cryoid.sh
+```

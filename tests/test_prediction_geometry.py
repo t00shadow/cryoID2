@@ -1,5 +1,6 @@
 """Predictions must describe the same physical volume for every MRC axis order."""
 from itertools import permutations
+import json
 
 import mrcfile
 import numpy as np
@@ -86,3 +87,29 @@ def test_axis_fix_invalidates_only_affected_old_prediction_caches(tmp_path, axes
     write_prediction_manifest(manifest_path, manifest)
     valid, reason, _ = verify_prediction_manifest(**arguments)
     assert valid == (axes == (1, 2, 3)), reason
+
+
+@pytest.mark.parametrize("field,value", [
+    (None, []), (None, None), (None, "invalid"),
+    ("schema_version", []), ("schema_version", True),
+    ("density_map", []), ("density_map", "invalid"),
+    ("rcl", {}), ("rcl", "nan"),
+    ("outputs", None), ("outputs", {}), ("outputs", [None]),
+    ("outputs", [{"name": []}]),
+    ("weights", ["invalid"]), ("source", ["invalid"]),
+])
+def test_malformed_provenance_is_a_cache_miss(tmp_path, field, value):
+    source, output = tmp_path / "input.mrc", tmp_path / "prediction.mrc"
+    source.write_bytes(b"input map")
+    output.write_bytes(b"prediction")
+    manifest = build_prediction_manifest(density_map=source, rcl=0, prediction_paths=[output],
+                                         weights_dir=None, source="checkpoint_inference")
+    if field is None:
+        manifest = value
+    else:
+        manifest[field] = value
+    path = tmp_path / "provenance.json"
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    valid, reason, _ = verify_prediction_manifest(manifest_path=path, density_map=source, rcl=0,
+                                                prediction_paths=[output], weights_dir=None)
+    assert not valid and reason

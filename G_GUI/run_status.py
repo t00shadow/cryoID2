@@ -52,6 +52,8 @@ class RunStatus:
         self._budgets = [10.0, 1800.0, 60.0, 90.0, 600.0, 5.0]
         self._durations = [None] * len(PHASES)
         self._reused_predictions = False
+        self._reused_phases = set()
+        self._run_reused = False
         self._cancelling_since = None
         self._profile = ""
         self._download = None
@@ -67,6 +69,8 @@ class RunStatus:
         self._fraction = 0.0
         self._durations = [None] * len(PHASES)
         self._reused_predictions = False
+        self._reused_phases = set()
+        self._run_reused = False
         self._cancelling_since = None
         self._download = None
         self._with_download = False
@@ -91,6 +95,31 @@ class RunStatus:
 
     def set_stage(self, event: dict) -> None:
         now = self.clock()
+        kind = event.get("kind")
+        if kind:
+            # Detailed progress is independent of the throttled human log.
+            # Keep the existing widgets/timing behavior without parsing the
+            # new formatted console summaries.
+            if kind == "stage_reused":
+                phase = PHASE_INDEX.get(event.get("name"))
+                if phase is not None:
+                    self._reused_phases.add(phase)
+            elif kind == "run_reused":
+                self._run_reused = True
+                self._reused_phases.update(range(len(PHASES)))
+            elif kind == "inference_device":
+                self.device = str(event["device"])
+            elif kind == "inference_loading":
+                self.progress = f"loading density map on {event['device']}"
+            elif kind == "model_loading":
+                self.progress = f"loading {event['model']} checkpoint {event.get('checkpoint', '')}"
+            elif kind == "model_start":
+                self.progress = f"running {event['model']}"
+            elif kind == "model_progress":
+                self._model_progress(str(event["model"]), int(event["completed"]), int(event["total"]))
+            elif kind == "prediction_finished" and event.get("device") == "reused":
+                self._reused_predictions = True
+            return
         if event.get("name") == "Downloading weights":
             if self._download is None:
                 self._download = {"started": now}
@@ -162,12 +191,15 @@ class RunStatus:
         match = re.fullmatch(r"UNet (\w+): predicted cube (\d+)/(\d+)", message)
         if match:
             model, completed, total = match.group(1), int(match.group(2)), int(match.group(3))
-            self.progress = f"{model}: {completed}/{total} cubes ({round(100 * completed / max(total, 1))}%)"
-            if model in MODELS and total > 0:
-                index = MODELS.index(model)
-                lower = 8 + round(47 * index / len(MODELS))
-                upper = 8 + round(47 * (index + 1) / len(MODELS))
-                self.update_progress(pipeline_percent(lower + (upper - lower) * min(completed / total, 1.0), self._with_download))
+            self._model_progress(model, completed, total)
+
+    def _model_progress(self, model: str, completed: int, total: int) -> None:
+        self.progress = f"{model}: {completed}/{total} cubes ({round(100 * completed / max(total, 1))}%)"
+        if model in MODELS and total > 0:
+            index = MODELS.index(model)
+            lower = 8 + round(47 * index / len(MODELS))
+            upper = 8 + round(47 * (index + 1) / len(MODELS))
+            self.update_progress(pipeline_percent(lower + (upper - lower) * min(completed / total, 1.0), self._with_download))
 
     def finish(self, label: str, *, reset_progress: bool = False) -> None:
         if self.started is None or self.ended is not None:
@@ -178,12 +210,13 @@ class RunStatus:
         if label == "Complete" and not reset_progress:
             self._record_phase(self.ended)
             self._percent = 100.0
-            self._save_history()
+            if not self._run_reused:
+                self._save_history()
         elif label == "Cancelled" or reset_progress:
             self._percent = 0.0
 
     def _record_phase(self, now: float) -> None:
-        if not (self._phase == 1 and self._reused_predictions):
+        if self._phase not in self._reused_phases and not (self._phase == 1 and self._reused_predictions):
             self._durations[self._phase] = max(0.001, now - self._phase_started)
 
     @staticmethod

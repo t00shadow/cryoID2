@@ -260,20 +260,22 @@ def _run_pipeline(args: argparse.Namespace, raw_argv: Sequence[str]) -> int:
 
     command = [sys.executable, "-m", "cryoid_pipeline", *raw_argv]
     command_line = format_command(command)
+    from .run_log import RunLog
+    run_log = RunLog(lambda message: print(message, flush=True))
 
     def progress(message: str) -> None:
-        print(str(message), flush=True)
+        run_log.message(str(message))
 
     def progress_percent(value: int) -> None:
+        run_log.progress(value)
         if args.event_stream:
             print(encode_event("progress", value=int(value)), flush=True)
-        else:
-            print(f"Progress: {int(value)}%", flush=True)
 
     def should_cancel() -> bool:
         return cancellation_requested.is_set() or bool(cancel_file and cancel_file.exists())
 
     def status(event: dict[str, Any]) -> None:
+        run_log.event(event)
         if (event.get("weights_path") and event.get("automatic")
                 and not args.no_config and args.weights_dir is None):
             # The GUI uses --no-config and persists through its own conflict-
@@ -321,6 +323,12 @@ def _run_pipeline(args: argparse.Namespace, raw_argv: Sequence[str]) -> int:
             print(encode_event("result", result=pipeline_result_to_dict(result)), flush=True)
         exit_code = _result_exit_code(result)
         status_label = {0: "complete", 1: "error", 2: "blocked", 130: "cancelled"}.get(exit_code, "unknown")
+        run_log.finish(status_label)
+        if result.selected_hit is not None:
+            print(f"Top sequence: {result.selected_hit.record_id} (score {result.selected_hit.score:.3f})", flush=True)
+        log_path = Path(result.run_dir) / "pipeline.log"
+        if log_path.is_file():
+            print(f"Detailed run log: {log_path}", flush=True)
         print(f"Run directory: {result.run_dir}", flush=True)
         print(f"Run status: {status_label}", flush=True)
         return exit_code

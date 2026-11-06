@@ -13,7 +13,7 @@ from scipy.ndimage import zoom
 
 from C_Unet_model_predicting.model import UNET
 from cryoid_pipeline.models import PredictionBundle, SequenceMode
-from cryoid_pipeline.runtime_config import default_unet_device
+from cryoid_pipeline.runtime_config import default_unet_device, mps_unet_problem
 
 
 MODEL_TYPES = ("secondary_strctures", "key_atoms", "residue_types_6letter")
@@ -35,6 +35,10 @@ class UnetInferenceResult:
 
 
 def select_device(device: str | None = None) -> str:
+    if device == "mps":
+        problem = mps_unet_problem()
+        if problem:
+            raise ValueError(f"{problem} Select CPU or Auto, or install a compatible PyTorch/macOS version.")
     if device:
         return device
     return default_unet_device()
@@ -188,6 +192,8 @@ def predict_location(
 
     model.eval()
     completed = 0
+    if cube_progress:
+        cube_progress(0, num_cubes)
     with torch.inference_mode():
         for zz in range(cube_nums[0]):
             z_start = cube_size * zz
@@ -296,6 +302,7 @@ def run_unet_inference(
     recl: float = 0.0,
     progress: ProgressCallback | None = None,
     progress_percent: PercentCallback | None = None,
+    status: Callable[[dict], None] | None = None,
     should_cancel: CancellationCheckpoint | None = None,
     mode: SequenceMode = "protein",
 ) -> UnetInferenceResult:
@@ -312,6 +319,15 @@ def run_unet_inference(
     check_cancel()
 
     selected_device = select_device(device)
+
+    def report(kind: str, **payload) -> None:
+        if status is not None:
+            status({"name": "U-Net prediction", "device": selected_device, "kind": kind, **payload})
+
+    if status is not None:
+        report("inference_device", device_name=torch.cuda.get_device_name(selected_device)
+               if selected_device.startswith("cuda") else
+               "Apple GPU (Metal)" if selected_device == "mps" else "CPU")
     class_weights, epochs = load_weights_metadata(weights)
     check_cancel()
     label_root = (tmp_root.expanduser().resolve() / "unrefined") if tmp_root else output_root / "unrefined"
@@ -321,6 +337,7 @@ def run_unet_inference(
     check_cancel()
     if progress:
         progress(f"UNet inference: loading density map on {selected_device}")
+    report("inference_loading")
     if progress_percent:
         progress_percent(5)
     map_data, zoom_factors = normalize_map(density_map, recl=recl)
@@ -339,6 +356,8 @@ def run_unet_inference(
         out_channels = len(class_weights[model_type])
         in_channels = model_input.shape[0]
         checkpoint = _checkpoint_path(weights, model_type, int(epochs[model_type]))
+        model_event = {"model": model_type, "model_index": model_index + 1, "model_total": len(MODEL_TYPES)}
+        report("model_loading", **model_event, checkpoint=checkpoint.name)
         if progress:
             progress(f"UNet inference: loading {model_type} checkpoint {checkpoint.name}")
         if progress_percent:
@@ -353,10 +372,12 @@ def run_unet_inference(
 
             if progress:
                 progress(f"UNet inference: running {model_type}")
+            report("model_start", **model_event)
 
             def emit_cube_percent(completed: int, total: int, *, start: int = model_start, end: int = model_end) -> None:
                 if progress_percent:
                     progress_percent(start + round((end - start) * completed / max(total, 1)))
+                report("model_progress", **model_event, completed=completed, total=total)
 
             probabilities = predict_location(
                 model_input,
@@ -369,6 +390,7 @@ def run_unet_inference(
                 label=model_type,
             )
             check_cancel()
+            report("model_writing", **model_event)
             labels = np.argmax(probabilities, axis=0)
             generated_files.extend(
                 _write_model_outputs(
@@ -385,6 +407,7 @@ def run_unet_inference(
             check_cancel()
             if progress_percent:
                 progress_percent(model_end)
+            report("model_finished", **model_event)
 
             model_input = np.concatenate((model_input, probabilities), axis=0)
         finally:

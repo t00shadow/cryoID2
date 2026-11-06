@@ -14,6 +14,7 @@ from pathlib import Path
 
 from cryoid_pipeline import __version__
 from cryoid_pipeline.preflight import check_environment, exercise_torch
+from cryoid_pipeline.runtime_config import mps_unet_problem
 from D_BLAST_searching.blast_tools import (
     BLAST_PROGRAMS, BLAST_VERSION, BUNDLE_ROOT, bundled_platform_key,
     runtime_blast_bin_dir, verify_managed_blast, blast_executable,
@@ -184,11 +185,15 @@ def collect_diagnostics(weights_path: str, device: str | None) -> Diagnostics:
         mps_available = bool(
             mps_backend is not None and mps_backend.is_available()
         )
-        if mps_available:
+        mps_problem = mps_unet_problem() if mps_available else "Apple Metal (MPS) is unavailable in this PyTorch environment."
+        mps_usable = mps_available and mps_problem is None
+        if mps_usable:
             devices.append(("mps", "Apple GPU (Metal)"))
+        if mps_available:
+            lines.append(f"MPS: {mps_problem or 'U-Net execution check passed.'}")
 
         selected_device = device if device not in (None, "", "auto") else (
-            "cuda:0" if available else "mps" if mps_available else "cpu"
+            "cuda:0" if available else "mps" if mps_usable else "cpu"
         )
         target = torch.device(selected_device)
         cuda_detail = (
@@ -206,7 +211,7 @@ def collect_diagnostics(weights_path: str, device: str | None) -> Diagnostics:
             else:
                 compute = Check("GPU / CUDA", f"U-Net: {selected_device} ({torch.cuda.get_device_name(index)})", True)
         elif target.type == "mps":
-            if mps_available:
+            if mps_usable:
                 compute = Check(
                     "GPU / MPS",
                     "U-Net uses Apple GPU acceleration via Metal.",
@@ -215,16 +220,18 @@ def collect_diagnostics(weights_path: str, device: str | None) -> Diagnostics:
             else:
                 compute = Check(
                     "GPU unavailable",
-                    "Apple Metal (MPS) is unavailable in this PyTorch environment.",
+                    f"{mps_problem} Select CPU or Auto, or install a compatible PyTorch/macOS version.",
                     False,
                 )
         elif target.type == "cpu":
             compute = Check("CPU", f"U-Net uses CPU. CUDA: {cuda_detail}", True)
         else:
-            compute = Check(str(target), "Select CPU or an available CUDA GPU for U-Net inference.", False)
+            compute = Check(str(target), "Select CPU or an available CUDA or MPS GPU for U-Net inference.", False)
         if compute.ok:
-            exercise_torch(selected_device)
-            lines.append("PyTorch execution: NumPy interchange and 3-D convolution passed.")
+            if target.type != "mps":
+                exercise_torch(selected_device)
+            lines.append("PyTorch execution: NumPy interchange and 3-D convolution passed."
+                         + (" U-Net execution check passed." if target.type == "mps" else ""))
     except Exception as exc:
         compute = Check("Unavailable", "PyTorch or the selected computing device could not be loaded. "
                         "Install or repair PyTorch in the Python environment used to start CryoID, "
@@ -237,7 +244,7 @@ def collect_diagnostics(weights_path: str, device: str | None) -> Diagnostics:
     lines.append(f"BLAST+: {blast.summary}; {blast.detail}")
     if blast.technical_detail:
         lines.append(f"BLAST+ technical details: {blast.technical_detail}")
-    lines.append("Acceleration: BLAST+ runs on CPU; CUDA accelerates U-Net inference only.")
+    lines.append("Acceleration: BLAST+ runs on CPU; CUDA or Apple MPS accelerates U-Net inference only.")
     weights = check_weights(weights_path)
     lines.append(f"U-Net weights: {weights.summary}; {weights.detail}")
     return Diagnostics(blast, compute, weights, selected_device, lines, dependency_issues, devices)

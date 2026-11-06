@@ -60,9 +60,14 @@ CryoID_v2.log
 /backups/
 
 # Local-only project material
-/MANIFEST.in
 /docs/
 /experiments/
-# Keep the tracked project README at the repository root.
+# Keep the public project and training README files.
 **/README.md
 !/README.md
+!/training/README.md
+
+# Optional training environments and local runs
+/training/.venv/
+/training/work/
+/training/run-data/
