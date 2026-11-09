@@ -12,7 +12,7 @@ from typing import Callable, Iterator
 from cryoid_pipeline.artifacts import link_input_file
 from cryoid_pipeline.models import SearchHit
 
-from .sequence_search import read_sequence_pool
+from .sequence_search import read_fasta, read_sequence_pool
 from .blast_tools import runtime_blast_bin_dir, validate_blast_bin_dir
 from .reduced_alphabet.evalues import negative_log10_composite
 
@@ -27,6 +27,8 @@ class BlastSearchResult:
     ranking: list[dict[str, str]]
     gap_open: int
     gap_extend: int
+    ranking_rows: list[dict[str, object]] | None = None
+    ranking_strategy: str | None = None
 
 
 def _require_file(path: Path, label: str) -> Path:
@@ -87,10 +89,6 @@ def run_protein_blast_search(
     blast_bin_dir: Path | None = None,
     cpu_threads: int | None = None,
 ) -> BlastSearchResult:
-    if blast_bin_dir is None:
-        blast_bin_dir = runtime_blast_bin_dir()
-    from D_BLAST_searching.reduced_alphabet.search_pool import Search
-
     output_dir = run_dir / "tmp" / "sequence_search"
     work_dir = output_dir / "work"
     work_dir.mkdir(parents=True, exist_ok=True)
@@ -102,6 +100,43 @@ def run_protein_blast_search(
         raise ValueError("Protein candidate pool contains no sequences.")
 
     log_path = output_dir / "blast_search.log"
+    queries = read_fasta(query_fasta)
+    if not queries or all(len(query.sequence) == 1 for query in queries):
+        from .sequence_ranking import protein_ranking_rows
+
+        reason = "no query fragments are available" if not queries else "only single-residue query fragments are available"
+        message = (
+            f"Protein identification: {reason}; "
+            "preserving FASTA input order and selecting the first candidate. "
+            "No BLAST alignment evidence or sequence scores were calculated."
+        )
+        ranking = [
+            {"rank": str(index), "candidate": record.record_id, "length": str(len(record.sequence)),
+             "average_identity": "", "composite_evalue": "inf"}
+            for index, record in enumerate(candidate_records, 1)
+        ]
+        summary_path = output_dir / "protein_candidates_summary.txt"
+        summary_path.write_text(
+            "Ranking\tcandidate\tlength\tave_identity %\tcomposite_E\n"
+            + "".join(f"{r['rank']}\t{r['candidate']}\t{r['length']}\t\tinf\n" for r in ranking),
+            encoding="utf-8",
+        )
+        log_path.write_text(message + "\n", encoding="utf-8")
+        rows = protein_ranking_rows(ranking, candidate_records)
+        for row in rows:
+            row.update(primary_score_name="input_order", primary_score="")
+        first = candidate_records[0]
+        progress(message)
+        return BlastSearchResult(
+            SearchHit("generated_protein_queries", first.record_id, 0., first.sequence, first.description),
+            [summary_path, log_path], ranking, gap_open, gap_extend,
+            ranking_rows=rows, ranking_strategy=("input_order_no_queries" if not queries else "input_order_single_residue_queries"),
+        )
+
+    if blast_bin_dir is None:
+        blast_bin_dir = runtime_blast_bin_dir()
+    from D_BLAST_searching.reduced_alphabet.search_pool import Search
+
     logger = logging.getLogger(f"cryoid.protein_blast.{id(work_dir)}")
     logger.setLevel(logging.INFO)
     logger.propagate = False

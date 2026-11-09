@@ -38,11 +38,13 @@ def write_sequence_ranking(
     destination = Path(run_dir) / "sequence_ranking.tsv"
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = destination.with_suffix(destination.suffix + ".tmp")
+    rows = list(rows)
+    fields = RANKING_FIELDS + (["candidate_chains"] if any(row.get("candidate_chains") for row in rows) else [])
     with temporary.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=RANKING_FIELDS, delimiter="\t", extrasaction="ignore")
+        writer = csv.DictWriter(handle, fieldnames=fields, delimiter="\t", extrasaction="ignore")
         writer.writeheader()
         for row in rows:
-            payload = {field: row.get(field, "") for field in RANKING_FIELDS}
+            payload = {field: row.get(field, "") for field in fields}
             payload["mode"] = mode
             writer.writerow(payload)
     temporary.replace(destination)

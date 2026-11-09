@@ -8,8 +8,8 @@ from .blast_tools import (
 )
 from .protein_search import (
     BlastSearchResult,
-    run_protein_blast_search,
 )
+from .protein_candidates import run_protein_candidate_search as run_protein_blast_search
 from .rna_ranking import RnaRankingResult, rank_rna_candidates
 from .sequence_mode import (
     SequenceModeError,

@@ -64,7 +64,8 @@ def rank_rna_candidates(
 ) -> RnaRankingResult:
     check = check_cancel or (lambda: None)
     queries = read_sequence_pool(query_fasta)
-    candidates = read_sequence_pool(candidate_pool)
+    from .candidate_groups import canonical_records
+    candidates = canonical_records(candidate_pool)
     if not queries or not candidates:
         raise ValueError("RNA ranking requires at least one query and one candidate.")
     query_arrays = [binary_reduced(record.sequence) for record in queries]

@@ -1,4 +1,5 @@
 import csv
+import json
 import os
 import subprocess
 import sys
@@ -290,7 +291,9 @@ class SequenceRankingModel(QtCore.QAbstractTableModel):
         return 0 if parent.isValid() else len(self.headers)
 
     def data(self, index: QtCore.QModelIndex, role: int = QtCore.Qt.ItemDataRole.DisplayRole):
-        if not index.isValid() or role != QtCore.Qt.ItemDataRole.DisplayRole:
+        if not index.isValid() or role not in (
+            QtCore.Qt.ItemDataRole.DisplayRole, QtCore.Qt.ItemDataRole.ToolTipRole
+        ):
             return None
         return self.rows[index.row()][index.column()]
 
@@ -332,17 +335,29 @@ def _load_sequence_ranking_display(
     with path.open("r", encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle, delimiter="\t")
         source_headers = set(reader.fieldnames or [])
+        has_groups = "candidate_chains" in source_headers
+        columns = RANKING_DISPLAY_COLUMNS
         missing = [key for key, _label in RANKING_DISPLAY_COLUMNS if key not in source_headers]
         if missing:
             raise ValueError(
                 "Sequence ranking is missing required display column(s): "
                 + ", ".join(missing)
             )
-        rows = [
-            [str(row.get(key) or "") for key, _label in RANKING_DISPLAY_COLUMNS]
-            for _, row in zip(range(limit), reader)
-        ]
-    return [label for _key, label in RANKING_DISPLAY_COLUMNS], rows
+        rows = []
+        for _, row in zip(range(limit), reader):
+            cells = [str(row.get(key) or "") for key, _label in columns]
+            if has_groups:
+                chains = json.loads(row.get("candidate_chains") or "[]")
+                cells.append("; ".join(
+                    f"{chain['chain_id']} x{chain['copies']} ({len(chain['sequence'])} aa)"
+                    for chain in chains
+                ) if chains else f"1 chain ({row.get('length', '')} aa)")
+            rows.append(cells)
+    headers = [label for _key, label in columns]
+    if has_groups:
+        headers[1] = "Total Residues"
+        headers.append("Chains")
+    return headers, rows
 
 
 class SequenceRankingLoader(QtCore.QObject):
@@ -494,11 +509,18 @@ class SequenceRankingDialog(QtWidgets.QDialog):
 
     def _loaded(self, headers: list[str], rows: list[list[str]]) -> None:
         self.model.set_table(headers, rows)
-        sequence_label = "sequence" if len(rows) == 1 else "sequences"
+        grouped = "Chains" in headers
+        sequence_label = ("candidate" if len(rows) == 1 else "candidates") if grouped else ("sequence" if len(rows) == 1 else "sequences")
         self.status_label.setText(f"{len(rows)} ranked {sequence_label}")
+        self.table.setToolTip(
+            "Total residues includes chain copies. Complex score: the strongest original chain score "
+            "plus complementary fragment support, counting each fragment once. Singleton scores are unchanged. "
+            "Hover over a cell to read its full contents."
+            if grouped else ""
+        )
         self.table.resizeColumnToContents(0)
         for index in range(1, len(headers)):
-            self.table.setColumnWidth(index, 160)
+            self.table.setColumnWidth(index, 320 if headers[index] == "Chains" else 160)
         QtCore.QTimer.singleShot(0, self._fit_width_to_table)
 
     def _fit_width_to_table(self) -> None:

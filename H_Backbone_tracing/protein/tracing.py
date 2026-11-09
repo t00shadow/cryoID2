@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from collections import defaultdict
+import json
 from pathlib import Path
 
 import numpy as np
 
 from H_Backbone_tracing.common.graph import build_distance_graph, save_graph_pdb
+from H_Backbone_tracing.common.density_pruning import limit_edges_global, repair_cycles
+from H_Backbone_tracing.common.volume import load_thresholded_coords, load_volume_metadata
 
 
 def limit_node_degree(coords: np.ndarray, edges: list[tuple], max_degree: int = 3) -> list[tuple]:
@@ -93,11 +96,14 @@ def _save_components(
 def trace_backbone_components(
     *,
     clustered_pdb_path: str | Path,
+    scaffold_path: str | Path,
     max_distance: float,
     max_degree: int,
     min_component_size: int,
     graph_output_dir: str | Path,
     components_output_dir: str | Path,
+    scaffold_threshold: float = 0.97,
+    scaffold_cylinder_radius: float = 1.0,
     verbose: bool = False,
 ) -> list[Path]:
     """Trace clustered C-alpha positions and write retained components."""
@@ -108,19 +114,50 @@ def trace_backbone_components(
         max_distance,
         return_edge_lengths=True,
     )
-    limited_edges = limit_node_degree(centroids, edges, max_degree=max_degree)
+    scaffold_voxels = load_thresholded_coords(scaffold_path, scaffold_threshold)
+    voxel_size, _shape = load_volume_metadata(scaffold_path)
+    # Tracing coordinates are map-relative z/y/x Angstroms; do not apply an
+    # x/y/z reversal. Production prediction maps are isotropic 1 A grids.
+    scaffold_voxels = scaffold_voxels * voxel_size
+    limited_edges, superset_edges, edge_scores = limit_edges_global(
+        centroids, edges, scaffold_voxels,
+        radius=scaffold_cylinder_radius, max_degree=max_degree,
+    )
+    limited_edges = repair_cycles(
+        len(centroids), limited_edges, superset_edges, edge_scores, max_degree=max_degree,
+    )
     graph_root = Path(graph_output_dir)
     graph_root.mkdir(parents=True, exist_ok=True)
     outputs = [
         save_graph_pdb(centroids, edges, graph_root / "superset_graph.pdb"),
         save_graph_pdb(centroids, limited_edges, graph_root / "superset_graph_degree_limited.pdb"),
     ]
+    all_components = get_connected_components(len(centroids), limited_edges)
     components = [
         component
-        for component in get_connected_components(len(centroids), limited_edges)
+        for component in all_components
         if len(component) >= min_component_size
     ]
+    fallback = bool(all_components) and not components
+    if fallback:
+        components = all_components
+    length_filter = {
+        "requested_min_trace_length": min_component_size,
+        "effective_min_trace_length": 0 if fallback else min_component_size,
+        "fallback_applied": fallback,
+        "component_count_before_filter": len(all_components),
+        "longest_component_length": max(map(len, all_components), default=0),
+        "retained_component_count": len(components),
+    }
+    filter_path = graph_root / "trace_length_filter.json"
+    filter_path.write_text(json.dumps(length_filter, indent=2) + "\n", encoding="utf-8")
+    outputs.append(filter_path)
     outputs.extend(_save_components(centroids, limited_edges, components, components_output_dir))
     if verbose:
+        if fallback:
+            print(
+                f"No protein trace reached the requested minimum length {min_component_size}; "
+                "using minimum length 0 and retaining all available components."
+            )
         print(f"Protein tracing retained {len(components)} component(s).")
     return outputs

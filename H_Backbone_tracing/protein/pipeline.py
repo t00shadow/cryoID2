@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import json
 import re
 from pathlib import Path
 from typing import Callable
@@ -109,6 +110,25 @@ def _sample_protein_residues(
     return sequences, matrix_path
 
 
+def _no_fragment_queries(tracing_root, min_trace_length, reason, outputs, progress):
+    """Record a valid empty tracing result for the input-order ranking policy."""
+    query_fasta = tracing_root / "generated_queries.fasta"
+    query_fasta.write_text("; No protein query fragments were produced.\n", encoding="utf-8")
+    filter_path = tracing_root / "graphs" / "trace_length_filter.json"
+    filter_path.write_text(json.dumps({
+        "requested_min_trace_length": min_trace_length,
+        "effective_min_trace_length": 0,
+        "fallback_applied": True,
+        "component_count_before_filter": 0,
+        "longest_component_length": 0,
+        "retained_component_count": 0,
+        "no_fragments_reason": reason,
+    }, indent=2) + "\n", encoding="utf-8")
+    progress(f"Protein tracing: {reason}; no fragments are available. Sequence ranking will preserve FASTA input order.")
+    files = [p.resolve() for p in [*outputs, filter_path, query_fasta] if p.is_file() and p.stat().st_size > 0]
+    return QueryBundle(query_fasta=query_fasta.resolve(), source="protein_backbone_tracing_no_fragments", output_files=files)
+
+
 def run_protein_query_generation(
     bundle: PredictionBundle,
     run_dir: Path,
@@ -147,7 +167,12 @@ def run_protein_query_generation(
             timestamp=False,
         )
     )
-    clustered_pdb = _require_file(Path(clustering["output_path"]), "clustered C-alpha PDB")
+    clustered_pdb = Path(clustering["output_path"])
+    if not clustered_pdb.is_file():
+        raise FileNotFoundError(f"Missing clustered C-alpha PDB: {clustered_pdb}")
+    if "centroids" in clustering and len(clustering["centroids"]) == 0:
+        return _no_fragment_queries(tracing_root, min_trace_length, "clustering produced no C-alpha positions", [], progress)
+    clustered_pdb = _require_file(clustered_pdb, "clustered C-alpha PDB")
 
     progress("Protein identification: masking predicted helix C-alpha positions.")
     from H_Backbone_tracing.protein.masking import mask_and_save_pdb
@@ -164,7 +189,7 @@ def run_protein_query_generation(
         verbose=False,
     )
     if masked_pdb is None:
-        raise RuntimeError("Protein helix masking removed every clustered C-alpha position.")
+        return _no_fragment_queries(tracing_root, min_trace_length, "helix masking removed all C-alpha positions", [clustered_pdb], progress)
     masked_pdb = _require_file(Path(masked_pdb), "helix-masked C-alpha PDB")
 
     progress("Protein identification: tracing degree-limited backbone components.")
@@ -172,6 +197,9 @@ def run_protein_query_generation(
 
     trace_backbone_components(
         clustered_pdb_path=str(masked_pdb),
+        scaffold_path=str(scaffold_map),
+        scaffold_threshold=0.97,
+        scaffold_cylinder_radius=1.0,
         max_distance=5.0,
         max_degree=2,
         min_component_size=min_trace_length,
@@ -180,11 +208,16 @@ def run_protein_query_generation(
         verbose=True,
     )
     component_paths = sorted(components_dir.glob("cc_*.pdb"), key=_natural_key)
-    if not component_paths:
-        raise RuntimeError(
-            "Protein backbone tracing produced no components of length "
-            f"{min_trace_length} or greater."
+    filter_path = tracing_dir / "trace_length_filter.json"
+    length_filter = json.loads(filter_path.read_text(encoding="utf-8"))
+    if length_filter["fallback_applied"]:
+        progress(
+            f"Protein tracing: no component reached the requested minimum length {min_trace_length} "
+            f"(longest: {length_filter['longest_component_length']}); using minimum length 0 "
+            f"and retaining all {len(component_paths)} available component(s)."
         )
+    if not component_paths:
+        return _no_fragment_queries(tracing_root, min_trace_length, "tracing produced no components", [clustered_pdb, masked_pdb], progress)
 
     progress(f"Protein identification: assigning six-class residues to {len(component_paths)} trace(s).")
     sequences, matrix_path = _sample_protein_residues(
@@ -206,6 +239,7 @@ def run_protein_query_generation(
         masked_pdb,
         tracing_dir / "superset_graph.pdb",
         tracing_dir / "superset_graph_degree_limited.pdb",
+        filter_path,
         *component_paths,
         *sorted(assigned_dir.glob("cc_*_updated_residues.pdb"), key=_natural_key),
         matrix_path,

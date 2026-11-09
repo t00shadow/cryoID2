@@ -69,6 +69,7 @@ class SearchHit:
     score: float
     sequence: str
     description: str = ""
+    chains: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -90,7 +91,7 @@ class PipelineResult:
 def pipeline_result_to_dict(result: PipelineResult) -> dict[str, Any]:
     """Convert a pipeline result into the JSON-safe CLI wire format."""
 
-    return {
+    payload = {
         "run_dir": str(result.run_dir),
         "stages": [
             {
@@ -115,6 +116,9 @@ def pipeline_result_to_dict(result: PipelineResult) -> dict[str, Any]:
         "mode": result.mode,
         "ranking_path": str(result.ranking_path) if result.ranking_path is not None else "",
     }
+    if result.selected_hit is not None and result.selected_hit.chains:
+        payload["selected_hit"]["chains"] = result.selected_hit.chains
+    return payload
 
 
 def pipeline_result_from_dict(payload: dict[str, Any]) -> PipelineResult:
@@ -139,6 +143,7 @@ def pipeline_result_from_dict(payload: dict[str, Any]) -> PipelineResult:
             score=float(hit_payload.get("score", 0.0)),
             sequence=str(hit_payload.get("sequence", "")),
             description=str(hit_payload.get("description", "")),
+            chains=list(hit_payload.get("chains") or []),
         )
     return PipelineResult(
         run_dir=Path(str(payload.get("run_dir", "."))).expanduser().resolve(),

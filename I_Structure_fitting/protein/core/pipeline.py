@@ -436,6 +436,11 @@ def process_target(
     if not str(sequence or "").strip():
         raise ValueError("sequence is empty")
     try:
+        if input_meta.get("candidate_chains"):
+            from .assemblies import validate_chains, process_group
+            chains = validate_chains(input_meta["candidate_chains"])
+            if sum(chain["copies"] for chain in chains) > 1:
+                return process_group(gene_id, chains, map_path, input_meta, run_config, align_config, entry_started)
         return _process_target_inner(
             gene_id=gene_id,
             sequence=sequence,
@@ -674,6 +679,8 @@ def _input_meta_from_row(
 ) -> dict[str, Any]:
     """Assemble the per-row meta dict passed into the aligner via input_meta."""
     keys = ["gene_id", "sequence_rank", "density_dir"]
+    if isinstance(row.get("candidate_chains"), str) and row["candidate_chains"].strip():
+        keys.append("candidate_chains")
     meta = {key: row.get(key, "") for key in keys if key in row}
     if str(density_inputs.emdb_id or "").strip():
         meta["emdb_id"] = density_inputs.emdb_id

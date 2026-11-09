@@ -98,3 +98,41 @@ def test_options_describes_current_rna_structure_selection_default() -> None:
     assert dialog.structure_selection_edit.toolTip() == "Candidate count or fraction"
     dialog.close()
     app.processEvents()
+
+
+def test_complex_ranking_display_includes_chain_copies_and_lengths(tmp_path):
+    import csv
+    import json
+    ranking=tmp_path/"sequence_ranking.tsv"
+    chains=[dict(chain_id="alpha",copies=2,sequence="A"*141),dict(chain_id="beta",copies=2,sequence="B"*146)]
+    with ranking.open("w",newline="") as f:
+        writer=csv.DictWriter(f,fieldnames=["candidate_id","length","primary_score","candidate_chains"],delimiter="\t")
+        writer.writeheader()
+        writer.writerow(dict(candidate_id="hemoglobin",length=574,primary_score=19,candidate_chains=json.dumps(chains)))
+        writer.writerow(dict(candidate_id="singleton",length=110,primary_score=10))
+    headers,rows=_load_sequence_ranking_display(ranking)
+    assert headers==["Candidate ID","Total Residues","Score","Chains"]
+    assert rows==[["hemoglobin","574","19","alpha x2 (141 aa); beta x2 (146 aa)"],["singleton","110","10","1 chain (110 aa)"]]
+    app=QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    dialog=SequenceRankingDialog(None)
+    dialog._loaded(headers,rows)
+    dialog.show();app.processEvents()
+    assert dialog.status_label.text()=="2 ranked candidates"
+    assert dialog.table.columnWidth(3)==320
+    assert "counting each fragment once" in dialog.table.toolTip()
+    assert dialog.model.data(dialog.model.index(0,3),QtCore.Qt.ItemDataRole.ToolTipRole)==rows[0][3]
+    dialog.close();app.processEvents()
+
+
+def test_input_order_fallback_is_displayed_in_saved_order(tmp_path):
+    ranking=tmp_path/"sequence_ranking.tsv"
+    ranking.write_text("candidate_id\tlength\tprimary_score\n" "z_first\t100\t\n" "a_second\t200\t\n",encoding="utf-8")
+    headers,rows=_load_sequence_ranking_display(ranking)
+    app=QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    dialog=SequenceRankingDialog(None)
+    dialog._loaded(headers,rows)
+    dialog.show();app.processEvents()
+    assert dialog.model.data(dialog.model.index(0,0))=="z_first"
+    assert dialog.model.data(dialog.model.index(1,0))=="a_second"
+    assert dialog.model.data(dialog.model.index(0,2))==""
+    dialog.close();app.processEvents()

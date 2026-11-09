@@ -1168,18 +1168,21 @@ class CryoIDPipeline:
                     progress,
                     min_trace_length=self.protein_min_trace_length,
                 )
-            if not bundle.query_fasta.is_file() or bundle.query_fasta.stat().st_size <= 0:
+            if not bundle.query_fasta.is_file():
                 raise FileNotFoundError(f"Query generator did not create {bundle.query_fasta}.")
+            no_fragments = not stage_d_identification.read_sequence_pool(bundle.query_fasta)
             return (
                 StageResult(
                     "Protein query generation",
                     "ok",
-                    f"Generated protein queries from clustered and traced prediction maps: {bundle.query_fasta.name}.",
+                    ("No protein query fragments were produced; sequence ranking will preserve FASTA input order."
+                     if no_fragments else f"Generated protein queries from clustered and traced prediction maps: {bundle.query_fasta.name}."),
                     outputs={"query_fasta": str(bundle.query_fasta)},
                     details={
                         "source": bundle.source,
                         "output_file_count": len(bundle.output_files),
                         "minimum_trace_length": self.protein_min_trace_length,
+                        **({"query_count": 0, "input_order_fallback": True} if no_fragments else {}),
                     },
                 ),
                 bundle,
@@ -1245,27 +1248,34 @@ class CryoIDPipeline:
             ranking_path = stage_d_identification.write_sequence_ranking(
                 run_dir,
                 mode="protein",
-                rows=stage_d_identification.protein_ranking_rows(
+                rows=getattr(result, "ranking_rows", None) or stage_d_identification.protein_ranking_rows(
                     result.ranking,
                     stage_d_identification.read_sequence_pool(candidate_pool),
                 ),
             )
             outputs = [*result.outputs, ranking_path]
+            strategy = getattr(result, "ranking_strategy", None)
+            input_order = bool(strategy and strategy.startswith("input_order_"))
+            fallback_reason = "No protein query fragments" if strategy == "input_order_no_queries" else "Only single-residue queries"
             return (
                 StageResult(
                     "Protein candidate BLAST",
                     "ok",
-                    f"Selected top candidate-pool sequence '{result.selected_hit.record_id}'.",
+                    (f"{fallback_reason} are available; selected first FASTA candidate "
+                     f"'{result.selected_hit.record_id}' by input order, without alignment evidence."
+                     if input_order else f"Selected top candidate-pool sequence '{result.selected_hit.record_id}'."),
                     outputs={
                         "summary": str(result.outputs[0]) if result.outputs else "",
                         "sequence_ranking": str(ranking_path),
                     },
                     details={
-                        "mode": "reduced_alphabet_blastp",
-                        "reverse_queries": True,
+                        "mode": "input_order_fallback" if input_order else "reduced_alphabet_blastp",
+                        "reverse_queries": not input_order,
                         "gap_open": result.gap_open,
                         "gap_extend": result.gap_extend,
                         "top_result": top_row,
+                        **({"ranking_strategy": result.ranking_strategy, "alignment_evidence": False} if input_order else {}),
+                        **({"candidate_chains": result.selected_hit.chains} if result.selected_hit.chains else {}),
                     },
                 ),
                 result.selected_hit,
@@ -1594,6 +1604,13 @@ class CryoIDPipeline:
                 run_dir, struct_run_dir, selected_sequence_files
             )
             outputs.extend(path for path in normalized_outputs if path.exists())
+            group_scopes = []
+            summary_json = struct_run_dir / "data" / "logs" / "summary.json"
+            if summary_json.is_file():
+                group_scopes = [r["match_scope"] for r in json.loads(summary_json.read_text(encoding="utf-8"))
+                                if r.get("match_scope")]
+            if "partial_sequence_match" in group_scopes:
+                progress("Structure result includes a partial sequence match; not all supplied chains were matched.")
             return (
                 StageResult(
                     "Struct-fetch",
@@ -1610,6 +1627,7 @@ class CryoIDPipeline:
                         "structure_selection": structure_selection.details(ranking_count),
                         "processed_sequence_count": processed_count,
                         "fitted_sequence_count": fitted_target_count,
+                        **({"sequence_match_scopes": group_scopes} if group_scopes else {}),
                     },
                 ),
                 outputs,
@@ -1665,6 +1683,7 @@ class CryoIDPipeline:
         with ranking_path.open("r", encoding="utf-8", newline="") as handle:
             ranking = list(csv.DictReader(handle, delimiter="\t"))
         selected_rows = select_ranked_rows(ranking, structure_selection)
+        has_groups = any(row.get("candidate_chains") for row in selected_rows)
         if not selected_rows:
             raise ValueError("Protein sequence ranking contains no rows to send to struct-fetch.")
         for row in selected_rows:
@@ -1681,18 +1700,27 @@ class CryoIDPipeline:
             for row in selected_rows:
                 candidate_id = str(row["candidate_id"]).strip()
                 rank = str(row.get("rank") or "")
-                handle.write(f">{candidate_id} rank={rank}\n")
                 sequence = str(row["sequence"]).strip()
-                for offset in range(0, len(sequence), 80):
-                    handle.write(sequence[offset : offset + 80] + "\n")
+                chains = json.loads(row.get("candidate_chains") or "[]")
+                if chains:
+                    for chain in chains:
+                        handle.write(f">{chain['record_id']} candidate={candidate_id} chain={chain['chain_id']} copies={chain['copies']}\n{chain['sequence']}\n")
+                else:
+                    handle.write(f">{candidate_id} rank={rank}\n")
+                    for offset in range(0, len(sequence), 80):
+                        handle.write(sequence[offset : offset + 80] + "\n")
                 per_sequence_path = (
                     per_sequence_dir
                     / f"rank_{int(rank):04d}_{self._sanitize_filename(candidate_id)}.fasta"
                 )
                 with per_sequence_path.open("w", encoding="utf-8", newline="\n") as per_handle:
-                    per_handle.write(f">{candidate_id} rank={rank}\n")
-                    for offset in range(0, len(sequence), 80):
-                        per_handle.write(sequence[offset : offset + 80] + "\n")
+                    if chains:
+                        for chain in chains:
+                            per_handle.write(f">{chain['record_id']} candidate={candidate_id} chain={chain['chain_id']} copies={chain['copies']}\n{chain['sequence']}\n")
+                    else:
+                        per_handle.write(f">{candidate_id} rank={rank}\n")
+                        for offset in range(0, len(sequence), 80):
+                            per_handle.write(sequence[offset : offset + 80] + "\n")
                 selected_sequence_files[candidate_id] = per_sequence_path.resolve()
         fieldnames = [
             "gene_id",
@@ -1703,13 +1731,14 @@ class CryoIDPipeline:
             "raw_prediction_dir",
             "raw_key_atoms_1_path",
         ]
+        if has_groups:
+            fieldnames.append("candidate_chains")
         density_dir = prediction_bundle.density_dir or prediction_bundle.raw_prediction_dir
         with csv_path.open("w", encoding="utf-8", newline="") as handle:
             writer = csv.DictWriter(handle, fieldnames=fieldnames)
             writer.writeheader()
             for row in selected_rows:
-                writer.writerow(
-                    {
+                payload = {
                         "gene_id": str(row["candidate_id"]).strip(),
                         "sequence_rank": str(row.get("rank") or ""),
                         "sequence": str(row["sequence"]).strip(),
@@ -1718,7 +1747,9 @@ class CryoIDPipeline:
                         "raw_prediction_dir": str(prediction_bundle.raw_prediction_dir),
                         "raw_key_atoms_1_path": str(prediction_bundle.raw_key_atoms_1_path),
                     }
-                )
+                if has_groups:
+                    payload["candidate_chains"] = row.get("candidate_chains", "")
+                writer.writerow(payload)
         return (
             csv_path,
             selected_sequences_path,
@@ -1828,6 +1859,8 @@ class CryoIDPipeline:
                         "model_id": model_id,
                         "status": status or ("ok" if score is not None else "error"),
                         "error": str(raw.get("error") or ""),
+                        **({"match_scope": raw["match_scope"], "missing_chains": raw.get("missing_chains", "")}
+                           if raw.get("match_scope") else {}),
                         "score": score,
                         "score_metric": str(raw.get("score_metric") or ""),
                         "source_model": self._path_from_row(raw.get("source_model"), base=struct_run_dir),
@@ -1903,6 +1936,15 @@ class CryoIDPipeline:
             (models_dir / source_type / "aligned_models").mkdir(parents=True, exist_ok=True)
 
         rows = self._collect_alignment_rows(struct_run_dir)
+        group_data = {}
+        group_sequences = {}
+        ranking_file = run_dir / "sequence_ranking.tsv"
+        if ranking_file.is_file():
+            with ranking_file.open(encoding="utf-8", newline="") as handle:
+                for row in csv.DictReader(handle, delimiter="\t"):
+                    if row.get("candidate_chains"):
+                        group_data[row["candidate_id"]] = row["candidate_chains"]
+                        group_sequences[row["candidate_id"]] = row["sequence"]
         sorted_rows = sorted(
             rows,
             key=lambda item: (
@@ -1956,7 +1998,7 @@ class CryoIDPipeline:
             if not sequence_id and selected_sequence_files:
                 sequence_id = next(iter(selected_sequence_files))
             sequence_path = (selected_sequence_files or {}).get(sequence_id)
-            sequence = self._read_first_fasta_sequence(sequence_path)
+            sequence = group_sequences.get(sequence_id) or self._read_first_fasta_sequence(sequence_path)
             copied = {
                 "source_type": source_type,
                 "rank": str(ranks[source_type]),
@@ -1974,11 +2016,18 @@ class CryoIDPipeline:
                 "retained": "true" if retained else "false",
                 "is_best_for_type": "true" if retained else "false",
             }
+            if row.get("match_scope"):
+                copied.update(match_scope=row["match_scope"], missing_chains=row.get("missing_chains", ""))
+            if sequence_id in group_data:
+                copied["candidate_chains"] = group_data[sequence_id]
             copied_rows.append(copied)
 
         summary_path = run_dir / "alignment_summary.csv"
         with summary_path.open("w", encoding="utf-8", newline="") as handle:
-            writer = csv.DictWriter(handle, fieldnames=ALIGNMENT_SUMMARY_FIELDS)
+            fields = ALIGNMENT_SUMMARY_FIELDS + (["match_scope", "missing_chains"] if any(r.get("match_scope") for r in copied_rows) else [])
+            if group_data:
+                fields.append("candidate_chains")
+            writer = csv.DictWriter(handle, fieldnames=fields)
             writer.writeheader()
             for row in copied_rows:
                 writer.writerow(row)
@@ -1994,6 +2043,10 @@ class CryoIDPipeline:
                     None,
                 )
                 if best is None or not best.get("sequence"):
+                    continue
+                if best.get("candidate_chains"):
+                    for chain in json.loads(best["candidate_chains"]):
+                        handle.write(f">{chain['record_id']} candidate={best['sequence_id']} chain={chain['chain_id']} copies={chain['copies']} source={source_type}\n{chain['sequence']}\n")
                     continue
                 handle.write(
                     f">{best['sequence_id']} source={source_type} sequence_rank={best['sequence_rank']}\n"
@@ -2175,12 +2228,16 @@ class CryoIDPipeline:
             selected_path = best_dir / "best_structure_selected_sequence.fasta"
             sequence = highest["sequence"]
             with selected_path.open("w", encoding="utf-8", newline="\n") as handle:
-                handle.write(
-                    f">{highest['sequence_id']} source={highest['source_type']} "
-                    f"sequence_rank={highest['sequence_rank']}\n"
-                )
-                for offset in range(0, len(sequence), 80):
-                    handle.write(sequence[offset : offset + 80] + "\n")
+                if highest.get("candidate_chains"):
+                    for chain in json.loads(highest["candidate_chains"]):
+                        handle.write(f">{chain['record_id']} candidate={highest['sequence_id']} chain={chain['chain_id']} copies={chain['copies']}\n{chain['sequence']}\n")
+                else:
+                    handle.write(
+                        f">{highest['sequence_id']} source={highest['source_type']} "
+                        f"sequence_rank={highest['sequence_rank']}\n"
+                    )
+                    for offset in range(0, len(sequence), 80):
+                        handle.write(sequence[offset : offset + 80] + "\n")
             outputs.append(selected_path)
         return outputs
 

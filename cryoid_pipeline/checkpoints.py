@@ -222,7 +222,8 @@ class Checkpoints:
                         hit = payload.get("hit")
                         if (payload.get("ranking") not in registered or not isinstance(hit, dict)
                                 or not {"query_id", "record_id", "score", "sequence"} <= set(hit)
-                                or not set(hit) <= {"query_id", "record_id", "score", "sequence", "description"}):
+                                or not set(hit) <= {"query_id", "record_id", "score", "sequence", "description", "chains"}
+                                or not isinstance(hit.get("chains", []), list)):
                             continue
                 for item in record["files"]:
                     if self.digest(self.safe_path(item["path"])) != {"size": item["size"], "sha256": item["sha256"]}:

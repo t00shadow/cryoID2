@@ -1,0 +1,122 @@
+{
+  "repository": "https://github.com/t00shadow/cryoID_v2",
+  "source_ref_at_recovery": "origin/feature/qibo",
+  "source_commit": "41fc3aab46e8bb3a1aa9ce9244bf4c4e364ca1a6",
+  "recovered_on": "2026-11-01",
+  "content_policy": "Original file bytes preserved; one helper relocated as recorded.",
+  "files": [
+    {
+      "path": "source/B_Unet_model_training/A0_Unet_model_training.py",
+      "original_path": "B_Unet_model_training/A0_Unet_model_training.py",
+      "git_blob": "ee7314a4ae82e94694edb2d4b2f6b184bfdd6990",
+      "sha256": "69d482e2d6e3a3c56ca0489b6319df2126c8ef79f6eee92277395fe538887b5b",
+      "bytes": 13130,
+      "relocated": false
+    },
+    {
+      "path": "source/B_Unet_model_training/A0_Unet_model_training-07092025-11192025-6letter.py",
+      "original_path": "B_Unet_model_training/A0_Unet_model_training-07092025-11192025-6letter.py",
+      "git_blob": "9efe190a4635be83f67c13caade645e66a16711c",
+      "sha256": "7a89e54351c89647b75b507c0418a5355a6e683203d32cbc85681210148e66c1",
+      "bytes": 13184,
+      "relocated": false
+    },
+    {
+      "path": "source/B_Unet_model_training/A0_Unet_model_training-07092025-0822-CryoDataBot2.py",
+      "original_path": "B_Unet_model_training/A0_Unet_model_training-07092025-0822-CryoDataBot2.py",
+      "git_blob": "2f0313bf56c15b5365483df6b3c9e44afffe37d2",
+      "sha256": "1a28db5d4b66b3185edf0aa5da1f4253c291fe96363eb5a7426464ccf9772120",
+      "bytes": 13494,
+      "relocated": false
+    },
+    {
+      "path": "source/B_Unet_model_training/A0_Unet_model_training-CryoDataBot.py",
+      "original_path": "B_Unet_model_training/A0_Unet_model_training-CryoDataBot.py",
+      "git_blob": "7c0091ce958fa8964d616847899ddc07a5ba41f7",
+      "sha256": "c141abff8d72f258d356411df5759299f478261b94d1b6f541e6839bbf0868fb",
+      "bytes": 12562,
+      "relocated": false
+    },
+    {
+      "path": "source/B_Unet_model_training/B0_MODEL.py",
+      "original_path": "B_Unet_model_training/B0_MODEL.py",
+      "git_blob": "4f4d005047f66c06c2fb94a37ca8b85f766b34a4",
+      "sha256": "bd806965a89f0771db164d85a61ccd727705e7483c9718dae1dd407f390ea92c",
+      "bytes": 2781,
+      "relocated": false
+    },
+    {
+      "path": "source/B_Unet_model_training/B1_DATASET.py",
+      "original_path": "B_Unet_model_training/B1_DATASET.py",
+      "git_blob": "91f79e320e89a086c5d8381a0d52287fec90439b",
+      "sha256": "056426606776100ccaa903d9e84925824efff0e744dfe0fb808953f64e9bc979",
+      "bytes": 1850,
+      "relocated": false
+    },
+    {
+      "path": "source/B_Unet_model_training/B2_UTILS.py",
+      "original_path": "B_Unet_model_training/B2_UTILS.py",
+      "git_blob": "91a593ed134107c67fafbe6fd5a569623d8231c3",
+      "sha256": "209b6816d28366480aa29fbee0021e38c5ddc1a6f74cbb3c482f2059934ee2d3",
+      "bytes": 7194,
+      "relocated": false
+    },
+    {
+      "path": "source/A_Dataset_generation/B0_Dataset_generation.py",
+      "original_path": "A_Dataset_generation/B0_Dataset_generation.py",
+      "git_blob": "310658c26187eeaaa8a0a84915d3d508bc7b0698",
+      "sha256": "1c3cecd4927d59eebbb7e199f1562d74fcf3d632ded9adee5f2a719577016f57",
+      "bytes": 5483,
+      "relocated": false
+    },
+    {
+      "path": "source/A_Dataset_generation/B1_UTILS.py",
+      "original_path": "A_Dataset_generation/B1_UTILS.py",
+      "git_blob": "b8f2c4c3b5ed8fe6eff30608b838bc88c01cc37a",
+      "sha256": "23e60777f2a86e66fb43e2208a95ff55b1349aa48fabde45e740b8d3d4bf821b",
+      "bytes": 4141,
+      "relocated": false
+    },
+    {
+      "path": "source/A_Dataset_generation/__init__.py",
+      "original_path": "A_Dataset_generation/__init__.py",
+      "git_blob": "8b137891791fe96927ad78e64b0aad7bded08bdc",
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+      "bytes": 1,
+      "relocated": false
+    },
+    {
+      "path": "source/U_UTILS/MRC.py",
+      "original_path": "U_UTILS/MRC.py",
+      "git_blob": "c73742836b4d643ef70363486e20d4bdd915e3af",
+      "sha256": "b9a395a83a85d73daa4e569cf199e786b57ad389f166df73737f29d857570364",
+      "bytes": 28717,
+      "relocated": false
+    },
+    {
+      "path": "source/U_UTILS/__init__.py",
+      "original_path": "U_UTILS/__init__.py",
+      "git_blob": "8b137891791fe96927ad78e64b0aad7bded08bdc",
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+      "bytes": 1,
+      "relocated": false
+    },
+    {
+      "path": "source/A_Dataset_generation/B2_UTILS_data2npy.py",
+      "original_path": "A_Dataset_generation/debug/B2_UTILS_data2npy.py",
+      "git_blob": "8a64e34b1efdcd8981fe3013962bb4b562c5d662",
+      "sha256": "dbbc6395d03a778c8a1e1579954f1624268ea66849657f4d1edd22ad87de484e",
+      "bytes": 21192,
+      "relocated": true
+    }
+  ],
+  "reference_records": [
+    {
+      "path": "label_groups_and_counts.txt",
+      "source": "CryoID2/Other material for submission/Tables/U-Net/README.txt",
+      "sha256": "6b72c47c8c65774e85a5deb21fd51c440f034fb6d8770adea2d74709d5c3c090",
+      "bytes": 1776,
+      "description": "Original submitted label grouping and voxel-count record; not executable conversion code."
+    }
+  ]
+}

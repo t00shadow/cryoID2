@@ -125,6 +125,64 @@ a run. Results are saved under `<project>/cryoid_results/`, with per-run outputs
 in `runs/`, reusable predictions in `unetpredictions/`, and retained models in
 `best_overall/`.
 
+## Protein complexes in the candidate FASTA
+
+Use the same map and FASTA inputs in the CLI or GUI. To describe a complex,
+give its chain records a shared `candidate` identifier and distinct `chain`
+identifiers. Record identifiers must also be unique:
+
+```fasta
+>hemoglobin_alpha candidate=hemoglobin chain=alpha copies=2
+VLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSHGSAQVKGHGKKVADALTNAVAHVDDMPNALSALSDLHAHKLRVDPVNFKLLSHCLLVTLAAHLPAEFTPAVHASLDKFLASVSTVLTSKYR
+>hemoglobin_beta candidate=hemoglobin chain=beta copies=2
+VHLTPEEKSAVTALWGKVNVDEVGGEALGRLLVVYPWTQRFFESFGDLSTPDAVMGNPKVKAHGKKVLGAFSDGLAHLDNLKGTFATLSELHCDKLHVDPENFRLLGNVLVCVLAHHFGKEFTPPVQAAYQKVVAGVANALAHKYH
+```
+
+`copies` defaults to 1; it specifies required assembly chain instances. A
+single sequence with `copies=2` describes a homodimer. Independent candidates
+and complexes can coexist in one FASTA. Records without `candidate=` remain
+independent candidates. Adding singleton annotations preserves their original
+identifiers, scores, ranking, and structure-search behavior. RNA records remain
+independent and use the existing RNA method.
+
+Protein groups use the strongest original chain score plus fragment support
+better explained by another chain. Each traced fragment contributes only its
+strongest chain support; repeated or similar chains cannot multiply that
+support. Chain order does not affect the group score. These scores are a
+ranking heuristic, not calibrated complex probabilities.
+
+Structure retrieval searches each supplied chain separately and prefers
+biological assemblies with compatible, distinct instances for every required
+chain. Additional assembly partners are retained for fitting. If no assembly
+matches all requirements, the chain with the strongest allocated trace support
+anchors retrieval of complete assemblies; results are labeled
+`partial_sequence_match` and record missing requirements. Tied anchors are
+retained. No supported anchor produces no fallback candidates.
+
+There is no complex-mode switch or new scoring setting. Grouped ranking rows
+include `candidate_chains`; saved results and selected-sequence FASTA files
+retain every supplied chain. The legacy `sequence` field represents one chain
+for compatibility; use `candidate_chains` for the complete group.
+For rankings containing complexes, the GUI shows total residues (including
+copies) and each chain's identifier, copy count, and sequence length. Singleton
+only rankings retain their original display.
+
+## Protein trace lengths
+
+Protein tracing first applies the configured minimum trace length (default
+10 residues). If no component reaches that minimum, it automatically uses an
+effective minimum of 0 and retains all available components, including isolated
+positions. The fallback is logged and recorded in `trace_length_filter.json`.
+If at least one component reaches the requested minimum, the original length
+filter applies. Short retained traces may still lack enough sequence evidence
+for identification.
+
+If no protein queries are produced, or all queries are single residues, sequence ranking preserves
+FASTA input order and selects the first candidate (or first-occurring candidate
+group). Scores are left blank and the logs identify the selection as an input-order
+fallback without alignment evidence. Query sets containing longer fragments use
+the normal sequence-scoring method.
+
 ## Command line
 
 Activate the environment first: `conda activate cryoid`, or
