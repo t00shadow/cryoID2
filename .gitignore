@@ -62,12 +62,9 @@ CryoID_v2.log
 # Local-only project material
 /docs/
 /experiments/
-# Keep the public project and training README files.
+# Keep the public project README file.
 **/README.md
 !/README.md
-!/training/README.md
 
-# Optional training environments and local runs
-/training/.venv/
-/training/work/
-/training/run-data/
+# Training source, data, and runs stay local.
+/training/
