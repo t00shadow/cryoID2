@@ -400,6 +400,33 @@ def _ranking_run_label(path: Path) -> str:
     return f"{run_dir.name}{suffix}"
 
 
+def _run_input_paths(run_dir: Path) -> tuple[str, str]:
+    payload = json.loads((run_dir / "run_config.json").read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("Run configuration must contain a JSON object.")
+    density_map = payload.get("density_map")
+    candidate_pool = payload.get("candidate_pool")
+    if not all(isinstance(path, str) and path.strip() for path in (density_map, candidate_pool)):
+        raise ValueError("Run configuration does not contain both input paths.")
+    return (
+        str(Path(density_map).expanduser().resolve()),
+        str(Path(candidate_pool).expanduser().resolve()),
+    )
+
+
+def _set_historical_inputs_locked(ui: CryoIDUI, locked: bool) -> None:
+    ui.density_map_edit.setReadOnly(locked)
+    ui.candidate_pool_edit.setReadOnly(locked)
+    ui.browse_density_button.setEnabled(not locked)
+    ui.browse_pool_button.setEnabled(not locked)
+
+
+def _clear_run_inputs(ui: CryoIDUI) -> None:
+    _set_historical_inputs_locked(ui, False)
+    ui.density_map_edit.clear()
+    ui.candidate_pool_edit.clear()
+
+
 class SequenceRankingDialog(QtWidgets.QDialog):
     run_selected = QtCore.pyqtSignal(str)
 
@@ -596,6 +623,8 @@ def apply_theme(app, window, ui, theme: str = "light") -> None:
         QPushButton#run_button:hover {{ background: #1d4ed8; }}
         QPushButton#run_button[blocked="true"] {{ background: {"#9a651d" if dark else "#996117"}; color: white; }}
         QPushButton#run_button[blocked="true"]:hover {{ background: #805012; }}
+        QPushButton#run_button[historical="true"] {{ background: {border}; color: {muted}; border: 1px solid {border}; }}
+        QPushButton#run_button[historical="true"]:hover {{ background: {border}; border-color: {muted}; }}
         QPushButton#run_button[checking="true"] {{ background: {button}; color: {muted}; border: 1px solid {border}; }}
         QPushButton#run_button[running="true"] {{ background: #b91c1c; }}
         QPushButton#run_button[running="true"]:hover {{ background: #991b1b; }}
@@ -613,11 +642,14 @@ def apply_theme(app, window, ui, theme: str = "light") -> None:
 
 
 def set_run_button_state(ui, *, running: bool, cancelling: bool = False,
-                         blocked: bool = False, checking: bool = False) -> None:
+                         blocked: bool = False, checking: bool = False,
+                         historical: bool = False) -> None:
     ui.run_button.setText("Abort" if running else "Run")
+    historical = historical and not running
     blocked, checking = blocked and not running, checking and not running
     ui.run_button.setToolTip(
         "Abort the current job" if running else
+        "Choose File > New Run to start a new run" if historical else
         "Checking setup requirements" if checking else
         "Show missing setup requirements" if blocked else "Run the pipeline"
     )
@@ -631,7 +663,11 @@ def set_run_button_state(ui, *, running: bool, cancelling: bool = False,
     ui.run_button.setProperty("running", running)
     ui.run_button.setProperty("blocked", blocked)
     ui.run_button.setProperty("checking", checking)
-    ui.run_button.setAccessibleName("Run unavailable: setup required" if blocked else ui.run_button.text())
+    ui.run_button.setProperty("historical", historical)
+    ui.run_button.setAccessibleName(
+        "Run unavailable: viewing a past run" if historical else
+        "Run unavailable: setup required" if blocked else ui.run_button.text()
+    )
     ui.run_button.style().unpolish(ui.run_button)
     ui.run_button.style().polish(ui.run_button)
 
@@ -701,6 +737,7 @@ def main() -> None:
     state: dict[str, object] = {
         "thread": None,
         "worker": None,
+        "historical_run_selected": False,
     }
     sequence_ranking_action = QtGui.QAction("Sequence Ranking", window)
     sequence_ranking_action.setToolTip("View ranked sequence matches")
@@ -774,6 +811,8 @@ def main() -> None:
 
     def readiness_issues() -> list[str]:
         issues = list(startup_issues.values())
+        if state.get("historical_run_selected"):
+            issues.append("A past run is selected. Choose File > New Run to start another run.")
         if diagnostics_state["thread"] is not None:
             issues.append("Dependency and configuration checks are still running. Please wait.")
         elif diagnostics_state["error"]:
@@ -798,8 +837,15 @@ def main() -> None:
 
     def refresh_run_availability() -> None:
         if state.get("worker") is None:
-            set_run_button_state(ui, running=False, blocked=bool(readiness_issues()),
-                                 checking=diagnostics_state["thread"] is not None)
+            historical = bool(state.get("historical_run_selected"))
+            set_run_button_state(ui, running=False, blocked=bool(readiness_issues()) and not historical,
+                                 checking=diagnostics_state["thread"] is not None,
+                                 historical=historical)
+
+    def set_historical_run_selected(selected: bool) -> None:
+        state["historical_run_selected"] = selected
+        _set_historical_inputs_locked(ui, selected)
+        refresh_run_availability()
 
     def show_setup_issues() -> None:
         dialog = SetupIssuesDialog(readiness_issues(), window)
@@ -1054,9 +1100,25 @@ def main() -> None:
         dialog = SequenceRankingDialog(ranking, window, ranking_paths=rankings)
 
         def remember_selected_run(run_dir: str) -> None:
-            persist_config(sequence_ranking_run_dir=run_dir)
+            selected_run = Path(run_dir).expanduser().resolve()
+            set_historical_run_selected(True)
+            try:
+                density_map, candidate_pool = _run_input_paths(selected_run)
+            except (OSError, UnicodeError, ValueError) as exc:
+                QtWidgets.QMessageBox.warning(
+                    window,
+                    "Run inputs unavailable",
+                    f"Could not restore the selected run's input paths.\n\n{exc}",
+                )
+                persist_config(sequence_ranking_run_dir=selected_run)
+                return
+            ui.density_map_edit.setText(density_map)
+            ui.candidate_pool_edit.setText(candidate_pool)
+            persist_config(sequence_ranking_run_dir=selected_run)
 
         dialog.run_selected.connect(remember_selected_run)
+        if dialog.path is not None:
+            remember_selected_run(str(dialog.path.parent))
         _exec_dialog(dialog)
 
     def browse_density_map() -> None:
@@ -1083,13 +1145,18 @@ def main() -> None:
 
     def start_pipeline(*_args, setup_checked: bool = False) -> None:
         if readiness_issues():
+            if setup_checked:
+                _set_historical_inputs_locked(ui, False)
             show_setup_issues()
             return
         if not persist_startup_settings(snapshot=True):
+            if setup_checked:
+                _set_historical_inputs_locked(ui, False)
             return
         if not setup_checked:
             # Recheck in the background so a repaired/changed environment or
             # bundle cannot be accepted using a stale startup report.
+            _set_historical_inputs_locked(ui, True)
             refresh_diagnostics(run_after_checks=True)
             return
         density_map = ui.density_map_edit.text().strip()
@@ -1107,6 +1174,7 @@ def main() -> None:
         report = diagnostics_state["report"]
         report.weights = weights_check
         if not weights_check.ok:
+            _set_historical_inputs_locked(ui, False)
             refresh_run_availability()
             show_setup_issues()
             return
@@ -1119,6 +1187,7 @@ def main() -> None:
             ensure_project_dirs(project_dir)
         except OSError as exc:
             append_log(f"Run blocked: could not create project folder {project_dir}: {exc}")
+            _set_historical_inputs_locked(ui, False)
             return
         local_config_state["project_dir"] = str(project_dir)
         if not persist_config(
@@ -1138,6 +1207,7 @@ def main() -> None:
             structure_selection=settings_state.get("structure_selection", ""),
             keep_tmp=settings_state.get("keep_tmp", "false") == "true",
         ):
+            _set_historical_inputs_locked(ui, False)
             return
         density_map = ui.density_map_edit.text().strip()
         candidate_pool = ui.candidate_pool_edit.text().strip()
@@ -1195,6 +1265,7 @@ def main() -> None:
             set_run_button_state(ui, running=False)
             state["thread"] = None
             state["worker"] = None
+            _set_historical_inputs_locked(ui, False)
             refresh_run_availability()
             if hasattr(result, "stages"):
                 ambiguous_mode = next(
@@ -1352,6 +1423,7 @@ def main() -> None:
                                           f"The project configuration could not be saved.\n\n{config_path}\n\n{exc}")
             return
         apply_saved_settings(saved_settings)
+        set_historical_run_selected(False)
         project_state["active"] = True
         refresh_project_title()
         append_log(f"{'Created' if create_root is not None else 'Opened'} project: {project}")
@@ -1405,6 +1477,21 @@ def main() -> None:
                 )
                 return
             activate_project(project)
+
+    def new_run() -> None:
+        if state.get("worker") is not None:
+            QtWidgets.QMessageBox.warning(
+                window, "Run active", "Abort or wait for completion before starting a new run."
+            )
+            return
+        set_historical_run_selected(False)
+        _clear_run_inputs(ui)
+        clear_input_highlight()
+        persist_config(
+            sequence_ranking_run_dir="",
+            last_density_map="",
+            last_candidate_pool="",
+        )
 
     def launch_files(files: list[Path]) -> bool:
         configured_chimerax = settings_state.get("chimerax_path") or None
@@ -1512,6 +1599,10 @@ def main() -> None:
         ui.menuFile.clear()
         ui.menuFile.addAction(ui.actionNew)
         ui.menuFile.addAction(ui.actionOpen)
+        new_run_action = QtGui.QAction("New Run", window)
+        new_run_action.setToolTip("Clear the selected run's inputs and prepare a new run")
+        new_run_action.triggered.connect(new_run)
+        ui.menuFile.addAction(new_run_action)
         ui.actionNew.setToolTip("Create a new project folder with blank inputs")
         ui.actionOpen.setToolTip("Resume an existing CryoID project or run")
         standard_keys = getattr(QtGui.QKeySequence, "StandardKey", QtGui.QKeySequence)
@@ -1575,7 +1666,8 @@ def main() -> None:
     ui.actionConfigurations.triggered.connect(open_configurations)
     ui.actionGitHub.triggered.connect(lambda: open_repository("GitHub", CRYOID_GITHUB_URL))
     ui.actionHuggingFace.triggered.connect(lambda: open_repository("Hugging Face", CRYOID_HUGGINGFACE_URL))
-    ui.actionModel.triggered.connect(lambda: launch_files([]))
+    # ui.actionModel.triggered.connect(lambda: launch_files([]))
+    ui.actionModel.triggered.connect(open_chimerax_session)
     ui.actionResultsFolder.triggered.connect(open_results_folder)
     sequence_ranking_action.triggered.connect(lambda: open_sequence_ranking())
     ui.options_button.clicked.connect(open_options)

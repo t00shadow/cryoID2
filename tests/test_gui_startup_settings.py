@@ -126,14 +126,24 @@ def test_gui_global_paths_survive_selection_restart_and_job_completion(monkeypat
                 assert len(conflicts) == 1 and not workers
                 conflict_action[0] = "keep"
                 run.click()
+                density_edit = window.findChild(gui.QtWidgets.QLineEdit, "density_map_edit")
+                pool_edit = window.findChild(gui.QtWidgets.QLineEdit, "candidate_pool_edit")
+                density_browse = window.findChild(gui.QtWidgets.QPushButton, "browse_density_button")
+                pool_browse = window.findChild(gui.QtWidgets.QPushButton, "browse_pool_button")
+                assert density_edit.isReadOnly() and pool_edit.isReadOnly()
+                assert not density_browse.isEnabled() and not pool_browse.isEnabled()
                 settle()
                 assert len(conflicts) == 2 and len(workers) == 1
+                assert density_edit.isReadOnly() and pool_edit.isReadOnly()
+                assert not density_browse.isEnabled() and not pool_browse.isEnabled()
                 worker = workers[-1]
                 assert worker.args[3] == paths["B"]["weights_dir"]
                 assert worker.kwargs["chimerax_path"] == paths["B"]["chimerax_path"]
                 # Saving shared paths during a run cannot be undone by completion.
                 configure(paths["C"])
                 worker.finished.emit(PipelineResult(project_b / "runs" / "probe", [StageResult("Run", "ok", "Done")]))
+                assert not density_edit.isReadOnly() and not pool_edit.isReadOnly()
+                assert density_browse.isEnabled() and pool_browse.isEnabled()
                 deadline = time.monotonic() + 5
                 while time.monotonic() < deadline:
                     app.processEvents()

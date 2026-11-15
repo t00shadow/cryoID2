@@ -5,7 +5,15 @@ from pathlib import Path
 import pytest
 
 from G_GUI.settings_dialogs import OptionsWindow
-from G_GUI.main_gui import SequenceRankingDialog, _load_sequence_ranking_display
+from G_GUI.main_gui import (
+    SequenceRankingDialog,
+    _load_sequence_ranking_display,
+    _run_input_paths,
+    _clear_run_inputs,
+    _set_historical_inputs_locked,
+    set_run_button_state,
+)
+from G_GUI.gui_skin import CryoIDUI
 from G_GUI.qt_compat import QtCore, QtWidgets
 
 
@@ -27,6 +35,92 @@ def test_sequence_ranking_display_keeps_only_full_id_length_and_score(
     assert headers == ["Candidate ID", "Sequence Length", "Score"]
     assert rows == [[full_candidate_id, "605", "188.3767507096021"]]
     assert "..." not in rows[0][0]
+
+
+def test_run_input_paths_restore_density_map_and_candidate_pool(tmp_path: Path) -> None:
+    import json
+
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    density_map = tmp_path / "density.mrc"
+    candidate_pool = tmp_path / "candidates.fasta"
+    (run_dir / "run_config.json").write_text(
+        json.dumps({
+            "density_map": str(density_map),
+            "candidate_pool": str(candidate_pool),
+        }),
+        encoding="utf-8",
+    )
+
+    assert _run_input_paths(run_dir) == (
+        str(density_map.resolve()),
+        str(candidate_pool.resolve()),
+    )
+
+
+def test_historical_run_inputs_lock_and_unlock_fields_and_browse_buttons() -> None:
+    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    window = QtWidgets.QMainWindow()
+    ui = CryoIDUI()
+    ui.setup(window)
+
+    _set_historical_inputs_locked(ui, True)
+
+    assert ui.density_map_edit.isReadOnly()
+    assert ui.candidate_pool_edit.isReadOnly()
+    assert not ui.browse_density_button.isEnabled()
+    assert not ui.browse_pool_button.isEnabled()
+
+    _set_historical_inputs_locked(ui, False)
+
+    assert not ui.density_map_edit.isReadOnly()
+    assert not ui.candidate_pool_edit.isReadOnly()
+    assert ui.browse_density_button.isEnabled()
+    assert ui.browse_pool_button.isEnabled()
+    window.close()
+    app.processEvents()
+
+
+def test_new_run_clears_inputs_and_reenables_browsing() -> None:
+    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    window = QtWidgets.QMainWindow()
+    ui = CryoIDUI()
+    ui.setup(window)
+    ui.density_map_edit.setText("past-map.mrc")
+    ui.candidate_pool_edit.setText("past-pool.fasta")
+    _set_historical_inputs_locked(ui, True)
+
+    _clear_run_inputs(ui)
+
+    assert ui.density_map_edit.text() == ""
+    assert ui.candidate_pool_edit.text() == ""
+    assert not ui.density_map_edit.isReadOnly()
+    assert not ui.candidate_pool_edit.isReadOnly()
+    assert ui.browse_density_button.isEnabled()
+    assert ui.browse_pool_button.isEnabled()
+    window.close()
+    app.processEvents()
+
+
+def test_historical_run_button_stays_gray_but_can_show_setup_issues() -> None:
+    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    window = QtWidgets.QMainWindow()
+    ui = CryoIDUI()
+    ui.setup(window)
+
+    set_run_button_state(ui, running=False, historical=True)
+
+    assert ui.run_button.isEnabled()
+    assert "New Run" in ui.run_button.toolTip()
+    assert ui.run_button.accessibleName() == "Run unavailable: viewing a past run"
+    assert ui.run_button.property("historical")
+    assert not ui.run_button.property("blocked")
+
+    set_run_button_state(ui, running=False)
+    assert ui.run_button.isEnabled()
+    assert not ui.run_button.property("historical")
+    window.close()
+    app.processEvents()
 
 
 def test_sequence_ranking_dialog_disables_candidate_id_elision() -> None:
