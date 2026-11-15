@@ -13,7 +13,7 @@ requires-python = ">=3.10,<3.14"
 dependencies = [
     "biopython>=1.81,<2",
     "gemmi>=0.6.7,<0.8",
-    "huggingface-hub>=1.33,<2",
+    "huggingface-hub>=1.33,<2.4",
     "matplotlib>=3.7.5,<4",
     "mrcfile>=1.5.4,<2",
     "numpy>=1.23.5,<3; sys_platform != 'darwin' or platform_machine != 'x86_64'",
