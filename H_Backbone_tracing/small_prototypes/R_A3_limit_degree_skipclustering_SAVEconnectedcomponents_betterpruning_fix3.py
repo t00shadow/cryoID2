@@ -790,7 +790,8 @@ if __name__ == "__main__":
     min_component_size = 18  # tune this
     ### graph_output_dir is OPTIONAL, if not given, will default to dir of clustered_pdb_path
     # graph_output_dir = r"C:\Users\noelu\Downloads\paper_figure_assets\fig1 emd_52422 chimerax images\data"
-    graph_output_dir = r"C:\Users\noelu\programming\python_projects\cryoID_v2\H_Backbone_tracing\misc_outputs\files_for_grayson\2026_06_29_malaria_rerun"
+    # graph_output_dir = r"C:\Users\noelu\programming\python_projects\cryoID_v2\H_Backbone_tracing\misc_outputs\files_for_grayson\2026_06_29_malaria_rerun"
+    graph_output_dir = r"C:\Users\noelu\programming\python_projects\cryoID_v2\H_Backbone_tracing\misc_outputs\files_for_grayson\2026_11_25_malaria_VERIFICATION"
     components_output_dir = graph_output_dir + "\cc_minsize"
     os.makedirs(components_output_dir, exist_ok=True)
     
